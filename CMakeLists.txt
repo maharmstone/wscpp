@@ -18,6 +18,8 @@ add_library(wscpp SHARED ${SRC_FILES})
 
 if(WIN32)
 target_link_libraries(wscpp wsock32 ws2_32)
+else()
+target_link_libraries(wscpp pthread)
 endif()
 
 target_compile_options(wscpp PRIVATE
