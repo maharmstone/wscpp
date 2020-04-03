@@ -469,7 +469,7 @@ namespace ws {
 					throw sockets_error("listen");
 #endif
 
-				while (running) {
+				while (true) {
 					struct sockaddr_in6 their_addr;
 #ifdef _WIN32
 					SOCKET newsock;
