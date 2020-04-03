@@ -95,7 +95,7 @@ namespace ws {
 		del_thread.detach();
 	}
 
-	void client_thread::send_ws_message(enum opcode opcode, const string& payload) const {
+	void client_thread::send_ws_message(enum opcode opcode, const string_view& payload) const {
 		char* msg;
 		size_t msglen, len = payload.length();
 
@@ -113,12 +113,12 @@ namespace ws {
 
 			if (len <= 125) {
 				msg[1] = (char)len;
-				memcpy(msg + 2, payload.c_str(), len);
+				memcpy(msg + 2, payload.data(), len);
 			} else if (len < 0x10000) {
 				msg[1] = 126;
 				msg[2] = (len & 0xff00) >> 8;
 				msg[3] = len & 0xff;
-				memcpy(msg + 4, payload.c_str(), len);
+				memcpy(msg + 4, payload.data(), len);
 			} else {
 				msg[1] = 127;
 				msg[2] = (char)((len & 0xff00000000000000) >> 56);
@@ -129,7 +129,7 @@ namespace ws {
 				msg[7] = (char)((len & 0xff0000) >> 16);
 				msg[8] = (char)((len & 0xff00) >> 8);
 				msg[9] = len & 0xff;
-				memcpy(msg + 10, payload.c_str(), len);
+				memcpy(msg + 10, payload.data(), len);
 			}
 
 			impl->send_raw(string_view(msg, msglen));
