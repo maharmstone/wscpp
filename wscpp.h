@@ -75,7 +75,7 @@ namespace ws {
 		client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
 					  const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler);
 		~client_thread();
-		void send(enum opcode opcode, const std::string_view& payload) const;
+		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 
 		void* context;
 
