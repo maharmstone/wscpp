@@ -12,7 +12,8 @@ add_compile_definitions(WSCPP_EXPORT)
 set(SRC_FILES wsclient.cpp
 	wsserver.cpp
 	b64.cpp
-	sha1.cpp)
+	sha1.cpp
+	wsexcept.cpp)
 
 add_library(wscpp SHARED ${SRC_FILES})
 

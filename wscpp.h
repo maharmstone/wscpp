@@ -17,10 +17,6 @@
 
 #pragma once
 
-#ifdef _WIN32
-#include <WinSock2.h>
-#include <ws2ipdef.h>
-#endif
 #include <map>
 #include <string>
 #include <thread>
@@ -65,12 +61,7 @@ namespace ws {
 
 	class sockets_error : public std::exception {
 	public:
-#ifdef _WIN32
-		sockets_error(const char* func) : err(WSAGetLastError()), msg(std::string(func) + " failed (error " + std::to_string(err) + ")") {
-#else
-		sockets_error(const char* func) : err(errno), msg(std::string(func) + " failed (error " + std::to_string(err) + ")") {
-#endif
-		}
+		sockets_error(const char* func);
 
 		virtual const char* what() const noexcept {
 			return msg.c_str();
