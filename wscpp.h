@@ -140,15 +140,13 @@ namespace ws {
 		std::thread t;
 	};
 
+	class server_pimpl;
+
 	class WSCPP server {
 	public:
 		server(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
-			   const std::function<void(client_thread&)>& conn_handler = nullptr) :
-			port(port),
-			backlog(backlog),
-			msg_handler(msg_handler),
-			conn_handler(conn_handler)
-		{ }
+			   const std::function<void(client_thread&)>& conn_handler = nullptr);
+		~server();
 
 		void start();
 		void for_each(std::function<void(client_thread&)> func);
@@ -157,17 +155,7 @@ namespace ws {
 		friend client_thread;
 
 	private:
-		uint16_t port;
-		int backlog;
-		std::function<void(client_thread&, const std::string&)> msg_handler;
-		std::function<void(client_thread&)> conn_handler;
-#ifdef _WIN32
-		SOCKET sock = INVALID_SOCKET;
-#else
-		int sock = -1;
-#endif
-		std::list<client_thread> client_threads;
-		std::shared_timed_mutex vector_mutex;
+		server_pimpl* impl;
 	};
 
 	class WSCPP client {

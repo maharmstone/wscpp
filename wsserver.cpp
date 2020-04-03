@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include "wscpp.h"
+#include "wsserver-impl.h"
 #include "b64.h"
 #include "sha1.h"
 
@@ -73,11 +74,11 @@ namespace ws {
 		}
 
 		thread del_thread([&]() {
-			unique_lock<shared_timed_mutex> guard(serv.vector_mutex);
+			unique_lock<shared_timed_mutex> guard(serv.impl->vector_mutex);
 
-			for (auto it = serv.client_threads.begin(); it != serv.client_threads.end(); it++) {
+			for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
 				if (it->thread_id == thread_id) {
-					serv.client_threads.erase(it);
+					serv.impl->client_threads.erase(it);
 					break;
 				}
 			}
@@ -427,15 +428,15 @@ namespace ws {
 
 			memset(&myaddr, 0, sizeof(myaddr));
 			myaddr.sin6_family = AF_INET6;
-			myaddr.sin6_port = htons(port);
+			myaddr.sin6_port = htons(impl->port);
 			myaddr.sin6_addr = in6addr_any;
 
-			sock = socket(AF_INET6, SOCK_STREAM, 0);
+			impl->sock = socket(AF_INET6, SOCK_STREAM, 0);
 
 #ifdef _WIN32
-			if (sock == INVALID_SOCKET)
+			if (impl->sock == INVALID_SOCKET)
 #else
-			if (sock == -1)
+			if (impl->sock == -1)
 #endif
 				throw runtime_error("socket failed.");
 
@@ -444,28 +445,28 @@ namespace ws {
 				int ipv6only = 0;
 
 #ifdef _WIN32
-				if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == SOCKET_ERROR)
+				if (setsockopt(impl->sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == SOCKET_ERROR)
 					throw sockets_error("setsockopt");
 
-				if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&ipv6only), sizeof(int)) == SOCKET_ERROR)
+				if (setsockopt(impl->sock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&ipv6only), sizeof(int)) == SOCKET_ERROR)
 					throw sockets_error("setsockopt");
 
-				if (::bind(sock, reinterpret_cast<sockaddr*>(&myaddr), sizeof(myaddr)) == SOCKET_ERROR)
+				if (::bind(impl->sock, reinterpret_cast<sockaddr*>(&myaddr), sizeof(myaddr)) == SOCKET_ERROR)
 					throw sockets_error("bind");
 
-				if (listen(sock, backlog) == SOCKET_ERROR)
+				if (listen(impl->sock, backlog) == SOCKET_ERROR)
 					throw sockets_error("listen");
 #else
-				if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == -1)
+				if (setsockopt(impl->sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == -1)
 					throw sockets_error("setsockopt");
 
-				if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&ipv6only), sizeof(int)) == -1)
+				if (setsockopt(impl->sock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char*>(&ipv6only), sizeof(int)) == -1)
 					throw sockets_error("setsockopt");
 
-				if (::bind(sock, reinterpret_cast<sockaddr*>(&myaddr), sizeof(myaddr)) == -1)
+				if (::bind(impl->sock, reinterpret_cast<sockaddr*>(&myaddr), sizeof(myaddr)) == -1)
 					throw sockets_error("bind");
 
-				if (listen(sock, backlog) == -1)
+				if (listen(impl->sock, impl->backlog) == -1)
 					throw sockets_error("listen");
 #endif
 
@@ -479,32 +480,32 @@ namespace ws {
 					socklen_t size = sizeof(their_addr);
 #endif
 
-					newsock = accept(sock, reinterpret_cast<sockaddr*>(&their_addr), &size);
+					newsock = accept(impl->sock, reinterpret_cast<sockaddr*>(&their_addr), &size);
 
 #ifdef _WIN32
 					if (newsock != INVALID_SOCKET) {
 #else
 					if (newsock != -1) {
 #endif
-						unique_lock<shared_timed_mutex> guard(vector_mutex);
+						unique_lock<shared_timed_mutex> guard(impl->vector_mutex);
 
-						client_threads.emplace_back(newsock, *this, msg_handler, conn_handler);
+						impl->client_threads.emplace_back(newsock, *this, impl->msg_handler, impl->conn_handler);
 					} else
 						throw sockets_error("accept");
 				}
 			} catch (...) {
 #ifdef _WIN32
-				closesocket(sock);
+				closesocket(impl->sock);
 #else
-				::close(sock);
+				::close(impl->sock);
 #endif
 				throw;
 			}
 
 #ifdef _WIN32
-			closesocket(sock);
+			closesocket(impl->sock);
 #else
-			::close(sock);
+			::close(impl->sock);
 #endif
 		} catch (...) {
 #ifdef _WIN32
@@ -519,20 +520,29 @@ namespace ws {
 	}
 
 	void server::for_each(function<void(client_thread&)> func) {
-		std::shared_lock<std::shared_timed_mutex> guard(vector_mutex);
+		std::shared_lock<std::shared_timed_mutex> guard(impl->vector_mutex);
 
-		for (auto& ct : client_threads) {
+		for (auto& ct : impl->client_threads) {
 			func(ct);
 		}
 	}
 
 	void server::close() {
 #ifdef _WIN32
-		if (sock != INVALID_SOCKET)
-			closesocket(sock);
+		if (impl->sock != INVALID_SOCKET)
+			closesocket(impl->sock);
 #else
-		if (sock != -1)
-			::close(sock);
+		if (impl->sock != -1)
+			::close(impl->sock);
 #endif
+	}
+
+	server::server(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+			   const std::function<void(client_thread&)>& conn_handler) {
+		impl = new server_pimpl(port, backlog, msg_handler, conn_handler);
+	}
+
+	server::~server() {
+		delete impl;
 	}
 }
