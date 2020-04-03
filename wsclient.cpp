@@ -28,6 +28,7 @@
 #include <string.h>
 #include <random>
 #include "wscpp.h"
+#include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"
 
@@ -36,7 +37,16 @@ using namespace std;
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 namespace ws {
-	client::client(const string& host, uint16_t port, const string& path, const function<void(client&, const string&)>& msg_handler) : host(host), port(port), path(path), msg_handler(msg_handler) {
+	client::client(const string& host, uint16_t port, const string& path, const function<void(client&, const string&)>& msg_handler) {
+		impl = new client_pimpl(*this, host, port, path, msg_handler);
+	}
+
+	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path, const std::function<void(client&, const std::string&)>& msg_handler) :
+			parent(parent),
+			host(host),
+			port(port),
+			path(path),
+			msg_handler(msg_handler) {
 #ifdef _WIN32
 		WSADATA wsa_data;
 
@@ -121,6 +131,10 @@ namespace ws {
 	}
 
 	client::~client() {
+		delete impl;
+	}
+
+	client_pimpl::~client_pimpl() {
 #ifdef _WIN32
 		if (shutdown(sock, SD_SEND) != SOCKET_ERROR) {
 #else
@@ -152,7 +166,7 @@ namespace ws {
 #endif
 	}
 
-	string client::random_key() {
+	string client_pimpl::random_key() {
 		mt19937 rng;
 		rng.seed(random_device()());
 		uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
@@ -165,7 +179,7 @@ namespace ws {
 		return b64encode(string((char*)rand, 16));
 	}
 
-	void client::send_raw(const string_view& s) const {
+	void client_pimpl::send_raw(const string_view& s) const {
 #ifdef _WIN32
 		if (::send(sock, s.data(), (int)s.length(), 0) == SOCKET_ERROR)
 			throw runtime_error("send failed (error " + to_string(WSAGetLastError()) + ")");
@@ -175,7 +189,7 @@ namespace ws {
 #endif
 	}
 
-	string client::recv_http() {
+	string client_pimpl::recv_http() {
 		string buf;
 
 		do {
@@ -231,7 +245,7 @@ namespace ws {
 		} while (true);
 	}
 
-	void client::send_handshake() {
+	void client_pimpl::send_handshake() {
 		string key = random_key();
 
 		send_raw("GET "s + path + " HTTP/1.1\r\nHost: "s + host + ":"s + to_string(port) + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: "s + key + "\r\nSec-WebSocket-Version: 13\r\n\r\n"s);
@@ -319,11 +333,11 @@ namespace ws {
 			memset(&header[10], 0, 4);
 		}
 
-		send_raw(header);
-		send_raw(payload);
+		impl->send_raw(header);
+		impl->send_raw(payload);
 	}
 
-	string client::recv(unsigned int len) {
+	string client_pimpl::recv(unsigned int len) {
 		char s[4096];
 		int bytes, err = 0;
 
@@ -357,19 +371,19 @@ namespace ws {
 		return string(s, bytes);
 	}
 
-	void client::parse_ws_message(enum opcode opcode, const string& payload) {
+	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
 		switch (opcode) {
 			case opcode::close:
 				open = false;
 				return;
 
 			case opcode::ping:
-				send_ws_message(opcode::pong, payload);
+				parent.send_ws_message(opcode::pong, payload);
 				break;
 
 			case opcode::text: {
 				if (msg_handler)
-					msg_handler(*this, payload);
+					msg_handler(parent, payload);
 
 				break;
 			}
@@ -379,7 +393,7 @@ namespace ws {
 		}
 	}
 
-	void client::recv_thread() {
+	void client_pimpl::recv_thread() {
 		while (open) {
 			string header = recv(2);
 
@@ -454,11 +468,11 @@ namespace ws {
 	}
 
 	void client::join() const {
-		if (t)
-			t->join();
+		if (impl->t)
+			impl->t->join();
 	}
 
 	bool client::is_open() const {
-		return open;
+		return impl->open;
 	}
 }

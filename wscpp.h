@@ -158,6 +158,8 @@ namespace ws {
 		server_pimpl* impl;
 	};
 
+	class client_pimpl;
+
 	class WSCPP client {
 	public:
 		client(const std::string& host, uint16_t port, const std::string& path, const std::function<void(client&, const std::string&)>& msg_handler = nullptr);
@@ -167,27 +169,7 @@ namespace ws {
 		bool is_open() const;
 
 	private:
-		void send_handshake();
-		std::string random_key();
-		void send_raw(const std::string_view& s) const;
-		std::string recv_http();
-		void recv_thread();
-		std::string recv(unsigned int len);
-		void parse_ws_message(enum opcode opcode, const std::string& payload);
-
-		std::string host;
-		uint16_t port;
-		std::string path;
-		std::function<void(client&, const std::string&)> msg_handler;
-#ifdef _WIN32
-		SOCKET sock = INVALID_SOCKET;
-#else
-		int sock = -1;
-#endif
-		bool open = false;
-		std::thread* t = nullptr;
-		std::string payloadbuf;
-		enum opcode last_opcode;
+		client_pimpl* impl;
 	};
 }
 
