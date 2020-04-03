@@ -132,7 +132,7 @@ namespace ws {
 				memcpy(msg + 10, payload.c_str(), len);
 			}
 
-			impl->send_raw(msg, (int)msglen);
+			impl->send_raw(string_view(msg, msglen));
 		} catch (...) {
 			delete[] msg;
 			throw;
@@ -141,7 +141,7 @@ namespace ws {
 		delete[] msg;
 	}
 
-	void client_thread_pimpl::send_raw(const char* s, int length) const {
+	void client_thread_pimpl::send_raw(const std::string_view& sv) const {
 #ifdef _WIN32
 		u_long mode = 1;
 
@@ -159,7 +159,7 @@ namespace ws {
 			throw runtime_error("fcntl failed");
 #endif
 
-		int bytes = send(fd, s, length, 0);
+		int bytes = send(fd, sv.data(), sv.length(), 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR) {
@@ -186,10 +186,6 @@ namespace ws {
 		if (fcntl(fd, F_SETFL, flags) != 0)
 			throw runtime_error("fcntl failed");
 #endif
-	}
-
-	void client_thread_pimpl::send_raw(const string& s) const {
-		send_raw(s.c_str(), (int)s.length());
 	}
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
