@@ -111,7 +111,7 @@ namespace ws {
 	public:
 		client(const std::string& host, uint16_t port, const std::string& path, const std::function<void(client&, const std::string&)>& msg_handler = nullptr);
 		~client();
-		void send(enum opcode opcode, const std::string_view& payload) const;
+		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		void join() const;
 		bool is_open() const;
 

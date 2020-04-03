@@ -304,7 +304,7 @@ namespace ws {
 			throw runtime_error("Invalid value for Sec-WebSocket-Accept.");
 	}
 
-	void client::send(enum opcode opcode, const string_view& payload) const {
+	void client::send(const string_view& payload, enum opcode opcode) const {
 		string header;
 		uint64_t len = payload.length();
 
@@ -379,7 +379,7 @@ namespace ws {
 				return;
 
 			case opcode::ping:
-				parent.send(opcode::pong, payload);
+				parent.send(payload, opcode::pong);
 				break;
 
 			case opcode::text: {
