@@ -17,13 +17,8 @@
 
 #pragma once
 
-#include <map>
 #include <string>
-#include <thread>
-#include <iostream>
 #include <functional>
-#include <shared_mutex>
-#include <list>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -83,9 +78,10 @@ namespace ws {
 		void run();
 		void send_ws_message(enum opcode opcode, const std::string& payload) const;
 
-		std::thread::id thread_id;
 		std::function<void(client_thread&, const std::string&)> msg_handler;
 		std::function<void(client_thread&)> conn_handler;
+
+		friend client_thread_pimpl;
 
 	private:
 		client_thread_pimpl* impl;

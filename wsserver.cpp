@@ -15,8 +15,10 @@
  * You should have received a copy of the GNU Lesser General Public Licence
  * along with wscpp.  If not, see <http://www.gnu.org/licenses/>. */
 
+#include "wscpp.h"
 #include <string>
 #include <list>
+#include <map>
 #include <shared_mutex>
 #include <sys/types.h>
 #ifndef _WIN32
@@ -26,7 +28,6 @@
 #endif
 #include <fcntl.h>
 #include <string.h>
-#include "wscpp.h"
 #include "wsserver-impl.h"
 #include "b64.h"
 #include "sha1.h"
@@ -62,7 +63,7 @@ namespace ws {
 	}
 
 	void client_thread_pimpl::run() {
-		parent.thread_id = this_thread::get_id();
+		thread_id = this_thread::get_id();
 
 		while (open && state == state_enum::http) {
 			recvbuf += recv();
@@ -81,7 +82,7 @@ namespace ws {
 			unique_lock<shared_timed_mutex> guard(serv.impl->vector_mutex);
 
 			for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
-				if (it->thread_id == parent.thread_id) {
+				if (it->impl->thread_id == thread_id) {
 					serv.impl->client_threads.erase(it);
 					break;
 				}

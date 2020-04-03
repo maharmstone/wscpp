@@ -2,6 +2,8 @@
 
 #include "wscpp.h"
 #include <stdint.h>
+#include <thread>
+#include <map>
 
 namespace ws {
 	class client_thread_pimpl;
@@ -62,6 +64,7 @@ namespace ws {
 
 		client_thread& parent;
 		bool open = true;
+		std::thread::id thread_id;
 		std::string recvbuf, payloadbuf;
 		enum opcode last_opcode;
 #ifdef _WIN32

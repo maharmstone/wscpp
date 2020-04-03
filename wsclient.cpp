@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Lesser General Public Licence
  * along with wscpp.  If not, see <http://www.gnu.org/licenses/>. */
 
+#include "wscpp.h"
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -27,7 +28,7 @@
 #endif
 #include <string.h>
 #include <random>
-#include "wscpp.h"
+#include <map>
 #include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"

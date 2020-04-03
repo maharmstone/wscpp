@@ -1,6 +1,7 @@
 #pragma once
 
 #include "wscpp.h"
+#include <thread>
 
 namespace ws {
 	class client_pimpl {
