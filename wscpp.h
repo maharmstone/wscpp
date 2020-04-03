@@ -77,6 +77,8 @@ namespace ws {
 		~client_thread();
 		void send_ws_message(enum opcode opcode, const std::string& payload) const;
 
+		void* context;
+
 		friend client_thread_pimpl;
 
 	private:
