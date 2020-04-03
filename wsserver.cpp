@@ -45,7 +45,7 @@ static string lower(string s) {
 }
 
 namespace ws {
-	client_thread::~client_thread() {
+	client_thread_pimpl::~client_thread_pimpl() {
 #ifdef _WIN32
 		if (fd != SOCKET_ERROR)
 			closesocket(fd);
@@ -57,8 +57,12 @@ namespace ws {
 		t.join();
 	}
 
-	void client_thread::run() {
-		thread_id = this_thread::get_id();
+	client_thread::~client_thread() {
+		delete impl;
+	}
+
+	void client_thread_pimpl::run() {
+		parent.thread_id = this_thread::get_id();
 
 		while (open && state == state_enum::http) {
 			recvbuf += recv();
@@ -77,7 +81,7 @@ namespace ws {
 			unique_lock<shared_timed_mutex> guard(serv.impl->vector_mutex);
 
 			for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
-				if (it->thread_id == thread_id) {
+				if (it->thread_id == parent.thread_id) {
 					serv.impl->client_threads.erase(it);
 					break;
 				}
@@ -85,6 +89,10 @@ namespace ws {
 		});
 
 		del_thread.detach();
+	}
+
+	void client_thread::run() {
+		impl->run();
 	}
 
 	void client_thread::send_ws_message(enum opcode opcode, const string& payload) const {
@@ -124,7 +132,7 @@ namespace ws {
 				memcpy(msg + 10, payload.c_str(), len);
 			}
 
-			send(msg, (int)msglen);
+			impl->send(msg, (int)msglen);
 		} catch (...) {
 			delete[] msg;
 			throw;
@@ -133,7 +141,7 @@ namespace ws {
 		delete[] msg;
 	}
 
-	void client_thread::send(const char* s, int length) const {
+	void client_thread_pimpl::send(const char* s, int length) const {
 #ifdef _WIN32
 		u_long mode = 1;
 
@@ -180,11 +188,11 @@ namespace ws {
 #endif
 	}
 
-	void client_thread::send(const string& s) const {
+	void client_thread_pimpl::send(const string& s) const {
 		send(s.c_str(), (int)s.length());
 	}
 
-	void client_thread::handle_handshake(map<string, string>& headers) {
+	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 		if (headers.count("Upgrade") == 0 || lower(headers["Upgrade"]) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 			send("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
 			return;
@@ -204,18 +212,18 @@ namespace ws {
 		state = state_enum::websocket;
 		recvbuf = "";
 
-		if (conn_handler)
-			conn_handler(*this);
+		if (parent.conn_handler)
+			parent.conn_handler(parent);
 	}
 
-	void client_thread::internal_server_error(const string& s) {
+	void client_thread_pimpl::internal_server_error(const string& s) {
 		try {
 			send("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\n\r\n" + s);
 		} catch (...) {
 		}
 	}
 
-	string client_thread::recv(unsigned int len) {
+	string client_thread_pimpl::recv(unsigned int len) {
 		char s[4096];
 		int bytes, err = 0;
 
@@ -249,7 +257,7 @@ namespace ws {
 		return string(s, bytes);
 	}
 
-	void client_thread::process_http_message(const string& mess) {
+	void client_thread_pimpl::process_http_message(const string& mess) {
 		bool first = true;
 		size_t nl = mess.find("\r\n"), nl2 = 0;
 		string verb, path;
@@ -303,7 +311,7 @@ namespace ws {
 		}
 	}
 
-	void client_thread::process_http_messages() {
+	void client_thread_pimpl::process_http_messages() {
 		do {
 			size_t dnl = recvbuf.find("\r\n\r\n");
 
@@ -319,19 +327,19 @@ namespace ws {
 		} while (true);
 	}
 
-	void client_thread::parse_ws_message(enum opcode opcode, const string& payload) {
+	void client_thread_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
 		switch (opcode) {
 			case opcode::close:
 				open = false;
 				return;
 
 			case opcode::ping:
-				send_ws_message(opcode::pong, payload);
+				parent.send_ws_message(opcode::pong, payload);
 				break;
 
 			case opcode::text: {
-				if (msg_handler)
-					msg_handler(*this, payload);
+				if (parent.msg_handler)
+					parent.msg_handler(parent, payload);
 
 				break;
 			}
@@ -341,7 +349,7 @@ namespace ws {
 		}
 	}
 
-	void client_thread::websocket_loop() {
+	void client_thread_pimpl::websocket_loop() {
 		while (open) {
 			string header = recv(2);
 
@@ -544,5 +552,16 @@ namespace ws {
 
 	server::~server() {
 		delete impl;
+	}
+
+#ifdef _WIN32
+	client_thread::client_thread(SOCKET sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+								 const std::function<void(client_thread&)>& conn_handler)
+#else
+	client_thread::client_thread(int sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+								 const std::function<void(client_thread&)>& conn_handler)
+#endif
+	{
+		impl = new client_thread_pimpl(*this, sock, serv, msg_handler, conn_handler);
 	}
 }
