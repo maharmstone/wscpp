@@ -132,7 +132,7 @@ namespace ws {
 				memcpy(msg + 10, payload.c_str(), len);
 			}
 
-			impl->send(msg, (int)msglen);
+			impl->send_raw(msg, (int)msglen);
 		} catch (...) {
 			delete[] msg;
 			throw;
@@ -141,7 +141,7 @@ namespace ws {
 		delete[] msg;
 	}
 
-	void client_thread_pimpl::send(const char* s, int length) const {
+	void client_thread_pimpl::send_raw(const char* s, int length) const {
 #ifdef _WIN32
 		u_long mode = 1;
 
@@ -159,7 +159,7 @@ namespace ws {
 			throw runtime_error("fcntl failed");
 #endif
 
-		int bytes = ::send(fd, s, length, 0);
+		int bytes = send(fd, s, length, 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR) {
@@ -188,26 +188,26 @@ namespace ws {
 #endif
 	}
 
-	void client_thread_pimpl::send(const string& s) const {
-		send(s.c_str(), (int)s.length());
+	void client_thread_pimpl::send_raw(const string& s) const {
+		send_raw(s.c_str(), (int)s.length());
 	}
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 		if (headers.count("Upgrade") == 0 || lower(headers["Upgrade"]) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
-			send("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+			send_raw("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
 			return;
 		}
 
 		unsigned int version = stoul(headers["Sec-WebSocket-Version"]);
 
 		if (version > 13) {
-			send("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n");
+			send_raw("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n");
 			return;
 		}
 
 		string resp = b64encode(sha1(headers["Sec-WebSocket-Key"] + MAGIC_STRING));
 
-		send("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
+		send_raw("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
 
 		state = state_enum::websocket;
 		recvbuf = "";
@@ -218,7 +218,7 @@ namespace ws {
 
 	void client_thread_pimpl::internal_server_error(const string& s) {
 		try {
-			send("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\n\r\n" + s);
+			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\n\r\n" + s);
 		} catch (...) {
 		}
 	}
@@ -297,9 +297,9 @@ namespace ws {
 			path = path.substr(0, qm);
 
 		if (path != "/")
-			send("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+			send_raw("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
 		else if (verb != "GET")
-			send("HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n");
+			send_raw("HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n");
 		else {
 			try {
 				handle_handshake(headers);
