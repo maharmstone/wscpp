@@ -75,11 +75,7 @@ namespace ws {
 		client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
 					  const std::function<void(client_thread&)>& conn_handler = nullptr);
 		~client_thread();
-		void run();
 		void send_ws_message(enum opcode opcode, const std::string& payload) const;
-
-		std::function<void(client_thread&, const std::string&)> msg_handler;
-		std::function<void(client_thread&)> conn_handler;
 
 		friend client_thread_pimpl;
 

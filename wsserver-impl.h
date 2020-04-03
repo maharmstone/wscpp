@@ -43,11 +43,11 @@ namespace ws {
 			parent(parent),
 			fd(sock),
 			serv(serv),
-			t([](client_thread* ct, const std::function<void(client_thread&, const std::string&)>& msg_handler, const std::function<void(client_thread&)>& conn_handler) {
-				ct->msg_handler = msg_handler;
-				ct->conn_handler = conn_handler;
-				ct->run();
-			}, &parent, msg_handler, conn_handler) { }
+			t([](client_thread_pimpl* ctp, const std::function<void(client_thread&, const std::string&)>& msg_handler, const std::function<void(client_thread&)>& conn_handler) {
+				ctp->msg_handler = msg_handler;
+				ctp->conn_handler = conn_handler;
+				ctp->run();
+			}, this, msg_handler, conn_handler) { }
 
 		~client_thread_pimpl();
 
@@ -65,6 +65,8 @@ namespace ws {
 		client_thread& parent;
 		bool open = true;
 		std::thread::id thread_id;
+		std::function<void(client_thread&, const std::string&)> msg_handler;
+		std::function<void(client_thread&)> conn_handler;
 		std::string recvbuf, payloadbuf;
 		enum opcode last_opcode;
 #ifdef _WIN32

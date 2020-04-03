@@ -92,10 +92,6 @@ namespace ws {
 		del_thread.detach();
 	}
 
-	void client_thread::run() {
-		impl->run();
-	}
-
 	void client_thread::send_ws_message(enum opcode opcode, const string& payload) const {
 		char* msg;
 		size_t msglen, len = payload.length();
@@ -213,8 +209,8 @@ namespace ws {
 		state = state_enum::websocket;
 		recvbuf = "";
 
-		if (parent.conn_handler)
-			parent.conn_handler(parent);
+		if (conn_handler)
+			conn_handler(parent);
 	}
 
 	void client_thread_pimpl::internal_server_error(const string& s) {
@@ -339,8 +335,8 @@ namespace ws {
 				break;
 
 			case opcode::text: {
-				if (parent.msg_handler)
-					parent.msg_handler(parent, payload);
+				if (msg_handler)
+					msg_handler(parent, payload);
 
 				break;
 			}
