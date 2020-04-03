@@ -78,6 +78,9 @@ namespace ws {
 			}
 		}
 
+		if (disconn_handler)
+			disconn_handler(parent);
+
 		thread del_thread([&]() {
 			unique_lock<shared_timed_mutex> guard(serv.impl->vector_mutex);
 
@@ -494,7 +497,7 @@ namespace ws {
 #endif
 						unique_lock<shared_timed_mutex> guard(impl->vector_mutex);
 
-						impl->client_threads.emplace_back(&newsock, *this, impl->msg_handler, impl->conn_handler);
+						impl->client_threads.emplace_back(&newsock, *this, impl->msg_handler, impl->conn_handler, impl->disconn_handler);
 					} else
 						throw sockets_error("accept");
 				}
@@ -543,8 +546,8 @@ namespace ws {
 	}
 
 	server::server(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-			   const std::function<void(client_thread&)>& conn_handler) {
-		impl = new server_pimpl(port, backlog, msg_handler, conn_handler);
+				   const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) {
+		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler);
 	}
 
 	server::~server() {
@@ -552,13 +555,13 @@ namespace ws {
 	}
 
 	client_thread::client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-								 const std::function<void(client_thread&)>& conn_handler) {
+								 const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) {
 #ifdef _WIN32
 		auto fd = *(SOCKET*)sock;
 #else
 		auto fd = *(int*)sock;
 #endif
 
-		impl = new client_thread_pimpl(*this, fd, serv, msg_handler, conn_handler);
+		impl = new client_thread_pimpl(*this, fd, serv, msg_handler, conn_handler, disconn_handler);
 	}
 }

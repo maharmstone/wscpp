@@ -72,8 +72,8 @@ namespace ws {
 
 	class WSCPP client_thread {
 	public:
-		client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
-					  const std::function<void(client_thread&)>& conn_handler = nullptr);
+		client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+					  const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler);
 		~client_thread();
 		void send_ws_message(enum opcode opcode, const std::string& payload) const;
 
@@ -90,7 +90,8 @@ namespace ws {
 	class WSCPP server {
 	public:
 		server(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
-			   const std::function<void(client_thread&)>& conn_handler = nullptr);
+			   const std::function<void(client_thread&)>& conn_handler = nullptr,
+			   const std::function<void(client_thread&)>& disconn_handler = nullptr);
 		~server();
 
 		void start();
