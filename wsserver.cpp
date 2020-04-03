@@ -95,7 +95,7 @@ namespace ws {
 		del_thread.detach();
 	}
 
-	void client_thread::send_ws_message(enum opcode opcode, const string_view& payload) const {
+	void client_thread::send(enum opcode opcode, const string_view& payload) const {
 		char* msg;
 		size_t msglen, len = payload.length();
 
@@ -330,7 +330,7 @@ namespace ws {
 				return;
 
 			case opcode::ping:
-				parent.send_ws_message(opcode::pong, payload);
+				parent.send(opcode::pong, payload);
 				break;
 
 			case opcode::text: {
