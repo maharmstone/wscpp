@@ -86,13 +86,8 @@ namespace ws {
 
 	class WSCPP client_thread {
 	public:
-#ifdef _WIN32
-		client_thread(SOCKET sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
+		client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
 					  const std::function<void(client_thread&)>& conn_handler = nullptr);
-#else
-		client_thread(int sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler = nullptr,
-					  const std::function<void(client_thread&)>& conn_handler = nullptr);
-#endif
 		~client_thread();
 		void run();
 		void send_ws_message(enum opcode opcode, const std::string& payload) const;

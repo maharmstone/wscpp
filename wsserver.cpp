@@ -497,7 +497,7 @@ namespace ws {
 #endif
 						unique_lock<shared_timed_mutex> guard(impl->vector_mutex);
 
-						impl->client_threads.emplace_back(newsock, *this, impl->msg_handler, impl->conn_handler);
+						impl->client_threads.emplace_back(&newsock, *this, impl->msg_handler, impl->conn_handler);
 					} else
 						throw sockets_error("accept");
 				}
@@ -554,14 +554,14 @@ namespace ws {
 		delete impl;
 	}
 
+	client_thread::client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+								 const std::function<void(client_thread&)>& conn_handler) {
 #ifdef _WIN32
-	client_thread::client_thread(SOCKET sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-								 const std::function<void(client_thread&)>& conn_handler)
+		auto fd = *(SOCKET*)sock;
 #else
-	client_thread::client_thread(int sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-								 const std::function<void(client_thread&)>& conn_handler)
+		auto fd = *(int*)sock;
 #endif
-	{
-		impl = new client_thread_pimpl(*this, sock, serv, msg_handler, conn_handler);
+
+		impl = new client_thread_pimpl(*this, fd, serv, msg_handler, conn_handler);
 	}
 }
