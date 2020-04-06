@@ -159,7 +159,7 @@ namespace ws {
 			throw runtime_error("fcntl failed");
 #endif
 
-		int bytes = send(fd, sv.data(), sv.length(), 0);
+		int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR) {
@@ -458,7 +458,7 @@ namespace ws {
 				if (::bind(impl->sock, reinterpret_cast<sockaddr*>(&myaddr), sizeof(myaddr)) == SOCKET_ERROR)
 					throw sockets_error("bind");
 
-				if (listen(impl->sock, backlog) == SOCKET_ERROR)
+				if (listen(impl->sock, impl->backlog) == SOCKET_ERROR)
 					throw sockets_error("listen");
 #else
 				if (setsockopt(impl->sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == -1)

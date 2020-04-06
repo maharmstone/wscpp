@@ -29,6 +29,7 @@
 #include <string.h>
 #include <random>
 #include <map>
+#include <stdexcept>
 #include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"

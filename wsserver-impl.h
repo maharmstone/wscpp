@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2ipdef.h>
+#endif
 #include "wscpp.h"
 #include <stdint.h>
 #include <thread>
