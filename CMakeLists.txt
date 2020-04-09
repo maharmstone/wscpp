@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14.0)
+cmake_minimum_required(VERSION 3.10)
 
 include(GNUInstallDirs)
 
@@ -7,7 +7,7 @@ project(wscpp)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_compile_definitions(WSCPP_EXPORT)
+add_definitions(-DWSCPP_EXPORT)
 
 set(SRC_FILES wsclient.cpp
 	wsserver.cpp
