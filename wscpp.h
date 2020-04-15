@@ -80,6 +80,7 @@ namespace ws {
 		void* context;
 
 		friend client_thread_pimpl;
+		friend server;
 
 	private:
 		client_thread_pimpl* impl;

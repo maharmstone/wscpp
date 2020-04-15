@@ -527,7 +527,8 @@ namespace ws {
 		std::shared_lock<std::shared_timed_mutex> guard(impl->vector_mutex);
 
 		for (auto& ct : impl->client_threads) {
-			func(ct);
+			if (ct.impl->state == client_thread_pimpl::state_enum::websocket)
+				func(ct);
 		}
 	}
 
