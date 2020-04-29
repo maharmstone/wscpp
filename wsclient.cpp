@@ -127,8 +127,8 @@ namespace ws {
 
 				open = false;
 
-				if (disconn_handler)
-					disconn_handler(parent);
+				if (this->disconn_handler)
+					this->disconn_handler(parent);
 			});
 		} catch (...) {
 #ifdef _WIN32
