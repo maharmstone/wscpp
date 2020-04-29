@@ -348,24 +348,41 @@ namespace ws {
 	string client_pimpl::recv(unsigned int len) {
 		string s;
 		int bytes, err = 0;
+		unsigned int left;
+		char* buf;
 
 		if (len == 0)
 			len = 4096;
 
 		s.resize(len);
 
+		left = len;
+		buf = s.data();
+
 		do {
-			bytes = ::recv(sock, s.data(), len, 0);
+			bytes = ::recv(sock, buf, left, 0);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR)
+			if (bytes == SOCKET_ERROR) {
 				err = WSAGetLastError();
-		} while (bytes == SOCKET_ERROR && err == WSAEWOULDBLOCK);
 #else
-			if (bytes == -1)
+			if (bytes == -1) {
 				err = errno;
-		} while (bytes == -1 && err == EWOULDBLOCK);
 #endif
+
+#ifdef _WIN32
+				if (err == WSAEWOULDBLOCK)
+#else
+				if (err == EWOULDBLOCK)
+#endif
+					continue;
+				else
+					break;
+			}
+
+			buf += bytes;
+			left -= bytes;
+		} while (left > 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR)
@@ -378,7 +395,7 @@ namespace ws {
 			return "";
 		}
 
-		return s.substr(0, bytes);
+		return s;
 	}
 
 	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
