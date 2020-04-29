@@ -378,7 +378,7 @@ namespace ws {
 			return "";
 		}
 
-		return string(s, bytes);
+		return s.substr(0, bytes);
 	}
 
 	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
