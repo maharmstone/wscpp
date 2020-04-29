@@ -380,6 +380,11 @@ namespace ws {
 					break;
 			}
 
+			if (bytes == 0) {
+				open = false;
+				return "";
+			}
+
 			buf += bytes;
 			left -= bytes;
 		} while (left > 0);
@@ -390,10 +395,6 @@ namespace ws {
 		if (bytes == -1)
 #endif
 			throw runtime_error("recv failed (" + to_string(err) + ").");
-		else if (bytes == 0) {
-			open = false;
-			return "";
-		}
 
 		return s;
 	}
