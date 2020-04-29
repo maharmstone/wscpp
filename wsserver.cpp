@@ -543,7 +543,7 @@ namespace ws {
 	}
 
 	server::server(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-				   const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) {
+		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler);
 	}
 
@@ -552,7 +552,7 @@ namespace ws {
 	}
 
 	client_thread::client_thread(void* sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-								 const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) {
+				     const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 #ifdef _WIN32
 		auto fd = *(SOCKET*)sock;
 #else

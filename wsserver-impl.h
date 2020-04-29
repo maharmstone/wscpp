@@ -15,7 +15,7 @@ namespace ws {
 	class server_pimpl {
 	public:
 		server_pimpl(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-					 const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) :
+					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 			port(port),
 			backlog(backlog),
 			msg_handler(msg_handler),
@@ -26,8 +26,8 @@ namespace ws {
 		uint16_t port;
 		int backlog;
 		std::function<void(client_thread&, const std::string&)> msg_handler;
-		std::function<void(client_thread&)> conn_handler;
-		std::function<void(client_thread&)> disconn_handler;
+		server_conn_handler conn_handler;
+		server_disconn_handler disconn_handler;
 #ifdef _WIN32
 		SOCKET sock = INVALID_SOCKET;
 #else
@@ -41,16 +41,16 @@ namespace ws {
 	public:
 #ifdef _WIN32
 		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-							const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) :
+				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 #else
 		client_thread_pimpl(client_thread& parent, int sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-							const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) :
+				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 #endif
 			parent(parent),
 			fd(sock),
 			serv(serv),
 			t([](client_thread_pimpl* ctp, const std::function<void(client_thread&, const std::string&)>& msg_handler,
-				 const std::function<void(client_thread&)>& conn_handler, const std::function<void(client_thread&)>& disconn_handler) {
+			     const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 				ctp->msg_handler = msg_handler;
 				ctp->conn_handler = conn_handler;
 				ctp->disconn_handler = disconn_handler;
@@ -73,8 +73,8 @@ namespace ws {
 		bool open = true;
 		std::thread::id thread_id;
 		std::function<void(client_thread&, const std::string&)> msg_handler;
-		std::function<void(client_thread&)> conn_handler;
-		std::function<void(client_thread&)> disconn_handler;
+		server_conn_handler conn_handler;
+		server_disconn_handler disconn_handler;
 		std::string recvbuf, payloadbuf;
 		enum opcode last_opcode;
 #ifdef _WIN32
