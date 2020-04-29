@@ -346,14 +346,16 @@ namespace ws {
 	}
 
 	string client_pimpl::recv(unsigned int len) {
-		char s[4096];
+		string s;
 		int bytes, err = 0;
 
 		if (len == 0)
-			len = sizeof(s);
+			len = 4096;
+
+		s.resize(len);
 
 		do {
-			bytes = ::recv(sock, s, len, 0);
+			bytes = ::recv(sock, s.data(), len, 0);
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR)
