@@ -56,7 +56,7 @@ namespace ws {
 
 	class client;
 
-	typedef std::function<void(client&, const std::string&)> client_msg_handler;
+	typedef std::function<void(client&, const std::string&, enum opcode opcode)> client_msg_handler;
 
 	class sockets_error : public std::exception {
 	public:

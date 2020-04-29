@@ -383,16 +383,12 @@ namespace ws {
 				parent.send(payload, opcode::pong);
 				break;
 
-			case opcode::text: {
-				if (msg_handler)
-					msg_handler(parent, payload);
-
-				break;
-			}
-
 			default:
 				break;
 		}
+
+		if (msg_handler)
+			msg_handler(parent, payload, opcode);
 	}
 
 	void client_pimpl::recv_thread() {
