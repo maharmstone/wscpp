@@ -39,16 +39,19 @@ using namespace std;
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 namespace ws {
-	client::client(const string& host, uint16_t port, const string& path, const client_msg_handler& msg_handler) {
-		impl = new client_pimpl(*this, host, port, path, msg_handler);
+	client::client(const string& host, uint16_t port, const string& path,
+		       const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler) {
+		impl = new client_pimpl(*this, host, port, path, msg_handler, disconn_handler);
 	}
 
-	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler) :
+	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
+				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler) :
 			parent(parent),
 			host(host),
 			port(port),
 			path(path),
-			msg_handler(msg_handler) {
+			msg_handler(msg_handler),
+			disconn_handler(disconn_handler) {
 #ifdef _WIN32
 		WSADATA wsa_data;
 
@@ -123,6 +126,9 @@ namespace ws {
 				}
 
 				open = false;
+
+				if (disconn_handler)
+					disconn_handler(parent);
 			});
 		} catch (...) {
 #ifdef _WIN32

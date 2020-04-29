@@ -6,7 +6,8 @@
 namespace ws {
 	class client_pimpl {
 	public:
-		client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler);
+		client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
+			     const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler);
 		~client_pimpl();
 
 		client& parent;
@@ -22,6 +23,7 @@ namespace ws {
 		uint16_t port;
 		std::string path;
 		client_msg_handler msg_handler;
+		client_disconn_handler disconn_handler;
 #ifdef _WIN32
 		SOCKET sock = INVALID_SOCKET;
 #else

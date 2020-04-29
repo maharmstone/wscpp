@@ -58,6 +58,7 @@ namespace ws {
 	class client_thread;
 
 	typedef std::function<void(client&, const std::string&, enum opcode opcode)> client_msg_handler;
+	typedef std::function<void(client&)> client_disconn_handler;
 
 	typedef std::function<void(client_thread&, const std::string&)> server_msg_handler;
 	typedef std::function<void(client_thread&)> server_conn_handler;
@@ -119,7 +120,8 @@ namespace ws {
 
 	class WSCPP client {
 	public:
-		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr);
+		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr,
+			const client_disconn_handler& disconn_handler = nullptr);
 		~client();
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		void join() const;
