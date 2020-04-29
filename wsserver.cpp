@@ -252,7 +252,7 @@ namespace ws {
 			return "";
 		}
 
-		return string(s, bytes);
+		return s.substr(0, bytes);
 	}
 
 	void client_thread_pimpl::process_http_message(const string& mess) {
