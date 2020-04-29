@@ -14,7 +14,7 @@ namespace ws {
 
 	class server_pimpl {
 	public:
-		server_pimpl(uint16_t port, int backlog, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+		server_pimpl(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 			port(port),
 			backlog(backlog),
@@ -25,7 +25,7 @@ namespace ws {
 
 		uint16_t port;
 		int backlog;
-		std::function<void(client_thread&, const std::string&)> msg_handler;
+		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
 #ifdef _WIN32
@@ -40,16 +40,16 @@ namespace ws {
 	class client_thread_pimpl {
 	public:
 #ifdef _WIN32
-		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const server_msg_handler& msg_handler,
 				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 #else
-		client_thread_pimpl(client_thread& parent, int sock, server& serv, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+		client_thread_pimpl(client_thread& parent, int sock, server& serv, const server_msg_handler& msg_handler,
 				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 #endif
 			parent(parent),
 			fd(sock),
 			serv(serv),
-			t([](client_thread_pimpl* ctp, const std::function<void(client_thread&, const std::string&)>& msg_handler,
+			t([](client_thread_pimpl* ctp, const server_msg_handler& msg_handler,
 			     const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 				ctp->msg_handler = msg_handler;
 				ctp->conn_handler = conn_handler;
@@ -72,7 +72,7 @@ namespace ws {
 		client_thread& parent;
 		bool open = true;
 		std::thread::id thread_id;
-		std::function<void(client_thread&, const std::string&)> msg_handler;
+		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
 		std::string recvbuf, payloadbuf;
