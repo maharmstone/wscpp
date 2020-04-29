@@ -54,6 +54,10 @@ namespace ws {
 		pong = 10
 	};
 
+	class client;
+
+	typedef std::function<void(client&, const std::string&)> client_msg_handler;
+
 	class sockets_error : public std::exception {
 	public:
 		sockets_error(const char* func);
@@ -110,7 +114,7 @@ namespace ws {
 
 	class WSCPP client {
 	public:
-		client(const std::string& host, uint16_t port, const std::string& path, const std::function<void(client&, const std::string&)>& msg_handler = nullptr);
+		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr);
 		~client();
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		void join() const;

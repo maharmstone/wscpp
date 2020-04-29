@@ -39,11 +39,11 @@ using namespace std;
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 namespace ws {
-	client::client(const string& host, uint16_t port, const string& path, const function<void(client&, const string&)>& msg_handler) {
+	client::client(const string& host, uint16_t port, const string& path, const client_msg_handler& msg_handler) {
 		impl = new client_pimpl(*this, host, port, path, msg_handler);
 	}
 
-	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path, const std::function<void(client&, const std::string&)>& msg_handler) :
+	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler) :
 			parent(parent),
 			host(host),
 			port(port),
