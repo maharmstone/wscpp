@@ -16,6 +16,7 @@ set(SRC_FILES wsclient.cpp
 	wsexcept.cpp)
 
 add_library(wscpp SHARED ${SRC_FILES})
+add_library(wscppstatic STATIC ${SRC_FILES})
 
 if(WIN32)
 target_link_libraries(wscpp wsock32 ws2_32)
@@ -30,5 +31,5 @@ target_compile_options(wscpp PRIVATE
 		/W4>)
 
 install(TARGETS wscpp DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
+install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
 install(FILES wscpp.h DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}")
-
