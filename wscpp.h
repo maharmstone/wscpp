@@ -25,16 +25,20 @@
 
 #ifdef WSCPP_EXPORT
 #define WSCPP __declspec(dllexport)
-#else
+#elif !defined(WSCPP_STATIC)
 #define WSCPP __declspec(dllimport)
+#else
+#define WSCPP
 #endif
 
 #else
 
 #ifdef WSCPP_EXPORT
 #define WSCPP __attribute__ ((visibility ("default")))
-#else
+#elif !defined(WSCPP_STATIC)
 #define WSCPP __attribute__ ((dllimport))
+#else
+#define WSCPP
 #endif
 
 #endif
