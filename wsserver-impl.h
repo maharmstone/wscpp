@@ -34,7 +34,7 @@ namespace ws {
 		int sock = -1;
 #endif
 		std::list<client_thread> client_threads;
-		std::shared_timed_mutex vector_mutex;
+		std::shared_mutex vector_mutex;
 	};
 
 	class client_thread_pimpl {

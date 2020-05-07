@@ -82,7 +82,7 @@ namespace ws {
 			disconn_handler(parent);
 
 		thread del_thread([&]() {
-			unique_lock<shared_timed_mutex> guard(serv.impl->vector_mutex);
+			unique_lock<shared_mutex> guard(serv.impl->vector_mutex);
 
 			for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
 				if (it->impl->thread_id == thread_id) {
@@ -493,7 +493,7 @@ namespace ws {
 #else
 					if (newsock != -1) {
 #endif
-						unique_lock<shared_timed_mutex> guard(impl->vector_mutex);
+						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
 						impl->client_threads.emplace_back(&newsock, *this, impl->msg_handler, impl->conn_handler, impl->disconn_handler);
 					} else
@@ -526,7 +526,7 @@ namespace ws {
 	}
 
 	void server::for_each(function<void(client_thread&)> func) {
-		std::shared_lock<std::shared_timed_mutex> guard(impl->vector_mutex);
+		std::shared_lock<std::shared_mutex> guard(impl->vector_mutex);
 
 		for (auto& ct : impl->client_threads) {
 			if (ct.impl->state == client_thread_pimpl::state_enum::websocket)
