@@ -18,7 +18,8 @@ namespace ws {
 		client& parent;
 		void send_handshake();
 		std::string random_key();
-		void send_raw(const std::string_view& s) const;
+		void send_raw(const std::string_view& s, unsigned int timeout = 0) const;
+		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();
 		void recv_thread();
 		std::string recv(unsigned int len);

@@ -127,7 +127,7 @@ namespace ws {
 		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr,
 			const client_disconn_handler& disconn_handler = nullptr);
 		~client();
-		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
+		void send(const std::string_view& payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
 		void join() const;
 		bool is_open() const;
 

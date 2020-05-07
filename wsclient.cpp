@@ -187,14 +187,49 @@ namespace ws {
 		return b64encode(string((char*)rand, 16));
 	}
 
-	void client_pimpl::send_raw(const string_view& s) const {
+	void client_pimpl::set_send_timeout(unsigned int timeout) const {
 #ifdef _WIN32
-		if (::send(sock, s.data(), (int)s.length(), 0) == SOCKET_ERROR)
-			throw runtime_error("send failed (error " + to_string(WSAGetLastError()) + ")");
+		DWORD tv = timeout * 1000;
+
+		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
+			int err = WSAGetLastError();
+
+			throw runtime_error("setsockopt returned " + to_string(err) + ".");
+		}
 #else
-		if (::send(sock, s.data(), (int)s.length(), 0) == -1)
-			throw runtime_error("send failed (error " + to_string(errno) + ")");
+		struct timeval tv;
+		tv.tv_sec = timeout;
+		tv.tv_usec = 0;
+
+		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
+			int err = errno;
+
+			throw runtime_error("setsockopt returned " + to_string(err) + ".");
+		}
 #endif
+	}
+
+	void client_pimpl::send_raw(const string_view& s, unsigned int timeout) const {
+		if (timeout != 0)
+			set_send_timeout(timeout);
+
+		try {
+#ifdef _WIN32
+			if (::send(sock, s.data(), (int)s.length(), 0) == SOCKET_ERROR)
+				throw runtime_error("send failed (error " + to_string(WSAGetLastError()) + ")");
+#else
+			if (::send(sock, s.data(), (int)s.length(), 0) == -1)
+				throw runtime_error("send failed (error " + to_string(errno) + ")");
+#endif
+		} catch (...) {
+			if (timeout != 0)
+				set_send_timeout(0);
+
+			throw;
+		}
+
+		if (timeout != 0)
+			set_send_timeout(0);
 	}
 
 	string client_pimpl::recv_http() {
@@ -311,7 +346,7 @@ namespace ws {
 			throw runtime_error("Invalid value for Sec-WebSocket-Accept.");
 	}
 
-	void client::send(const string_view& payload, enum opcode opcode) const {
+	void client::send(const string_view& payload, enum opcode opcode, unsigned int timeout) const {
 		string header;
 		uint64_t len = payload.length();
 
@@ -341,8 +376,8 @@ namespace ws {
 			memset(&header[10], 0, 4);
 		}
 
-		impl->send_raw(header);
-		impl->send_raw(payload);
+		impl->send_raw(header, timeout);
+		impl->send_raw(payload, timeout);
 	}
 
 	string client_pimpl::recv(unsigned int len) {
