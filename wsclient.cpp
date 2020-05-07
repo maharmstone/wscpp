@@ -214,13 +214,18 @@ namespace ws {
 			set_send_timeout(timeout);
 
 		try {
+			auto ret = ::send(sock, s.data(), (int)s.length(), 0);
+
 #ifdef _WIN32
-			if (::send(sock, s.data(), (int)s.length(), 0) == SOCKET_ERROR)
+			if (ret == SOCKET_ERROR)
 				throw runtime_error("send failed (error " + to_string(WSAGetLastError()) + ")");
 #else
-			if (::send(sock, s.data(), (int)s.length(), 0) == -1)
+			if (ret == -1)
 				throw runtime_error("send failed (error " + to_string(errno) + ")");
 #endif
+
+			if ((size_t)ret < s.length())
+				throw runtime_error("send sent " + to_string(ret) + " bytes, expected " + to_string(s.length()));
 		} catch (...) {
 			if (timeout != 0)
 				set_send_timeout(0);
