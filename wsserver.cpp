@@ -50,7 +50,7 @@ static string lower(string s) {
 namespace ws {
 	client_thread_pimpl::~client_thread_pimpl() {
 #ifdef _WIN32
-		if (fd != SOCKET_ERROR)
+		if ((int)fd != SOCKET_ERROR)
 			closesocket(fd);
 #else
 		if (fd != -1)
