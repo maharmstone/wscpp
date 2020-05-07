@@ -1,6 +1,6 @@
 #include "wscpp.h"
 #ifdef _WIN32
-#include <WinSock2.h>
+#include <winsock2.h>
 #include <ws2ipdef.h>
 #endif
 
