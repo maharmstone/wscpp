@@ -6,8 +6,15 @@
 #endif
 #include "wscpp.h"
 #include <stdint.h>
-#include <thread>
 #include <map>
+
+#ifdef __MINGW32__
+#include "mingw.thread.h"
+#include "mingw.shared_mutex.h"
+#else
+#include <thread>
+#include <shared_mutex>
+#endif
 
 namespace ws {
 	class client_thread_pimpl;

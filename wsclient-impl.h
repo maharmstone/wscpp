@@ -1,7 +1,12 @@
 #pragma once
 
 #include "wscpp.h"
+
+#ifdef __MINGW32__
+#include "mingw.thread.h"
+#else
 #include <thread>
+#endif
 
 namespace ws {
 	class client_pimpl {
