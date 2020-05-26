@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 project(wscpp)
 
@@ -30,6 +31,15 @@ target_compile_options(wscpp PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:
 		/W4>)
 
-install(TARGETS wscpp DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
+install(TARGETS wscpp EXPORT wscpp-targets DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
 install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
 install(FILES wscpp.h DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}")
+
+install(EXPORT wscpp-targets DESTINATION lib/cmake/wscpp)
+
+configure_package_config_file(
+	"wscppConfig.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/wscppConfig.cmake"
+	INSTALL_DESTINATION "lib/cmake/wscpp"
+)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wscppConfig.cmake" DESTINATION "lib/cmake/wscpp")
