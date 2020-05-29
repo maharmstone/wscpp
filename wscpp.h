@@ -61,10 +61,10 @@ namespace ws {
 	class client;
 	class client_thread;
 
-	typedef std::function<void(client&, const std::string&, enum opcode opcode)> client_msg_handler;
+	typedef std::function<void(client&, const std::string_view&, enum opcode opcode)> client_msg_handler;
 	typedef std::function<void(client&)> client_disconn_handler;
 
-	typedef std::function<void(client_thread&, const std::string&)> server_msg_handler;
+	typedef std::function<void(client_thread&, const std::string_view&)> server_msg_handler;
 	typedef std::function<void(client_thread&)> server_conn_handler;
 	typedef std::function<void(client_thread&)> server_disconn_handler;
 
