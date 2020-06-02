@@ -23,7 +23,7 @@ static void disconn_handler(ws::client_thread& c) {
 }
 
 static void main2() {
-	ws::server serv(PORT, BACKLOG, msg_handler, conn_handler, disconn_handler);
+	ws::server serv(PORT, BACKLOG, msg_handler, conn_handler, disconn_handler, true);
 
 	printf("Starting WebSocket server...\n");
 

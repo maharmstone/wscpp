@@ -207,7 +207,7 @@ namespace ws {
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 #ifdef _WIN32
-		if (true) { // FIXME - req_auth
+		if (serv.impl->req_auth) {
 			SECURITY_STATUS sec_status;
 			char outstr[1024];
 			SecBuffer inbufs[2], outbuf;
@@ -276,8 +276,6 @@ namespace ws {
 			}
 
 			ctx_handle_set = true;
-
-			printf("AcceptSecurityContext returned %08lx\n", sec_status);
 
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
@@ -649,8 +647,9 @@ namespace ws {
 	}
 
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
-		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
-		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler);
+		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
+			   bool req_auth) {
+		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler, req_auth);
 	}
 
 	server::~server() {

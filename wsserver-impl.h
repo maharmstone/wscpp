@@ -27,12 +27,14 @@ namespace ws {
 	class server_pimpl {
 	public:
 		server_pimpl(uint16_t port, int backlog, const server_msg_handler& msg_handler,
-					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
+					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
+					 bool req_auth) :
 			port(port),
 			backlog(backlog),
 			msg_handler(msg_handler),
 			conn_handler(conn_handler),
-			disconn_handler(disconn_handler)
+			disconn_handler(disconn_handler),
+			req_auth(req_auth)
 		{ }
 
 		uint16_t port;
@@ -40,6 +42,7 @@ namespace ws {
 		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
+		bool req_auth;
 #ifdef _WIN32
 		SOCKET sock = INVALID_SOCKET;
 #else
