@@ -83,6 +83,9 @@ namespace ws {
 		void parse_ws_message(enum opcode opcode, const std::string& payload);
 		void websocket_loop();
 		void run();
+#ifdef _WIN32
+		void get_username(HANDLE token);
+#endif
 
 		client_thread& parent;
 		bool open = true;
@@ -102,6 +105,7 @@ namespace ws {
 #endif
 		server& serv;
 		std::thread t;
+		std::string username, domain_name;
 
 		enum class state_enum {
 			http,

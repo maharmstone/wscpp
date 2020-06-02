@@ -90,6 +90,8 @@ namespace ws {
 			      const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
 		~client_thread();
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
+		std::string_view username() const;
+		std::string_view domain_name() const;
 
 		void* context;
 

@@ -205,6 +205,82 @@ namespace ws {
 #endif
 	}
 
+#ifdef _WIN32
+	static __inline string utf16_to_utf8(const u16string_view& s) {
+		string ret;
+
+		if (s.empty())
+			return "";
+
+		auto len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), nullptr, 0,
+									nullptr, nullptr);
+
+		if (len == 0)
+			throw runtime_error("WideCharToMultiByte 1 failed.");
+
+		ret.resize(len);
+
+		len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), ret.data(), len,
+								nullptr, nullptr);
+
+		if (len == 0)
+			throw runtime_error("WideCharToMultiByte 2 failed.");
+
+		return ret;
+	}
+
+	void client_thread_pimpl::get_username(HANDLE token) {
+		vector<uint8_t> buf;
+		TOKEN_USER* tu;
+		DWORD ret = 0;
+		WCHAR usernamew[256], domain_namew[256];
+		DWORD user_size, domain_size;
+		SID_NAME_USE use;
+
+		buf.resize(sizeof(TOKEN_USER));
+		tu = (TOKEN_USER*)&buf[0];
+
+		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0) {
+			auto le = GetLastError();
+
+			if (le != ERROR_INSUFFICIENT_BUFFER) {
+				char s[255];
+
+				sprintf(s, "GetTokenInformation failed (last error %lu)", le);
+				throw runtime_error(s);
+			}
+		}
+
+		buf.resize(ret);
+		tu = (TOKEN_USER*)&buf[0];
+
+		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0) {
+			char s[255];
+
+			sprintf(s, "GetTokenInformation failed (last error %lu)", GetLastError());
+			throw runtime_error(s);
+		}
+
+		if (!IsValidSid(tu->User.Sid))
+			throw runtime_error("Invalid SID.");
+
+		user_size = sizeof(usernamew) / sizeof(WCHAR);
+		domain_size = sizeof(domain_namew) / sizeof(WCHAR);
+
+		if (!LookupAccountSidW(nullptr, tu->User.Sid, usernamew, &user_size, domain_namew,
+							   &domain_size, &use)) {
+			char s[255];
+
+			sprintf(s, "LookupAccountSid failed (last error %lu)", GetLastError());
+			throw runtime_error(s);
+		}
+
+		username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
+		domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
+	}
+
+#endif
+
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 #ifdef _WIN32
 		if (serv.impl->req_auth) {
@@ -214,6 +290,7 @@ namespace ws {
 			SecBufferDesc in, out;
 			TimeStamp timestamp;
 			unsigned long context_attr;
+			HANDLE token;
 
 			static const char prefix[] = "NTLM ";
 
@@ -292,7 +369,18 @@ namespace ws {
 
 			// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
 
-			// FIXME - get username etc.
+			sec_status = QuerySecurityContextToken(&ctx_handle, &token);
+
+			if (FAILED(sec_status)) {
+				char s[255];
+
+				sprintf(s, "QuerySecurityContextToken returned %08lx", sec_status);
+				throw runtime_error(s);
+			}
+
+			get_username(token);
+
+			CloseHandle(token);
 		}
 #endif
 
@@ -670,5 +758,13 @@ namespace ws {
 #endif
 
 		impl = new client_thread_pimpl(*this, fd, serv, msg_handler, conn_handler, disconn_handler);
+	}
+
+	string_view client_thread::username() const {
+		return impl->username;
+	}
+
+	string_view client_thread::domain_name() const {
+		return impl->domain_name;
 	}
 }
