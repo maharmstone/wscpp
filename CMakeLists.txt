@@ -5,7 +5,7 @@ include(CMakePackageConfigHelpers)
 
 project(wscpp)
 
-option(BUILD_SAMPLE "Build sample program" ON)
+option(BUILD_SAMPLE "Build sample programs" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -50,6 +50,11 @@ if(BUILD_SAMPLE)
 	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
 	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
+
+	add_executable(wsclient-test wsclient-test.cpp)
+	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+	target_link_libraries(wsclient-test wscpp)
+	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 endif()
 
 install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
