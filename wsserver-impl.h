@@ -16,6 +16,11 @@
 #include <shared_mutex>
 #endif
 
+#ifdef _WIN32
+#define SECURITY_WIN32
+#include <sspi.h>
+#endif
+
 namespace ws {
 	class client_thread_pimpl;
 
@@ -86,6 +91,7 @@ namespace ws {
 		enum opcode last_opcode;
 #ifdef _WIN32
 		SOCKET fd;
+		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
 #else
 		int fd;
 #endif

@@ -20,6 +20,7 @@
 #include <list>
 #include <map>
 #include <shared_mutex>
+#include <iostream>
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/socket.h>
@@ -55,6 +56,11 @@ namespace ws {
 #else
 		if (fd != -1)
 			close(fd);
+#endif
+
+#ifdef _WIN32
+		if (SecIsValidHandle(&cred_handle))
+			FreeCredentialsHandle(&cred_handle);
 #endif
 
 		t.join();
@@ -96,7 +102,8 @@ namespace ws {
 			});
 
 			del_thread.detach();
-		} catch (...) {
+		} catch (const exception& e) {
+			cerr << e.what() << endl;
 #ifdef _WIN32
 			closesocket(fd);
 #else
@@ -201,6 +208,7 @@ namespace ws {
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 #ifdef _WIN32
 		if (true) { // FIXME - req_auth
+			SECURITY_STATUS sec_status;
 			static const char prefix[] = "NTLM ";
 
 			if (headers.count("Authorization") == 0) {
@@ -220,6 +228,21 @@ namespace ws {
 			auto auth = b64decode(authstr.substr(sizeof(prefix) - 1));
 
 			printf("Auth: %s", auth.c_str());
+
+			if (!SecIsValidHandle(&cred_handle)) {
+				TimeStamp timestamp;
+
+				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)L"NTLM", SECPKG_CRED_INBOUND, nullptr, nullptr, nullptr,
+													nullptr, &cred_handle, &timestamp);
+				if (FAILED(sec_status)) {
+					char s[255];
+
+					sprintf(s, "AcquireCredentialsHandle returned %08lx", sec_status);
+					throw runtime_error(s);
+				}
+			}
+
+			// FIXME
 		}
 #endif
 
