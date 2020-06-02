@@ -92,6 +92,8 @@ namespace ws {
 #ifdef _WIN32
 		SOCKET fd;
 		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
+		CtxtHandle ctx_handle;
+		bool ctx_handle_set = false;
 #else
 		int fd;
 #endif

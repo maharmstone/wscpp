@@ -209,6 +209,12 @@ namespace ws {
 #ifdef _WIN32
 		if (true) { // FIXME - req_auth
 			SECURITY_STATUS sec_status;
+			char outstr[1024];
+			SecBuffer inbufs[2], outbuf;
+			SecBufferDesc in, out;
+			TimeStamp timestamp;
+			unsigned long context_attr;
+
 			static const char prefix[] = "NTLM ";
 
 			if (headers.count("Authorization") == 0) {
@@ -227,13 +233,9 @@ namespace ws {
 
 			auto auth = b64decode(authstr.substr(sizeof(prefix) - 1));
 
-			printf("Auth: %s", auth.c_str());
-
 			if (!SecIsValidHandle(&cred_handle)) {
-				TimeStamp timestamp;
-
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)L"NTLM", SECPKG_CRED_INBOUND, nullptr, nullptr, nullptr,
-													nullptr, &cred_handle, &timestamp);
+													   nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status)) {
 					char s[255];
 
@@ -242,7 +244,52 @@ namespace ws {
 				}
 			}
 
-			// FIXME
+			inbufs[0].cbBuffer = auth.length();
+			inbufs[0].BufferType = SECBUFFER_TOKEN;
+			inbufs[0].pvBuffer = auth.data();
+
+			inbufs[1].cbBuffer = 0;
+			inbufs[1].BufferType = SECBUFFER_EMPTY;
+			inbufs[1].pvBuffer = nullptr;
+
+			in.ulVersion = SECBUFFER_VERSION;
+			in.cBuffers = 2;
+			in.pBuffers = inbufs;
+
+			outbuf.cbBuffer = sizeof(outstr);
+			outbuf.BufferType = SECBUFFER_TOKEN;
+			outbuf.pvBuffer = outstr;
+
+			out.ulVersion = SECBUFFER_VERSION;
+			out.cBuffers = 1;
+			out.pBuffers = &outbuf;
+
+			sec_status = AcceptSecurityContext(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, &in, 0,
+											   SECURITY_NATIVE_DREP, &ctx_handle, &out, &context_attr,
+											   &timestamp);
+
+			if (FAILED(sec_status)) {
+				char s[255];
+
+				sprintf(s, "AcceptSecurityContext returned %08lx", sec_status);
+				throw runtime_error(s);
+			}
+
+			ctx_handle_set = true;
+
+			printf("AcceptSecurityContext returned %08lx\n", sec_status);
+
+			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
+				auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
+
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM " + b64 + "\r\n\r\n");
+
+				return;
+			}
+
+			// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
+
+			// FIXME - get username etc.
 		}
 #endif
 
