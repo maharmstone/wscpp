@@ -199,6 +199,30 @@ namespace ws {
 	}
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
+#ifdef _WIN32
+		if (true) { // FIXME - req_auth
+			static const char prefix[] = "NTLM ";
+
+			if (headers.count("Authorization") == 0) {
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nConnection: Close\r\n\r\n");
+				closesocket(fd);
+				return;
+			}
+
+			const auto& authstr = headers.at("Authorization");
+
+			if (authstr.length() < sizeof(prefix) - 1 || authstr.substr(0, sizeof(prefix) - 1) != prefix) {
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nConnection: Close\r\n\r\n");
+				closesocket(fd);
+				return;
+			}
+
+			auto auth = b64decode(authstr.substr(sizeof(prefix) - 1));
+
+			printf("Auth: %s", auth.c_str());
+		}
+#endif
+
 		if (headers.count("Upgrade") == 0 || lower(headers["Upgrade"]) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 			send_raw("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
 			return;
