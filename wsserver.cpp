@@ -268,7 +268,12 @@ namespace ws {
 											   SECURITY_NATIVE_DREP, &ctx_handle, &out, &context_attr,
 											   &timestamp);
 
-			if (FAILED(sec_status)) {
+			if (sec_status == SEC_E_LOGON_DENIED) {
+				static const string msg = "Logon denied.";
+
+				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
+				return;
+			} else if (FAILED(sec_status)) {
 				char s[255];
 
 				sprintf(s, "AcceptSecurityContext returned %08lx", sec_status);
@@ -280,7 +285,7 @@ namespace ws {
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
 
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM " + b64 + "\r\n\r\n");
+				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM " + b64 + "\r\n\r\n");
 
 				return;
 			}
