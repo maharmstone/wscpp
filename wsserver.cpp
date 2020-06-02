@@ -65,36 +65,44 @@ namespace ws {
 	}
 
 	void client_thread_pimpl::run() {
-		thread_id = this_thread::get_id();
+		try {
+			thread_id = this_thread::get_id();
 
-		while (open && state == state_enum::http) {
-			recvbuf += recv();
+			while (open && state == state_enum::http) {
+				recvbuf += recv();
 
-			process_http_messages();
-		}
-
-		if (open && state == state_enum::websocket) {
-			try {
-				websocket_loop();
-			} catch (...) {
+				process_http_messages();
 			}
-		}
 
-		if (disconn_handler)
-			disconn_handler(parent);
-
-		thread del_thread([&]() {
-			unique_lock<shared_mutex> guard(serv.impl->vector_mutex);
-
-			for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
-				if (it->impl->thread_id == thread_id) {
-					serv.impl->client_threads.erase(it);
-					break;
+			if (open && state == state_enum::websocket) {
+				try {
+					websocket_loop();
+				} catch (...) {
 				}
 			}
-		});
 
-		del_thread.detach();
+			if (disconn_handler)
+				disconn_handler(parent);
+
+			thread del_thread([&]() {
+				unique_lock<shared_mutex> guard(serv.impl->vector_mutex);
+
+				for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
+					if (it->impl->thread_id == thread_id) {
+						serv.impl->client_threads.erase(it);
+						break;
+					}
+				}
+			});
+
+			del_thread.detach();
+		} catch (...) {
+#ifdef _WIN32
+			closesocket(fd);
+#else
+			::close(fd);
+#endif
+		}
 	}
 
 	void client_thread::send(const string_view& payload, enum opcode opcode) const {
