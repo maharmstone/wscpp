@@ -5,6 +5,8 @@ include(CMakePackageConfigHelpers)
 
 project(wscpp)
 
+option(BUILD_SAMPLE "Build sample program" ON)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -42,6 +44,13 @@ install(TARGETS wscpp
 	PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 	PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
+
+if(BUILD_SAMPLE)
+	add_executable(wsserver-test wsserver-test.cpp)
+	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+	target_link_libraries(wsserver-test wscpp)
+	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
+endif()
 
 install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
 
