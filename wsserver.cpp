@@ -295,16 +295,14 @@ namespace ws {
 			static const char prefix[] = "NTLM ";
 
 			if (headers.count("Authorization") == 0) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nConnection: Close\r\n\r\n");
-				closesocket(fd);
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n");
 				return;
 			}
 
 			const auto& authstr = headers.at("Authorization");
 
 			if (authstr.length() < sizeof(prefix) - 1 || authstr.substr(0, sizeof(prefix) - 1) != prefix) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nConnection: Close\r\n\r\n");
-				closesocket(fd);
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n");
 				return;
 			}
 

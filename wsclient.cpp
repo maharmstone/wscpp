@@ -361,11 +361,6 @@ namespace ws {
 			throw runtime_error(s);
 		}
 
-		if (!ctx_handle_set) { // close and reopen
-			closesocket(sock);
-			open_connexion();
-		}
-
 		ctx_handle_set = true;
 
 		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
