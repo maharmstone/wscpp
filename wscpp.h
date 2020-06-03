@@ -66,7 +66,7 @@ namespace ws {
 
 	typedef std::function<void(client_thread&, const std::string_view&)> server_msg_handler;
 	typedef std::function<void(client_thread&)> server_conn_handler;
-	typedef std::function<void(client_thread&)> server_disconn_handler;
+	typedef std::function<void(client_thread&, const std::exception_ptr&)> server_disconn_handler;
 
 	class sockets_error : public std::exception {
 	public:

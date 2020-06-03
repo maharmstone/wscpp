@@ -72,6 +72,8 @@ namespace ws {
 
 	void client_thread_pimpl::run() {
 		try {
+			exception_ptr except;
+
 			thread_id = this_thread::get_id();
 
 			while (open && state == state_enum::http) {
@@ -84,11 +86,12 @@ namespace ws {
 				try {
 					websocket_loop();
 				} catch (...) {
+					except = current_exception();
 				}
 			}
 
 			if (disconn_handler)
-				disconn_handler(parent);
+				disconn_handler(parent, except);
 
 			thread del_thread([&]() {
 				unique_lock<shared_mutex> guard(serv.impl->vector_mutex);

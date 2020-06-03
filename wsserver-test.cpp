@@ -30,7 +30,7 @@ static void conn_handler(ws::client_thread& c) {
 	c.send("Lemon curry?");
 }
 
-static void disconn_handler(ws::client_thread& c) {
+static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
@@ -38,6 +38,15 @@ static void disconn_handler(ws::client_thread& c) {
 		cout << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
 	else
 		cout << "Client " << &c << " disconnected." << endl;
+
+	if (except) {
+		try {
+			rethrow_exception(except);
+		} catch (const exception& e) {
+			cout << "Exception: " << e.what() << endl;
+		} catch (...) {
+		}
+	}
 }
 
 static void main2() {
