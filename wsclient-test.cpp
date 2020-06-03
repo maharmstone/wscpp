@@ -17,8 +17,17 @@ static void msg_handler(ws::client& c, const string_view& sv, enum ws::opcode op
 		cout << "Message from server: " << sv << endl;
 }
 
-static void disconn_handler(ws::client& c) {
+static void disconn_handler(ws::client& c, const exception_ptr& except) {
 	printf("Disconnected.\n");
+
+	if (except) {
+		try {
+			rethrow_exception(except);
+		} catch (const exception& e) {
+			printf("Exception: %s\n", e.what());
+		} catch (...) {
+		}
+	}
 }
 
 static void main2() {

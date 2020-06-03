@@ -123,15 +123,18 @@ namespace ws {
 			send_handshake();
 
 			t = new thread([&]() {
+				exception_ptr except;
+
 				try {
 					recv_thread();
 				} catch (...) {
+					except = current_exception();
 				}
 
 				open = false;
 
 				if (this->disconn_handler)
-					this->disconn_handler(parent);
+					this->disconn_handler(parent, except);
 			});
 		} catch (...) {
 #ifdef _WIN32
