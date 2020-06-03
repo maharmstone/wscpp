@@ -438,15 +438,18 @@ namespace ws {
 #endif
 
 #ifdef _WIN32
-		if (bytes == SOCKET_ERROR)
-#else
-		if (bytes == -1)
-#endif
-			throw runtime_error("recv failed (" + to_string(err) + ").");
-		else if (bytes == 0) {
+		if (bytes == 0 || (bytes == SOCKET_ERROR && err == WSAECONNRESET)) {
 			open = false;
 			return "";
-		}
+		} else if (bytes == SOCKET_ERROR)
+			throw runtime_error("recv failed (" + to_string(err) + ").");
+#else
+		if (bytes == 0 || (bytes == -1 && err == ECONNRESET)) {
+			open = false;
+			return "";
+		} else if (bytes == -1)
+			throw runtime_error("recv failed (" + to_string(err) + ").");
+#endif
 
 		return s.substr(0, bytes);
 	}
