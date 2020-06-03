@@ -44,6 +44,65 @@ namespace ws {
 		impl = new client_pimpl(*this, host, port, path, msg_handler, disconn_handler);
 	}
 
+	void client_pimpl::open_connexion() {
+		int wsa_error = 0;
+
+		struct addrinfo hints, *result;
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		if (getaddrinfo(host.c_str(), to_string(port).c_str(), &hints, &result) != 0)
+			throw runtime_error("getaddr failed.");
+
+		try {
+			for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
+				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
+#ifdef _WIN32
+				if (sock == INVALID_SOCKET)
+					throw runtime_error("socket failed (error " + to_string(WSAGetLastError()) + ")");
+#else
+				if (sock == -1)
+					throw runtime_error("socket failed (error " + to_string(errno) + ")");
+#endif
+
+#ifdef _WIN32
+				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == SOCKET_ERROR) {
+					wsa_error = WSAGetLastError();
+					closesocket(sock);
+					sock = INVALID_SOCKET;
+					continue;
+				}
+#else
+				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == -1) {
+					wsa_error = errno;
+					close(sock);
+					sock = -1;
+					continue;
+				}
+#endif
+
+				break;
+			}
+		} catch (...) {
+			freeaddrinfo(result);
+			throw;
+		}
+
+		freeaddrinfo(result);
+
+#ifdef _WIN32
+		if (sock == INVALID_SOCKET)
+#else
+		if (sock == -1)
+#endif
+			throw runtime_error("Could not connect to " + host + " (error " + to_string(wsa_error) + ").");
+
+		open = true;
+	}
+
 	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler) :
 			parent(parent),
@@ -60,63 +119,7 @@ namespace ws {
 #endif
 
 		try {
-			int wsa_error = 0;
-
-			{
-				struct addrinfo hints, *result;
-
-				memset(&hints, 0, sizeof(hints));
-				hints.ai_family = AF_UNSPEC;
-				hints.ai_socktype = SOCK_STREAM;
-				hints.ai_protocol = IPPROTO_TCP;
-
-				if (getaddrinfo(host.c_str(), to_string(port).c_str(), &hints, &result) != 0)
-					throw runtime_error("getaddr failed.");
-
-				try {
-					for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
-						sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
-#ifdef _WIN32
-						if (sock == INVALID_SOCKET)
-							throw runtime_error("socket failed (error " + to_string(WSAGetLastError()) + ")");
-#else
-						if (sock == -1)
-							throw runtime_error("socket failed (error " + to_string(errno) + ")");
-#endif
-
-#ifdef _WIN32
-						if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == SOCKET_ERROR) {
-							wsa_error = WSAGetLastError();
-							closesocket(sock);
-							sock = INVALID_SOCKET;
-#else
-						if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == -1) {
-							wsa_error = errno;
-							close(sock);
-							sock = -1;
-#endif
-							continue;
-						}
-
-						break;
-					}
-				} catch (...) {
-					freeaddrinfo(result);
-					throw;
-				}
-
-				freeaddrinfo(result);
-			}
-
-#ifdef _WIN32
-			if (sock == INVALID_SOCKET)
-#else
-			if (sock == -1)
-#endif
-				throw runtime_error("Could not connect to " + host + " (error " + to_string(wsa_error) + ").");
-
-			open = true;
-
+			open_connexion();
 			send_handshake();
 
 			t = new thread([&]() {
@@ -159,6 +162,11 @@ namespace ws {
 			close(sock);
 #endif
 		}
+
+#ifdef _WIN32
+		if (SecIsValidHandle(&cred_handle))
+			FreeCredentialsHandle(&cred_handle);
+#endif
 
 		if (t) {
 			try {
@@ -245,12 +253,18 @@ namespace ws {
 			int bytes = ::recv(sock, s, sizeof(s), MSG_PEEK);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR)
+			if (bytes == SOCKET_ERROR) {
+				auto err = WSAGetLastError();
 #else
-			if (bytes == -1)
+			if (bytes == -1) {
+				auto err = errno;
 #endif
-				throw runtime_error("recv 1 failed.");
-			else if (bytes == 0) {
+				char msg[255];
+
+				sprintf(msg, "recv 1 failed (%u).", err);
+
+				throw runtime_error(msg);
+			} else if (bytes == 0) {
 				open = false;
 				return "";
 			}
@@ -293,62 +307,161 @@ namespace ws {
 		} while (true);
 	}
 
+#ifdef _WIN32
+	void client_pimpl::send_ntlm_response(const string_view& ntlm, const string& req) {
+		SECURITY_STATUS sec_status;
+		TimeStamp timestamp;
+		char outstr[1024];
+		SecBuffer inbufs[2], outbuf;
+		SecBufferDesc in, out;
+		unsigned long context_attr;
+
+		if (!SecIsValidHandle(&cred_handle)) {
+			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)L"NTLM", SECPKG_CRED_OUTBOUND, nullptr, nullptr, nullptr,
+												nullptr, &cred_handle, &timestamp);
+			if (FAILED(sec_status)) {
+				char s[255];
+
+				sprintf(s, "AcquireCredentialsHandle returned %08lx", sec_status);
+				throw runtime_error(s);
+			}
+		}
+
+		auto auth = b64decode(ntlm);
+
+		if (!ntlm.empty()) {
+			inbufs[0].cbBuffer = auth.length();
+			inbufs[0].BufferType = SECBUFFER_TOKEN;
+			inbufs[0].pvBuffer = auth.data();
+
+			inbufs[1].cbBuffer = 0;
+			inbufs[1].BufferType = SECBUFFER_EMPTY;
+			inbufs[1].pvBuffer = nullptr;
+
+			in.ulVersion = SECBUFFER_VERSION;
+			in.cBuffers = 2;
+			in.pBuffers = inbufs;
+		}
+
+		outbuf.cbBuffer = sizeof(outstr);
+		outbuf.BufferType = SECBUFFER_TOKEN;
+		outbuf.pvBuffer = outstr;
+
+		out.ulVersion = SECBUFFER_VERSION;
+		out.cBuffers = 1;
+		out.pBuffers = &outbuf;
+
+		sec_status = InitializeSecurityContextW(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, nullptr,
+												0, 0, SECURITY_NATIVE_DREP, ntlm.empty() ? nullptr : &in, 0,
+												&ctx_handle, &out, &context_attr, &timestamp);
+		if (FAILED(sec_status)) {
+			char s[255];
+
+			sprintf(s, "InitializeSecurityContext returned %08lx", sec_status);
+			throw runtime_error(s);
+		}
+
+		if (!ctx_handle_set) { // close and reopen
+			closesocket(sock);
+			open_connexion();
+		}
+
+		ctx_handle_set = true;
+
+		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
+			sec_status == SEC_E_OK) {
+			auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
+
+			send_raw(req + "Authorization: NTLM " + b64 + "\r\n\r\n");
+
+			return;
+		}
+
+		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
+	}
+#endif
+
 	void client_pimpl::send_handshake() {
+		bool again;
 		string key = random_key();
+		string req = "GET "s + path + " HTTP/1.1\r\n"
+					 "Host: "s + host + ":"s + to_string(port) + "\r\n"
+					 "Upgrade: websocket\r\n"
+					 "Connection: Upgrade\r\n"
+					 "Sec-WebSocket-Key: "s + key + "\r\n"
+					 "Sec-WebSocket-Version: 13\r\n";
 
-		send_raw("GET "s + path + " HTTP/1.1\r\nHost: "s + host + ":"s + to_string(port) + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: "s + key + "\r\nSec-WebSocket-Version: 13\r\n\r\n"s);
-
-		string mess = recv_http();
-
-		if (!open)
-			throw runtime_error("Socket closed unexpectedly.");
-
-		bool first = true;
-		size_t nl = mess.find("\r\n"), nl2 = 0;
-		string verb;
-		map<string, string> headers;
-		unsigned int status = 0;
+		send_raw(req + "\r\n"s);
 
 		do {
-			if (first) {
-				size_t space = mess.find(" ");
+			string mess = recv_http();
 
-				if (space != string::npos && space <= nl) {
-					size_t space2 = mess.find(" ", space + 1);
-					string ss;
+			if (!open)
+				throw runtime_error("Socket closed unexpectedly.");
 
-					if (space2 == string::npos || space2 > nl)
-						ss = mess.substr(space + 1, nl - space - 1);
-					else
-						ss = mess.substr(space + 1, space2 - space - 1);
+			again = false;
 
-					try {
-						status = stoul(ss);
-					} catch (...) {
-						throw runtime_error("Error calling stoul on \"" + ss + "\"");
+			bool first = true;
+			size_t nl = mess.find("\r\n"), nl2 = 0;
+			string verb;
+			map<string, string> headers;
+			unsigned int status = 0;
+
+			do {
+				if (first) {
+					size_t space = mess.find(" ");
+
+					if (space != string::npos && space <= nl) {
+						size_t space2 = mess.find(" ", space + 1);
+						string ss;
+
+						if (space2 == string::npos || space2 > nl)
+							ss = mess.substr(space + 1, nl - space - 1);
+						else
+							ss = mess.substr(space + 1, space2 - space - 1);
+
+						try {
+							status = stoul(ss);
+						} catch (...) {
+							throw runtime_error("Error calling stoul on \"" + ss + "\"");
+						}
 					}
+
+					first = false;
+				} else {
+					size_t colon = mess.find(": ", nl2);
+
+					if (colon != string::npos)
+						headers.emplace(mess.substr(nl2, colon - nl2), mess.substr(colon + 2, nl - colon - 2));
 				}
 
-				first = false;
-			} else {
-				size_t colon = mess.find(": ", nl2);
+				nl2 = nl + 2;
+				nl = mess.find("\r\n", nl2);
+			} while (nl != string::npos);
 
-				if (colon != string::npos)
-					headers.emplace(mess.substr(nl2, colon - nl2), mess.substr(colon + 2, nl - colon - 2));
+#ifdef _WIN32
+			if (status == 401 && headers.count("WWW-Authenticate") != 0) {
+				const auto& h = headers.at("WWW-Authenticate");
+
+				if (h == "NTLM")
+					send_ntlm_response("", req);
+				else if (h.substr(0, 5) == "NTLM ")
+					send_ntlm_response(string_view(h).substr(5), req);
+
+				again = true;
+				continue;
 			}
+#endif
 
-			nl2 = nl + 2;
-			nl = mess.find("\r\n", nl2);
-		} while (nl != string::npos);
+			if (status != 101)
+				throw runtime_error("Server returned HTTP status " + to_string(status) + ", expected 101.");
 
-		if (status != 101)
-			throw runtime_error("Server returned HTTP status " + to_string(status) + ", expected 101.");
+			if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
+				throw runtime_error("Malformed response.");
 
-		if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
-			throw runtime_error("Malformed response.");
-
-		if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
-			throw runtime_error("Invalid value for Sec-WebSocket-Accept.");
+			if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
+				throw runtime_error("Invalid value for Sec-WebSocket-Accept.");
+		} while (again);
 	}
 
 	void client::send(const string_view& payload, enum opcode opcode, unsigned int timeout) const {
