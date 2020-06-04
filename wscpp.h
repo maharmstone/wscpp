@@ -92,6 +92,10 @@ namespace ws {
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		std::string_view username() const;
 		std::string_view domain_name() const;
+#ifdef _WIN32
+		void impersonate() const;
+		void revert() const;
+#endif
 
 		void* context;
 

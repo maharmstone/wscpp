@@ -771,4 +771,46 @@ namespace ws {
 	string_view client_thread::domain_name() const {
 		return impl->domain_name;
 	}
+
+#ifdef _WIN32
+	void client_thread_pimpl::impersonate() const {
+		SECURITY_STATUS sec_status;
+
+		if (!ctx_handle_set)
+			throw runtime_error("ctx_handle not set");
+
+		sec_status = ImpersonateSecurityContext((PCtxtHandle)&ctx_handle);
+
+		if (FAILED(sec_status)) {
+			char s[255];
+
+			sprintf(s, "ImpersonateSecurityContext returned %08lx", sec_status);
+			throw runtime_error(s);
+		}
+	}
+
+	void client_thread_pimpl::revert() const {
+		SECURITY_STATUS sec_status;
+
+		if (!ctx_handle_set)
+			throw runtime_error("ctx_handle not set");
+
+		sec_status = RevertSecurityContext((PCtxtHandle)&ctx_handle);
+
+		if (FAILED(sec_status)) {
+			char s[255];
+
+			sprintf(s, "RevertSecurityContext returned %08lx", sec_status);
+			throw runtime_error(s);
+		}
+	}
+
+	void client_thread::impersonate() const {
+		impl->impersonate();
+	}
+
+	void client_thread::revert() const {
+		impl->revert();
+	}
+#endif
 }

@@ -85,6 +85,8 @@ namespace ws {
 		void run();
 #ifdef _WIN32
 		void get_username(HANDLE token);
+		void impersonate() const;
+		void revert() const;
 #endif
 
 		client_thread& parent;
