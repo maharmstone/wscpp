@@ -61,6 +61,9 @@ namespace ws {
 #ifdef _WIN32
 		if (SecIsValidHandle(&cred_handle))
 			FreeCredentialsHandle(&cred_handle);
+
+		if (token != INVALID_HANDLE_VALUE)
+			CloseHandle(token);
 #endif
 
 		t.join();
@@ -293,7 +296,6 @@ namespace ws {
 			SecBufferDesc in, out;
 			TimeStamp timestamp;
 			unsigned long context_attr;
-			HANDLE token;
 
 			static const char prefix[] = "NTLM ";
 
@@ -380,8 +382,6 @@ namespace ws {
 			}
 
 			get_username(token);
-
-			CloseHandle(token);
 		}
 #endif
 

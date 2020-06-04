@@ -100,6 +100,7 @@ namespace ws {
 		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
 		CtxtHandle ctx_handle;
 		bool ctx_handle_set = false;
+		HANDLE token = INVALID_HANDLE_VALUE;
 #else
 		int fd;
 #endif
