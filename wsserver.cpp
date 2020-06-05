@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Lesser General Public Licence
  * along with wscpp.  If not, see <http://www.gnu.org/licenses/>. */
 
-#include "wscpp.h"
 #include <string>
 #include <list>
 #include <map>
@@ -29,6 +28,7 @@
 #else
 #include <ws2tcpip.h>
 #endif
+#include "wscpp.h"
 #include <fcntl.h>
 #include <string.h>
 #include "wsserver-impl.h"
@@ -811,6 +811,14 @@ namespace ws {
 
 	void client_thread::revert() const {
 		impl->revert();
+	}
+
+	HANDLE client_thread_pimpl::impersonation_token() const {
+		return token;
+	}
+
+	HANDLE client_thread::impersonation_token() const {
+		return impl->impersonation_token();
 	}
 #endif
 }

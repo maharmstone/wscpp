@@ -15,11 +15,11 @@
  * You should have received a copy of the GNU Lesser General Public Licence
  * along with wscpp.  If not, see <http://www.gnu.org/licenses/>. */
 
-#include "wscpp.h"
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #endif
+#include "wscpp.h"
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/socket.h>

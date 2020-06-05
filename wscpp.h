@@ -23,6 +23,8 @@
 
 #ifdef _WIN32
 
+#include <windows.h>
+
 #ifdef WSCPP_EXPORT
 #define WSCPP __declspec(dllexport)
 #elif !defined(WSCPP_STATIC)
@@ -95,6 +97,7 @@ namespace ws {
 #ifdef _WIN32
 		void impersonate() const;
 		void revert() const;
+		HANDLE impersonation_token() const;
 #endif
 
 		void* context;

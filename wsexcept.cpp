@@ -1,8 +1,8 @@
-#include "wscpp.h"
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2ipdef.h>
 #endif
+#include "wscpp.h"
 
 namespace ws {
 #ifdef _WIN32

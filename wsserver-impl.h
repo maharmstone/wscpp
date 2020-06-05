@@ -87,6 +87,7 @@ namespace ws {
 		void get_username(HANDLE token);
 		void impersonate() const;
 		void revert() const;
+		HANDLE impersonation_token() const;
 #endif
 
 		client_thread& parent;
