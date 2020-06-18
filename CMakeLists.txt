@@ -36,6 +36,10 @@ target_compile_options(wscpp PRIVATE
 
 set_target_properties(wscpp PROPERTIES PUBLIC_HEADER wscpp.h)
 
+if(WIN32 AND NOT MSVC)
+	target_link_options(wscpp PUBLIC -static -static-libgcc)
+endif()
+
 install(TARGETS wscpp
 	EXPORT wscpp-targets
 	RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
