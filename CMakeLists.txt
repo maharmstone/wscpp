@@ -49,16 +49,20 @@ install(TARGETS wscpp
 	PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libwscpp.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
 if(BUILD_SAMPLE)
 	add_executable(wsserver-test wsserver-test.cpp)
 	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
 	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsserver-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 
 	add_executable(wsclient-test wsclient-test.cpp)
 	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsclient-test wscpp)
 	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 endif()
 
 install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
