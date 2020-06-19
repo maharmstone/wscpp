@@ -235,6 +235,27 @@ namespace ws {
 		return ret;
 	}
 
+	static __inline u16string utf8_to_utf16(const string_view& s) {
+		u16string ret;
+
+		if (s.empty())
+			return u"";
+
+		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
+
+		if (len == 0)
+			throw runtime_error("MultiByteToWideChar 1 failed.");
+
+		ret.resize(len);
+
+		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
+
+		if (len == 0)
+			throw runtime_error("MultiByteToWideChar 2 failed.");
+
+		return ret;
+	}
+
 	void client_thread_pimpl::get_username(HANDLE token) {
 		vector<uint8_t> buf;
 		TOKEN_USER* tu;
@@ -296,26 +317,27 @@ namespace ws {
 			SecBufferDesc in, out;
 			TimeStamp timestamp;
 			unsigned long context_attr;
+			string auth;
 
-			static const char prefix[] = "NTLM ";
+			static const string auth_type = "Negotiate";
 
-			if (headers.count("Authorization") == 0) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n");
-				return;
+			if (headers.count("Authorization") > 0) {
+				const auto& authstr = headers.at("Authorization");
+
+				if (authstr.length() > auth_type.length() && authstr.substr(0, auth_type.length()) == auth_type &&
+					authstr[auth_type.length()] == ' ') {
+					auth = b64decode(authstr.substr(auth_type.length() + 1));
+				}
 			}
 
-			const auto& authstr = headers.at("Authorization");
-
-			if (authstr.length() < sizeof(prefix) - 1 || authstr.substr(0, sizeof(prefix) - 1) != prefix) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n");
+			if (auth.empty()) {
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\n\r\n");
 				return;
 			}
-
-			auto auth = b64decode(authstr.substr(sizeof(prefix) - 1));
 
 			if (!SecIsValidHandle(&cred_handle)) {
-				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)L"NTLM", SECPKG_CRED_INBOUND, nullptr, nullptr, nullptr,
-													   nullptr, &cred_handle, &timestamp);
+				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
+													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status)) {
 					char s[255];
 
@@ -365,7 +387,7 @@ namespace ws {
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
 
-				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: NTLM " + b64 + "\r\n\r\n");
+				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n");
 
 				return;
 			}
