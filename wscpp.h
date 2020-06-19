@@ -116,7 +116,7 @@ namespace ws {
 		server(uint16_t port, int backlog, const server_msg_handler& msg_handler = nullptr,
 			   const server_conn_handler& conn_handler = nullptr,
 			   const server_disconn_handler& disconn_handler = nullptr,
-			   bool req_auth = false);
+			   const std::string_view& auth_type = "");
 		~server();
 
 		void start();

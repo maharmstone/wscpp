@@ -50,7 +50,7 @@ static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
 }
 
 static void main2() {
-	ws::server serv(PORT, BACKLOG, msg_handler, conn_handler, disconn_handler, true);
+	ws::server serv(PORT, BACKLOG, msg_handler, conn_handler, disconn_handler, "NTLM");
 
 	printf("Starting WebSocket server...\n");
 

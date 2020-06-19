@@ -310,7 +310,7 @@ namespace ws {
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 #ifdef _WIN32
-		if (serv.impl->req_auth) {
+		if (!serv.impl->auth_type.empty()) {
 			SECURITY_STATUS sec_status;
 			char outstr[1024];
 			SecBuffer inbufs[2], outbuf;
@@ -319,7 +319,7 @@ namespace ws {
 			unsigned long context_attr;
 			string auth;
 
-			static const string auth_type = "Negotiate";
+			const auto& auth_type = serv.impl->auth_type;
 
 			if (headers.count("Authorization") > 0) {
 				const auto& authstr = headers.at("Authorization");
@@ -767,8 +767,8 @@ namespace ws {
 
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
-			   bool req_auth) {
-		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler, req_auth);
+			   const string_view& auth_type) {
+		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
 	}
 
 	server::~server() {
