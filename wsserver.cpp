@@ -375,6 +375,9 @@ namespace ws {
 
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
 				return;
+			} else if (sec_status == SEC_E_OUT_OF_SEQUENCE) {
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\n\r\n");
+				return;
 			} else if (FAILED(sec_status)) {
 				char s[255];
 
