@@ -331,7 +331,7 @@ namespace ws {
 			}
 
 			if (auth.empty()) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\n\r\n");
+				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 				return;
 			}
 
@@ -374,9 +374,6 @@ namespace ws {
 				static const string msg = "Logon denied.";
 
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
-				return;
-			} else if (sec_status == SEC_E_OUT_OF_SEQUENCE) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\n\r\n");
 				return;
 			} else if (FAILED(sec_status)) {
 				char s[255];
@@ -435,7 +432,7 @@ namespace ws {
 
 	void client_thread_pimpl::internal_server_error(const string& s) {
 		try {
-			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\n\r\n" + s);
+			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + s);
 		} catch (...) {
 		}
 	}
