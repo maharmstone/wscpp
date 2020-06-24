@@ -568,9 +568,23 @@ namespace ws {
 		}
 	}
 
+	string client_thread_pimpl::recv_full(unsigned int len) {
+		string s;
+
+		while (true) {
+			s += recv(len - s.length());
+
+			if (!open)
+				return "";
+
+			if (s.length() >= len)
+				return s;
+		}
+	}
+
 	void client_thread_pimpl::websocket_loop() {
 		while (open) {
-			string header = recv(2);
+			string header = recv_full(2);
 
 			if (!open)
 				break;
@@ -581,14 +595,14 @@ namespace ws {
 			uint64_t len = header[1] & 0x7f;
 
 			if (len == 126) {
-				string extlen = recv(2);
+				string extlen = recv_full(2);
 
 				if (!open)
 					break;
 
 				len = ((uint8_t)extlen[0] << 8) | (uint8_t)extlen[1];
 			} else if (len == 127) {
-				string extlen = recv(8);
+				string extlen = recv_full(8);
 
 				if (!open)
 					break;
@@ -612,13 +626,13 @@ namespace ws {
 
 			string mask_key;
 			if (mask) {
-				mask_key = recv(4);
+				mask_key = recv_full(4);
 
 				if (!open)
 					break;
 			}
 
-			string payload = len == 0 ? "" : recv((unsigned int)len);
+			string payload = len == 0 ? "" : recv_full((unsigned int)len);
 
 			if (!open)
 				break;

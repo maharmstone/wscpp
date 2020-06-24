@@ -78,6 +78,7 @@ namespace ws {
 		void handle_handshake(std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
 		std::string recv(unsigned int len = 0);
+		std::string recv_full(unsigned int len);
 		void process_http_message(const std::string& mess);
 		void process_http_messages();
 		void parse_ws_message(enum opcode opcode, const std::string& payload);
