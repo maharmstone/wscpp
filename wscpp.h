@@ -100,7 +100,7 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 
-		void* context;
+		void* context = nullptr;
 
 		friend client_thread_pimpl;
 		friend server;
