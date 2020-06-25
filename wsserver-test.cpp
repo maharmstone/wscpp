@@ -3,7 +3,6 @@
 
 using namespace std;
 
-#define PORT 50000
 #define BACKLOG 10
 
 static void msg_handler(ws::client_thread& c, const string_view& sv) {
@@ -49,8 +48,8 @@ static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
 	}
 }
 
-static void main2() {
-	ws::server serv(PORT, BACKLOG, msg_handler, conn_handler, disconn_handler, "Negotiate");
+static void main2(uint16_t port) {
+	ws::server serv(port, BACKLOG, msg_handler, conn_handler, disconn_handler, "Negotiate");
 
 	printf("Starting WebSocket server...\n");
 
@@ -59,9 +58,16 @@ static void main2() {
 	printf("WebSocket server stopped.\n");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	if (argc < 2) {
+		fprintf(stderr, "Usage: wsserver-test port\n");
+		return 1;
+	}
+
 	try {
-		main2();
+		uint16_t port = stoul(argv[1]);
+
+		main2(port);
 	} catch (const exception& e) {
 		cerr << e.what() << endl;
 		return 1;
