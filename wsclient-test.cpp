@@ -10,8 +10,6 @@
 
 using namespace std;
 
-#define PORT 50000
-
 static void msg_handler(ws::client& c, const string_view& sv, enum ws::opcode opcode) {
 	if (opcode == ws::opcode::text)
 		cout << "Message from server: " << sv << endl;
@@ -30,10 +28,10 @@ static void disconn_handler(ws::client& c, const exception_ptr& except) {
 	}
 }
 
-static void main2() {
+static void main2(const string& hostname, uint16_t port) {
 	printf("Connecting to WebSocket server...\n");
 
-	ws::client client("localhost", PORT, "/", msg_handler, disconn_handler);
+	ws::client client(hostname, port, "/", msg_handler, disconn_handler);
 
 	printf("Connected.\n");
 
@@ -42,9 +40,17 @@ static void main2() {
 	}
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	if (argc < 3) {
+		fprintf(stderr, "Usage: wsclient-test hostname port\n");
+		return 1;
+	}
+
 	try {
-		main2();
+		string hostname = argv[1];
+		uint16_t port = stoul(argv[2]);
+
+		main2(hostname, port);
 	} catch (const exception& e) {
 		cerr << e.what() << endl;
 		return 1;
