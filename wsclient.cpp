@@ -61,6 +61,8 @@ namespace ws {
 
 		try {
 			for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
+				char hostname[NI_MAXHOST];
+
 				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 #ifdef _WIN32
 				if (sock == INVALID_SOCKET)
@@ -85,6 +87,10 @@ namespace ws {
 					continue;
 				}
 #endif
+
+				// FIXME - only do this if necessary?
+				if (getnameinfo(ai->ai_addr, ai->ai_addrlen, hostname, NI_MAXHOST, nullptr, 0, 0) == 0)
+					fqdn = hostname;
 
 				break;
 			}
@@ -386,6 +392,9 @@ namespace ws {
 		gss_name_t gss_name;
 		string outbuf;
 
+		if (auth_type == "Negotiate" && fqdn.empty())
+			throw runtime_error("Cannot do Negotiate authentication as FQDN not found.");
+
 		if (cred_handle != 0) {
 			major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
 											GSS_C_INITIATE, &cred_handle, nullptr, nullptr);
@@ -399,8 +408,10 @@ namespace ws {
 		recv_tok.length = auth.length();
 		recv_tok.value = auth.data();
 
-		name_buf.length = 24;
-		name_buf.value = (void*)"HTTP/beren.harmstone.com"; // FIXME
+		string spn = "HTTP/" + fqdn;
+
+		name_buf.length = spn.length();
+		name_buf.value = (void*)spn.data();
 
 		major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
 		if (major_status != GSS_S_COMPLETE)
