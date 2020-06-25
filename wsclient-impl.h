@@ -21,11 +21,7 @@ namespace ws {
 		~client_pimpl();
 
 		void open_connexion();
-#ifdef _WIN32
-		void send_ntlm_response(const std::string_view& ntlm, const std::string& req);
-#else
 		void send_auth_response(const std::string_view& auth_type, const std::string_view& auth_msg, const std::string& req);
-#endif
 		void send_handshake();
 		std::string random_key();
 		void send_raw(const std::string_view& s, unsigned int timeout = 0) const;

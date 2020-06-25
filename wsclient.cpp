@@ -319,17 +319,43 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	void client_pimpl::send_ntlm_response(const string_view& ntlm, const string& req) {
+static __inline u16string utf8_to_utf16(const string_view& s) {
+	u16string ret;
+
+	if (s.empty())
+		return u"";
+
+	auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
+
+	if (len == 0)
+		throw runtime_error("MultiByteToWideChar 1 failed.");
+
+	ret.resize(len);
+
+	len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
+
+	if (len == 0)
+		throw runtime_error("MultiByteToWideChar 2 failed.");
+
+	return ret;
+}
+
+void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
 		SECURITY_STATUS sec_status;
 		TimeStamp timestamp;
 		char outstr[1024];
 		SecBuffer inbufs[2], outbuf;
 		SecBufferDesc in, out;
 		unsigned long context_attr;
+		u16string auth_typew = utf8_to_utf16(auth_type);
+		u16string spn;
+
+		if (auth_type == "Negotiate" && fqdn.empty())
+			throw runtime_error("Cannot do Negotiate authentication as FQDN not found.");
 
 		if (!SecIsValidHandle(&cred_handle)) {
-			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)L"NTLM", SECPKG_CRED_OUTBOUND, nullptr, nullptr, nullptr,
-												nullptr, &cred_handle, &timestamp);
+			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
+												   nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 			if (FAILED(sec_status)) {
 				char s[255];
 
@@ -338,9 +364,9 @@ namespace ws {
 			}
 		}
 
-		auto auth = b64decode(ntlm);
+		auto auth = b64decode(auth_msg);
 
-		if (!ntlm.empty()) {
+		if (!auth_msg.empty()) {
 			inbufs[0].cbBuffer = auth.length();
 			inbufs[0].BufferType = SECBUFFER_TOKEN;
 			inbufs[0].pvBuffer = auth.data();
@@ -362,8 +388,12 @@ namespace ws {
 		out.cBuffers = 1;
 		out.pBuffers = &outbuf;
 
-		sec_status = InitializeSecurityContextW(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, nullptr,
-												0, 0, SECURITY_NATIVE_DREP, ntlm.empty() ? nullptr : &in, 0,
+		if (auth_type == "Negotiate")
+			spn = u"HTTP/" + utf8_to_utf16(fqdn);
+
+		sec_status = InitializeSecurityContextW(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr,
+												auth_type == "Negotiate" ? (SEC_WCHAR*)spn.c_str() : nullptr,
+												0, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
 												&ctx_handle, &out, &context_attr, &timestamp);
 		if (FAILED(sec_status)) {
 			char s[255];
@@ -378,7 +408,7 @@ namespace ws {
 			sec_status == SEC_E_OK) {
 			auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
 
-			send_raw(req + "Authorization: NTLM " + b64 + "\r\n\r\n");
+			send_raw(req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n");
 
 			return;
 		}
@@ -511,8 +541,8 @@ namespace ws {
 				}
 
 #ifdef _WIN32
-				if (auth_type == "NTLM")
-					send_ntlm_response(auth_msg, req);
+				if (auth_type == "NTLM" || auth_type == "Negotiate")
+					send_auth_response(auth_type, auth_msg, req);
 #else
 				if (auth_type == "Negotiate")
 					send_auth_response(auth_type, auth_msg, req);
