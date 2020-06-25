@@ -34,6 +34,7 @@
 #include "wsserver-impl.h"
 #include "b64.h"
 #include "sha1.h"
+#include "gssexcept.h"
 
 using namespace std;
 
@@ -307,36 +308,6 @@ namespace ws {
 	}
 #endif
 
-#ifndef _WIN32
-	class gss_error : public std::exception {
-	public:
-		gss_error(const string& func, OM_uint32 major, OM_uint32 minor) {
-			OM_uint32 message_context = 0;
-			OM_uint32 min_status;
-			gss_buffer_desc status_string;
-
-			msg = func + " failed (minor " + to_string(minor) + "): ";
-
-			do {
-				gss_display_status(&min_status, major, GSS_C_GSS_CODE, GSS_C_NO_OID,
-								   &message_context, &status_string);
-
-				msg += string((char*)status_string.value, status_string.length);
-
-				gss_release_buffer(&min_status, &status_string);
-
-			} while (message_context != 0);
-		}
-
-		const char* what() const noexcept {
-			return msg.c_str();
-		}
-
-	private:
-		string msg;
-	};
-#endif
-
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
 			string auth;
@@ -384,7 +355,7 @@ namespace ws {
 			}
 #else
 			if (cred_handle != 0) {
-				major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+				major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
 												GSS_C_ACCEPT, &cred_handle, nullptr, nullptr);
 
 				if (major_status != GSS_S_COMPLETE)

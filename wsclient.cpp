@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <gssapi/gssapi.h>
 #endif
 #include <string.h>
 #include <random>
@@ -33,6 +34,7 @@
 #include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"
+#include "gssexcept.h"
 
 using namespace std;
 
@@ -377,6 +379,54 @@ namespace ws {
 
 		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
 	}
+#else
+	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
+		OM_uint32 major_status, minor_status;
+		gss_buffer_desc recv_tok, send_tok, name_buf;
+		gss_name_t gss_name;
+		string outbuf;
+
+		if (cred_handle != 0) {
+			major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+											GSS_C_INITIATE, &cred_handle, nullptr, nullptr);
+
+			if (major_status != GSS_S_COMPLETE)
+				throw gss_error("gss_acquire_cred", major_status, minor_status);
+		}
+
+		auto auth = b64decode(auth_msg);
+
+		recv_tok.length = auth.length();
+		recv_tok.value = auth.data();
+
+		name_buf.length = 24;
+		name_buf.value = (void*)"HTTP/beren.harmstone.com"; // FIXME
+
+		major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
+		if (major_status != GSS_S_COMPLETE)
+			throw gss_error("gss_import_name", major_status, minor_status);
+
+		major_status = gss_init_sec_context(&minor_status, cred_handle, &ctx_handle, gss_name, GSS_C_NO_OID,
+											GSS_C_DELEG_FLAG, GSS_C_INDEFINITE, GSS_C_NO_CHANNEL_BINDINGS,
+											&recv_tok, nullptr, &send_tok, nullptr, nullptr);
+
+		if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
+			throw gss_error("gss_init_sec_context", major_status, minor_status);
+
+		if (send_tok.length != 0) {
+			outbuf = string((char*)send_tok.value, send_tok.length);
+
+			gss_release_buffer(&minor_status, &send_tok);
+		}
+
+		if (!outbuf.empty()) {
+			auto b64 = b64encode(outbuf);
+
+			send_raw(req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n");
+
+			return;
+		}
+	}
 #endif
 
 	void client_pimpl::send_handshake() {
@@ -437,19 +487,29 @@ namespace ws {
 				nl = mess.find("\r\n", nl2);
 			} while (nl != string::npos);
 
-#ifdef _WIN32
 			if (status == 401 && headers.count("WWW-Authenticate") != 0) {
 				const auto& h = headers.at("WWW-Authenticate");
+				auto st = h.find(" ");
+				string_view auth_type, auth_msg;
 
-				if (h == "NTLM")
-					send_ntlm_response("", req);
-				else if (h.substr(0, 5) == "NTLM ")
-					send_ntlm_response(string_view(h).substr(5), req);
+				if (st == string::npos)
+					auth_type = h;
+				else {
+					auth_type = string_view(h).substr(0, st);
+					auth_msg = string_view(h).substr(st + 1);
+				}
+
+#ifdef _WIN32
+				if (auth_type == "NTLM")
+					send_ntlm_response(auth_msg, req);
+#else
+				if (auth_type == "Negotiate")
+					send_auth_response(auth_type, auth_msg, req);
+#endif
 
 				again = true;
 				continue;
 			}
-#endif
 
 			if (status != 101)
 				throw runtime_error("Server returned HTTP status " + to_string(status) + ", expected 101.");
