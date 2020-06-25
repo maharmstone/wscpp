@@ -305,19 +305,55 @@ namespace ws {
 		username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
 		domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
 	}
+#endif
 
+#ifndef _WIN32
+	class gss_error : public std::exception {
+	public:
+		gss_error(const string& func, OM_uint32 major, OM_uint32 minor) {
+			OM_uint32 message_context = 0;
+			OM_uint32 min_status;
+			gss_buffer_desc status_string;
+
+			msg = func + " failed (minor " + to_string(minor) + "): ";
+
+			do {
+				gss_display_status(&min_status, major, GSS_C_GSS_CODE, GSS_C_NO_OID,
+								   &message_context, &status_string);
+
+				msg += string((char*)status_string.value, status_string.length);
+
+				gss_release_buffer(&min_status, &status_string);
+
+			} while (message_context != 0);
+		}
+
+		const char* what() const noexcept {
+			return msg.c_str();
+		}
+
+	private:
+		string msg;
+	};
 #endif
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
-#ifdef _WIN32
 		if (!serv.impl->auth_type.empty()) {
+			string auth;
+#ifdef _WIN32
 			SECURITY_STATUS sec_status;
 			char outstr[1024];
 			SecBuffer inbufs[2], outbuf;
 			SecBufferDesc in, out;
 			TimeStamp timestamp;
 			unsigned long context_attr;
-			string auth;
+#else
+			OM_uint32 major_status, minor_status;
+			OM_uint32 ret_flags;
+			gss_buffer_desc recv_tok, send_tok, name_buffer;
+			gss_OID mech_type;
+			gss_name_t src_name;
+#endif
 
 			const auto& auth_type = serv.impl->auth_type;
 
@@ -335,6 +371,7 @@ namespace ws {
 				return;
 			}
 
+#ifdef _WIN32
 			if (!SecIsValidHandle(&cred_handle)) {
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
@@ -345,7 +382,17 @@ namespace ws {
 					throw runtime_error(s);
 				}
 			}
+#else
+			if (cred_handle != 0) {
+				major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+												GSS_C_ACCEPT, &cred_handle, nullptr, nullptr);
 
+				if (major_status != GSS_S_COMPLETE)
+					throw gss_error("gss_acquire_cred", major_status, minor_status);
+			}
+#endif
+
+#ifdef _WIN32
 			inbufs[0].cbBuffer = auth.length();
 			inbufs[0].BufferType = SECBUFFER_TOKEN;
 			inbufs[0].pvBuffer = auth.data();
@@ -404,8 +451,52 @@ namespace ws {
 			}
 
 			get_username(token);
-		}
+#else
+			recv_tok.length = auth.length();
+			recv_tok.value = auth.data();
+
+			major_status = gss_accept_sec_context(&minor_status, &ctx_handle, cred_handle, &recv_tok,
+												  GSS_C_NO_CHANNEL_BINDINGS, &src_name, &mech_type, &send_tok,
+												  &ret_flags, nullptr, nullptr);
+
+			if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
+				throw gss_error("gss_accept_sec_context", major_status, minor_status);
+
+			string outbuf;
+
+			if (send_tok.length != 0) {
+				outbuf = string((char*)send_tok.value, send_tok.length);
+
+				gss_release_buffer(&minor_status, &send_tok);
+			}
+
+			if (major_status == GSS_S_CONTINUE_NEEDED) {
+				auto b64 = b64encode(outbuf);
+
+				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n");
+
+				return;
+			}
+
+			major_status = gss_display_name(&minor_status, src_name, &name_buffer, nullptr);
+			if (major_status != GSS_S_COMPLETE) {
+				gss_release_name(&minor_status, &src_name);
+				throw gss_error("gss_display_name", major_status, minor_status);
+			}
+
+			username = string((char*)name_buffer.value, name_buffer.length);
+
+			gss_release_name(&minor_status, &src_name);
+			gss_release_buffer(&minor_status, &name_buffer);
+
+			if (username.find("@") != string::npos) {
+				auto st = username.find("@");
+
+				domain_name = username.substr(st + 1);
+				username = username.substr(0, st);
+			}
 #endif
+		}
 
 		if (headers.count("Upgrade") == 0 || lower(headers["Upgrade"]) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 			send_raw("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");

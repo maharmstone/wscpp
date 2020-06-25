@@ -19,6 +19,8 @@
 #ifdef _WIN32
 #define SECURITY_WIN32
 #include <sspi.h>
+#else
+#include <gssapi/gssapi.h>
 #endif
 
 namespace ws {
@@ -107,6 +109,8 @@ namespace ws {
 		HANDLE token = INVALID_HANDLE_VALUE;
 #else
 		int fd;
+		gss_cred_id_t cred_handle = 0;
+		gss_ctx_id_t ctx_handle = GSS_C_NO_CONTEXT;
 #endif
 		server& serv;
 		std::thread t;
