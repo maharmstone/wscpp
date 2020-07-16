@@ -62,9 +62,6 @@ namespace ws {
 #ifdef _WIN32
 		if (SecIsValidHandle(&cred_handle))
 			FreeCredentialsHandle(&cred_handle);
-
-		if (token != INVALID_HANDLE_VALUE)
-			CloseHandle(token);
 #endif
 
 		t.join();
@@ -412,16 +409,22 @@ namespace ws {
 
 			// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
 
-			sec_status = QuerySecurityContextToken(&ctx_handle, &token);
+			{
+				HANDLE h;
 
-			if (FAILED(sec_status)) {
-				char s[255];
+				sec_status = QuerySecurityContextToken(&ctx_handle, &h);
 
-				sprintf(s, "QuerySecurityContextToken returned %08lx", sec_status);
-				throw runtime_error(s);
+				if (FAILED(sec_status)) {
+					char s[255];
+
+					sprintf(s, "QuerySecurityContextToken returned %08lx", sec_status);
+					throw runtime_error(s);
+				}
+
+				token.reset(h);
 			}
 
-			get_username(token);
+			get_username(token.get());
 #else
 			recv_tok.length = auth.length();
 			recv_tok.value = auth.data();
@@ -912,7 +915,7 @@ namespace ws {
 	}
 
 	HANDLE client_thread_pimpl::impersonation_token() const {
-		return token;
+		return token.get();
 	}
 
 	HANDLE client_thread::impersonation_token() const {

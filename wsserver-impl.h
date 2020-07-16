@@ -23,6 +23,22 @@
 #include <gssapi/gssapi.h>
 #endif
 
+#ifdef _WIN32
+class handle_closer {
+public:
+	typedef HANDLE pointer;
+
+	void operator()(HANDLE h) {
+		if (h == INVALID_HANDLE_VALUE)
+			return;
+
+		CloseHandle(h);
+	}
+};
+
+typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
+#endif
+
 namespace ws {
 	class client_thread_pimpl;
 
@@ -106,7 +122,7 @@ namespace ws {
 		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
 		CtxtHandle ctx_handle;
 		bool ctx_handle_set = false;
-		HANDLE token = INVALID_HANDLE_VALUE;
+		unique_handle token{INVALID_HANDLE_VALUE};
 #else
 		int fd;
 		gss_cred_id_t cred_handle = 0;
