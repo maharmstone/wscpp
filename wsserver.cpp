@@ -62,6 +62,9 @@ namespace ws {
 #ifdef _WIN32
 		if (SecIsValidHandle(&cred_handle))
 			FreeCredentialsHandle(&cred_handle);
+
+		if (ctx_handle_set)
+			DeleteSecurityContext(&ctx_handle);
 #endif
 
 		t.join();
