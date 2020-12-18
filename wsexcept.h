@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fmt/format.h>
+
 #ifndef _WIN32
 #include <string>
 #include <gssapi/gssapi.h>
@@ -36,3 +38,18 @@ private:
 	std::string msg;
 };
 #endif
+
+class formatted_error : public std::exception {
+public:
+	template<typename T, typename... Args>
+	formatted_error(const T& s, Args&&... args) {
+		msg = fmt::format(s, std::forward<Args>(args)...);
+	}
+
+	const char* what() const noexcept {
+		return msg.c_str();
+	}
+
+private:
+	std::string msg;
+};

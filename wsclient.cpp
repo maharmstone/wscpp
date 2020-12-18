@@ -34,7 +34,7 @@
 #include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"
-#include "gssexcept.h"
+#include "wsexcept.h"
 
 using namespace std;
 
@@ -57,7 +57,7 @@ namespace ws {
 		hints.ai_protocol = IPPROTO_TCP;
 
 		if (getaddrinfo(host.c_str(), to_string(port).c_str(), &hints, &result) != 0)
-			throw runtime_error("getaddr failed.");
+			throw formatted_error(FMT_STRING("getaddr failed."));
 
 		try {
 			for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
@@ -66,10 +66,10 @@ namespace ws {
 				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 #ifdef _WIN32
 				if (sock == INVALID_SOCKET)
-					throw runtime_error("socket failed (error " + to_string(WSAGetLastError()) + ")");
+					throw formatted_error(FMT_STRING("socket failed (error {})"), WSAGetLastError());
 #else
 				if (sock == -1)
-					throw runtime_error("socket failed (error " + to_string(errno) + ")");
+					throw formatted_error(FMT_STRING("socket failed (error {})"), errno);
 #endif
 
 #ifdef _WIN32
@@ -106,7 +106,7 @@ namespace ws {
 #else
 		if (sock == -1)
 #endif
-			throw runtime_error("Could not connect to " + host + " (error " + to_string(wsa_error) + ").");
+			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error);
 
 		open = true;
 	}
@@ -123,7 +123,7 @@ namespace ws {
 		WSADATA wsa_data;
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-			throw runtime_error("WSAStartup failed.");
+			throw formatted_error(FMT_STRING("WSAStartup failed."));
 #endif
 
 		try {
@@ -216,7 +216,7 @@ namespace ws {
 		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
 			int err = WSAGetLastError();
 
-			throw runtime_error("setsockopt returned " + to_string(err) + ".");
+			throw formatted_error(FMT_STRING("setsockopt returned {}."), err);
 		}
 #else
 		struct timeval tv;
@@ -226,7 +226,7 @@ namespace ws {
 		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
 			int err = errno;
 
-			throw runtime_error("setsockopt returned " + to_string(err) + ".");
+			throw formatted_error(FMT_STRING("setsockopt returned {}."), err);
 		}
 #endif
 	}
@@ -240,14 +240,14 @@ namespace ws {
 
 #ifdef _WIN32
 			if (ret == SOCKET_ERROR)
-				throw runtime_error("send failed (error " + to_string(WSAGetLastError()) + ")");
+				throw formatted_error(FMT_STRING("send failed (error {})"), WSAGetLastError());
 #else
 			if (ret == -1)
-				throw runtime_error("send failed (error " + to_string(errno) + ")");
+				throw formatted_error(FMT_STRING("send failed (error {})"), errno);
 #endif
 
 			if ((size_t)ret < s.length())
-				throw runtime_error("send sent " + to_string(ret) + " bytes, expected " + to_string(s.length()));
+				throw formatted_error(FMT_STRING("send sent {} bytes, expected {}"), ret, s.length());
 		} catch (...) {
 			if (timeout != 0)
 				set_send_timeout(0);
@@ -273,11 +273,8 @@ namespace ws {
 			if (bytes == -1) {
 				auto err = errno;
 #endif
-				char msg[255];
 
-				sprintf(msg, "recv 1 failed (%u).", err);
-
-				throw runtime_error(msg);
+				throw formatted_error(FMT_STRING("recv 1 failed ({})."), err);
 			} else if (bytes == 0) {
 				open = false;
 				return "";
@@ -297,7 +294,7 @@ namespace ws {
 #else
 				if (ret == -1)
 #endif
-					throw runtime_error("recv 2 failed.");
+					throw formatted_error(FMT_STRING("recv 2 failed."));
 				else if (ret == 0) {
 					open = false;
 					return "";
@@ -312,7 +309,7 @@ namespace ws {
 #else
 				if (ret == -1)
 #endif
-					throw runtime_error("recv 4 failed.");
+					throw formatted_error(FMT_STRING("recv 4 failed."));
 				else if (ret == 0) {
 					open = false;
 					return "";
@@ -331,14 +328,14 @@ static __inline u16string utf8_to_utf16(const string_view& s) {
 	auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
 
 	if (len == 0)
-		throw runtime_error("MultiByteToWideChar 1 failed.");
+		throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
 
 	ret.resize(len);
 
 	len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
 
 	if (len == 0)
-		throw runtime_error("MultiByteToWideChar 2 failed.");
+		throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
 
 	return ret;
 }
@@ -354,17 +351,13 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 		u16string spn;
 
 		if (auth_type == "Negotiate" && fqdn.empty())
-			throw runtime_error("Cannot do Negotiate authentication as FQDN not found.");
+			throw formatted_error(FMT_STRING("Cannot do Negotiate authentication as FQDN not found."));
 
 		if (!SecIsValidHandle(&cred_handle)) {
 			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
 												   nullptr, nullptr, nullptr, &cred_handle, &timestamp);
-			if (FAILED(sec_status)) {
-				char s[255];
-
-				sprintf(s, "AcquireCredentialsHandle returned %08lx", sec_status);
-				throw runtime_error(s);
-			}
+			if (FAILED(sec_status))
+				throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {:08x}"), sec_status);
 		}
 
 		auto auth = b64decode(auth_msg);
@@ -398,12 +391,8 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 												auth_type == "Negotiate" ? (SEC_WCHAR*)spn.c_str() : nullptr,
 												0, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
 												&ctx_handle, &out, &context_attr, &timestamp);
-		if (FAILED(sec_status)) {
-			char s[255];
-
-			sprintf(s, "InitializeSecurityContext returned %08lx", sec_status);
-			throw runtime_error(s);
-		}
+		if (FAILED(sec_status))
+			throw formatted_error(FMT_STRING("InitializeSecurityContext returned {:08x}"), sec_status);
 
 		ctx_handle_set = true;
 
@@ -426,7 +415,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 		string outbuf;
 
 		if (auth_type == "Negotiate" && fqdn.empty())
-			throw runtime_error("Cannot do Negotiate authentication as FQDN not found.");
+			throw formatted_error(FMT_STRING("Cannot do Negotiate authentication as FQDN not found."));
 
 		if (cred_handle != 0) {
 			major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
@@ -489,7 +478,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 			string mess = recv_http();
 
 			if (!open)
-				throw runtime_error("Socket closed unexpectedly.");
+				throw formatted_error(FMT_STRING("Socket closed unexpectedly."));
 
 			again = false;
 
@@ -515,7 +504,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 						try {
 							status = stoul(ss);
 						} catch (...) {
-							throw runtime_error("Error calling stoul on \"" + ss + "\"");
+							throw formatted_error(FMT_STRING("Error calling stoul on \"{}\""), ss);
 						}
 					}
 
@@ -556,13 +545,13 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 			}
 
 			if (status != 101)
-				throw runtime_error("Server returned HTTP status " + to_string(status) + ", expected 101.");
+				throw formatted_error(FMT_STRING("Server returned HTTP status {}, expected 101."), status);
 
 			if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
-				throw runtime_error("Malformed response.");
+				throw formatted_error(FMT_STRING("Malformed response."));
 
 			if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
-				throw runtime_error("Invalid value for Sec-WebSocket-Accept.");
+				throw formatted_error(FMT_STRING("Invalid value for Sec-WebSocket-Accept."));
 		} while (again);
 	}
 
@@ -651,7 +640,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 				return "";
 			}
 
-			throw runtime_error("recv failed (" + to_string(err) + ").");
+			throw formatted_error(FMT_STRING("recv failed ({})."), err);
 		}
 #else
 		if (bytes == -1) {
@@ -660,7 +649,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 				return "";
 			}
 
-			throw runtime_error("recv failed (" + to_string(err) + ").");
+			throw formatted_error(FMT_STRING("recv failed ({})."), err);
 		}
 #endif
 

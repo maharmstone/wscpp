@@ -7,6 +7,8 @@ project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
 
+find_package(fmt REQUIRED)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -27,6 +29,8 @@ if(WIN32)
 else()
 	target_link_libraries(wscpp pthread gssapi_krb5)
 endif()
+
+target_link_libraries(wscpp fmt::fmt-header-only)
 
 target_compile_options(wscpp PRIVATE
 	$<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:

@@ -34,7 +34,7 @@
 #include "wsserver-impl.h"
 #include "b64.h"
 #include "sha1.h"
-#include "gssexcept.h"
+#include "wsexcept.h"
 
 using namespace std;
 
@@ -170,17 +170,17 @@ namespace ws {
 		u_long mode = 1;
 
 		if (ioctlsocket(fd, FIONBIO, &mode) != 0)
-			throw runtime_error("ioctlsocket failed (" + to_string(WSAGetLastError()) + ").");
+			throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), WSAGetLastError());
 #else
 		int flags = fcntl(fd, F_GETFL, 0);
 
 		if (flags == -1)
-			throw runtime_error("fcntl returned -1");
+			throw formatted_error(FMT_STRING("fcntl returned -1"));
 
 		flags |= O_NONBLOCK;
 
 		if (fcntl(fd, F_SETFL, flags) != 0)
-			throw runtime_error("fcntl failed");
+			throw formatted_error(FMT_STRING("fcntl failed"));
 #endif
 
 		int bytes = send(fd, sv.data(), (int)sv.length(), 0);
@@ -190,25 +190,25 @@ namespace ws {
 			int err = WSAGetLastError();
 
 			if (err != WSAEWOULDBLOCK)
-				throw runtime_error("send failed (" + to_string(err) + ").");
+				throw formatted_error(FMT_STRING("send failed ({})."), err);
 		}
 
 		mode = 0;
 
 		if (ioctlsocket(fd, FIONBIO, &mode) != 0)
-			throw runtime_error("ioctlsocket failed (" + to_string(WSAGetLastError()) + ").");
+			throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), WSAGetLastError());
 #else
 		if (bytes == -1) {
 			int err = errno;
 
 			if (err != EWOULDBLOCK)
-				throw runtime_error("send failed (" + to_string(err) + ").");
+				throw formatted_error(FMT_STRING("send failed ({})."), err);
 		}
 
 		flags &= ~O_NONBLOCK;
 
 		if (fcntl(fd, F_SETFL, flags) != 0)
-			throw runtime_error("fcntl failed");
+			throw formatted_error(FMT_STRING("fcntl failed"));
 #endif
 	}
 
@@ -223,7 +223,7 @@ namespace ws {
 									nullptr, nullptr);
 
 		if (len == 0)
-			throw runtime_error("WideCharToMultiByte 1 failed.");
+			throw formatted_error(FMT_STRING("WideCharToMultiByte 1 failed."));
 
 		ret.resize(len);
 
@@ -231,7 +231,7 @@ namespace ws {
 								nullptr, nullptr);
 
 		if (len == 0)
-			throw runtime_error("WideCharToMultiByte 2 failed.");
+			throw formatted_error(FMT_STRING("WideCharToMultiByte 2 failed."));
 
 		return ret;
 	}
@@ -245,14 +245,14 @@ namespace ws {
 		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
 
 		if (len == 0)
-			throw runtime_error("MultiByteToWideChar 1 failed.");
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
 
 		ret.resize(len);
 
 		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
 
 		if (len == 0)
-			throw runtime_error("MultiByteToWideChar 2 failed.");
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
 
 		return ret;
 	}
@@ -271,37 +271,25 @@ namespace ws {
 		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0) {
 			auto le = GetLastError();
 
-			if (le != ERROR_INSUFFICIENT_BUFFER) {
-				char s[255];
-
-				sprintf(s, "GetTokenInformation failed (last error %lu)", le);
-				throw runtime_error(s);
-			}
+			if (le != ERROR_INSUFFICIENT_BUFFER)
+				throw formatted_error(FMT_STRING("GetTokenInformation failed (last error {})"), le);
 		}
 
 		buf.resize(ret);
 		tu = (TOKEN_USER*)&buf[0];
 
-		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0) {
-			char s[255];
-
-			sprintf(s, "GetTokenInformation failed (last error %lu)", GetLastError());
-			throw runtime_error(s);
-		}
+		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0)
+			throw formatted_error(FMT_STRING("GetTokenInformation failed (last error {})"), GetLastError());
 
 		if (!IsValidSid(tu->User.Sid))
-			throw runtime_error("Invalid SID.");
+			throw formatted_error(FMT_STRING("Invalid SID."));
 
 		user_size = sizeof(usernamew) / sizeof(WCHAR);
 		domain_size = sizeof(domain_namew) / sizeof(WCHAR);
 
 		if (!LookupAccountSidW(nullptr, tu->User.Sid, usernamew, &user_size, domain_namew,
-							   &domain_size, &use)) {
-			char s[255];
-
-			sprintf(s, "LookupAccountSid failed (last error %lu)", GetLastError());
-			throw runtime_error(s);
-		}
+							   &domain_size, &use))
+			throw formatted_error(FMT_STRING("LookupAccountSid failed (last error {})"), GetLastError());
 
 		username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
 		domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
@@ -346,12 +334,8 @@ namespace ws {
 			if (!SecIsValidHandle(&cred_handle)) {
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
-				if (FAILED(sec_status)) {
-					char s[255];
-
-					sprintf(s, "AcquireCredentialsHandle returned %08lx", sec_status);
-					throw runtime_error(s);
-				}
+				if (FAILED(sec_status))
+					throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {:08x}"), sec_status);
 			}
 #else
 			if (cred_handle != 0) {
@@ -393,12 +377,8 @@ namespace ws {
 
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
 				return;
-			} else if (FAILED(sec_status)) {
-				char s[255];
-
-				sprintf(s, "AcceptSecurityContext returned %08lx", sec_status);
-				throw runtime_error(s);
-			}
+			} else if (FAILED(sec_status))
+				throw formatted_error(FMT_STRING("AcceptSecurityContext returned {:08x}"), sec_status);
 
 			ctx_handle_set = true;
 
@@ -417,12 +397,8 @@ namespace ws {
 
 				sec_status = QuerySecurityContextToken(&ctx_handle, &h);
 
-				if (FAILED(sec_status)) {
-					char s[255];
-
-					sprintf(s, "QuerySecurityContextToken returned %08lx", sec_status);
-					throw runtime_error(s);
-				}
+				if (FAILED(sec_status))
+					throw formatted_error(FMT_STRING("QuerySecurityContextToken returned {:08x}"), sec_status);
 
 				token.reset(h);
 			}
@@ -532,13 +508,13 @@ namespace ws {
 			open = false;
 			return "";
 		} else if (bytes == SOCKET_ERROR)
-			throw runtime_error("recv failed (" + to_string(err) + ").");
+			throw formatted_error(FMT_STRING("recv failed ({})."), err);
 #else
 		if (bytes == 0 || (bytes == -1 && err == ECONNRESET)) {
 			open = false;
 			return "";
 		} else if (bytes == -1)
-			throw runtime_error("recv failed (" + to_string(err) + ").");
+			throw formatted_error(FMT_STRING("recv failed ({})."), err);
 #endif
 
 		return s.substr(0, bytes);
@@ -729,7 +705,7 @@ namespace ws {
 		WSADATA wsaData;
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-			throw runtime_error("WSAStartup failed.");
+			throw formatted_error(FMT_STRING("WSAStartup failed."));
 #endif
 
 		try {
@@ -747,7 +723,7 @@ namespace ws {
 #else
 			if (impl->sock == -1)
 #endif
-				throw runtime_error("socket failed.");
+				throw formatted_error(FMT_STRING("socket failed."));
 
 			try {
 				int reuseaddr = 1;
@@ -881,32 +857,24 @@ namespace ws {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
-			throw runtime_error("ctx_handle not set");
+			throw formatted_error(FMT_STRING("ctx_handle not set"));
 
 		sec_status = ImpersonateSecurityContext((PCtxtHandle)&ctx_handle);
 
-		if (FAILED(sec_status)) {
-			char s[255];
-
-			sprintf(s, "ImpersonateSecurityContext returned %08lx", sec_status);
-			throw runtime_error(s);
-		}
+		if (FAILED(sec_status))
+			throw formatted_error(FMT_STRING("ImpersonateSecurityContext returned {:08x}"), sec_status);
 	}
 
 	void client_thread_pimpl::revert() const {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
-			throw runtime_error("ctx_handle not set");
+			throw formatted_error(FMT_STRING("ctx_handle not set"));
 
 		sec_status = RevertSecurityContext((PCtxtHandle)&ctx_handle);
 
-		if (FAILED(sec_status)) {
-			char s[255];
-
-			sprintf(s, "RevertSecurityContext returned %08lx", sec_status);
-			throw runtime_error(s);
-		}
+		if (FAILED(sec_status))
+			throw formatted_error(FMT_STRING("RevertSecurityContext returned {:08x}"), sec_status);
 	}
 
 	void client_thread::impersonate() const {
