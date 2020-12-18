@@ -25,6 +25,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <limits.h>
+#include <netdb.h>
 #else
 #include <ws2tcpip.h>
 #endif
@@ -296,6 +298,33 @@ namespace ws {
 	}
 #endif
 
+	static string get_fqdn() {
+		struct addrinfo hints, *info;
+		int err;
+		char hostname[HOST_NAME_MAX + 1];
+
+		hostname[HOST_NAME_MAX] = 0;
+		gethostname(hostname, HOST_NAME_MAX);
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_CANONNAME;
+
+		err = getaddrinfo(hostname, nullptr, &hints, &info);
+		if (err != 0)
+			throw formatted_error(FMT_STRING("getaddrinfo failed for {} (error {})."), hostname, err);
+
+		if (!info)
+			throw formatted_error(FMT_STRING("Could not get fully-qualified domain name."));
+
+		string ret = info->ai_canonname;
+
+		freeaddrinfo(info);
+
+		return ret;
+	}
+
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
 			string auth;
@@ -338,8 +367,19 @@ namespace ws {
 					throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {:08x}"), sec_status);
 			}
 #else
-			if (cred_handle != 0) {
-				major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+			if (cred_handle == 0) {
+				gss_buffer_desc name_buf;
+				gss_name_t gss_name;
+				string spn = "HTTP/" + get_fqdn();
+
+				name_buf.length = spn.length();
+				name_buf.value = (void*)spn.data();
+
+				major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
+				if (major_status != GSS_S_COMPLETE)
+					throw gss_error("gss_import_name", major_status, minor_status);
+
+				major_status = gss_acquire_cred(&minor_status, gss_name, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
 												GSS_C_ACCEPT, &cred_handle, nullptr, nullptr);
 
 				if (major_status != GSS_S_COMPLETE)
