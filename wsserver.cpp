@@ -333,7 +333,6 @@ namespace ws {
 			string auth;
 #ifdef _WIN32
 			SECURITY_STATUS sec_status;
-			char outstr[1024];
 			SecBuffer inbufs[2], outbuf;
 			SecBufferDesc in, out;
 			TimeStamp timestamp;
@@ -409,17 +408,22 @@ namespace ws {
 			in.cBuffers = 2;
 			in.pBuffers = inbufs;
 
-			outbuf.cbBuffer = sizeof(outstr);
+			outbuf.cbBuffer = 0;
 			outbuf.BufferType = SECBUFFER_TOKEN;
-			outbuf.pvBuffer = outstr;
+			outbuf.pvBuffer = nullptr;
 
 			out.ulVersion = SECBUFFER_VERSION;
 			out.cBuffers = 1;
 			out.pBuffers = &outbuf;
 
-			sec_status = AcceptSecurityContext(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, &in, 0,
+			sec_status = AcceptSecurityContext(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, &in, ASC_REQ_ALLOCATE_MEMORY,
 											   SECURITY_NATIVE_DREP, &ctx_handle, &out, &context_attr,
 											   &timestamp);
+
+			auto sspi = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+			if (outbuf.pvBuffer)
+				FreeContextBuffer(outbuf.pvBuffer);
 
 			if (sec_status == SEC_E_LOGON_DENIED) {
 				static const string msg = "Logon denied.";
@@ -432,7 +436,7 @@ namespace ws {
 			ctx_handle_set = true;
 
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
-				auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
+				auto b64 = b64encode(sspi);
 
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n");
 
