@@ -29,6 +29,7 @@
 #include <netdb.h>
 #else
 #include <ws2tcpip.h>
+#include <ntdsapi.h>
 #endif
 #include "wscpp.h"
 #include <fcntl.h>
@@ -363,6 +364,12 @@ namespace ws {
 
 #ifdef _WIN32
 			if (!SecIsValidHandle(&cred_handle)) {
+				if (auth_type == "Negotiate") { // FIXME - log error if this fails, rather than throwing exception?
+					auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
+					if (FAILED(ret))
+						throw formatted_error(FMT_STRING("DsServerRegisterSpn returned {}"), ret);
+				}
+
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status))
