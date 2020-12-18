@@ -319,28 +319,28 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-static __inline u16string utf8_to_utf16(const string_view& s) {
-	u16string ret;
+	static __inline u16string utf8_to_utf16(const string_view& s) {
+		u16string ret;
 
-	if (s.empty())
-		return u"";
+		if (s.empty())
+			return u"";
 
-	auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
+		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
 
-	if (len == 0)
-		throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
+		if (len == 0)
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
 
-	ret.resize(len);
+		ret.resize(len);
 
-	len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
+		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
 
-	if (len == 0)
-		throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
+		if (len == 0)
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
 
-	return ret;
-}
+		return ret;
+	}
 
-void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
+	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
 		SECURITY_STATUS sec_status;
 		TimeStamp timestamp;
 		char outstr[1024];
@@ -357,7 +357,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
 												   nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 			if (FAILED(sec_status))
-				throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {:08x}"), sec_status);
+				throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {}"), (enum sec_error)sec_status);
 		}
 
 		auto auth = b64decode(auth_msg);
@@ -392,7 +392,7 @@ void client_pimpl::send_auth_response(const string_view& auth_type, const string
 												0, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
 												&ctx_handle, &out, &context_attr, &timestamp);
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("InitializeSecurityContext returned {:08x}"), sec_status);
+			throw formatted_error(FMT_STRING("InitializeSecurityContext returned {}"), (enum sec_error)sec_status);
 
 		ctx_handle_set = true;
 

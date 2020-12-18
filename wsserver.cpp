@@ -298,6 +298,7 @@ namespace ws {
 	}
 #endif
 
+#ifndef _WIN32
 	static string get_fqdn() {
 		struct addrinfo hints, *info;
 		int err;
@@ -324,6 +325,7 @@ namespace ws {
 
 		return ret;
 	}
+#endif
 
 	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
@@ -364,7 +366,7 @@ namespace ws {
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status))
-					throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {:08x}"), sec_status);
+					throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {}"), (enum sec_error)sec_status);
 			}
 #else
 			if (cred_handle == 0) {
@@ -418,7 +420,7 @@ namespace ws {
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
 				return;
 			} else if (FAILED(sec_status))
-				throw formatted_error(FMT_STRING("AcceptSecurityContext returned {:08x}"), sec_status);
+				throw formatted_error(FMT_STRING("AcceptSecurityContext returned {}"), (enum sec_error)sec_status);
 
 			ctx_handle_set = true;
 
@@ -438,7 +440,7 @@ namespace ws {
 				sec_status = QuerySecurityContextToken(&ctx_handle, &h);
 
 				if (FAILED(sec_status))
-					throw formatted_error(FMT_STRING("QuerySecurityContextToken returned {:08x}"), sec_status);
+					throw formatted_error(FMT_STRING("QuerySecurityContextToken returned {}"), (enum sec_error)sec_status);
 
 				token.reset(h);
 			}
@@ -902,7 +904,7 @@ namespace ws {
 		sec_status = ImpersonateSecurityContext((PCtxtHandle)&ctx_handle);
 
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("ImpersonateSecurityContext returned {:08x}"), sec_status);
+			throw formatted_error(FMT_STRING("ImpersonateSecurityContext returned {}"), (enum sec_error)sec_status);
 	}
 
 	void client_thread_pimpl::revert() const {
@@ -914,7 +916,7 @@ namespace ws {
 		sec_status = RevertSecurityContext((PCtxtHandle)&ctx_handle);
 
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("RevertSecurityContext returned {:08x}"), sec_status);
+			throw formatted_error(FMT_STRING("RevertSecurityContext returned {}"), (enum sec_error)sec_status);
 	}
 
 	void client_thread::impersonate() const {
