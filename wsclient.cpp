@@ -343,7 +343,6 @@ namespace ws {
 	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
 		SECURITY_STATUS sec_status;
 		TimeStamp timestamp;
-		char outstr[1024];
 		SecBuffer inbufs[2], outbuf;
 		SecBufferDesc in, out;
 		unsigned long context_attr;
@@ -376,9 +375,9 @@ namespace ws {
 			in.pBuffers = inbufs;
 		}
 
-		outbuf.cbBuffer = sizeof(outstr);
+		outbuf.cbBuffer = 0;
 		outbuf.BufferType = SECBUFFER_TOKEN;
-		outbuf.pvBuffer = outstr;
+		outbuf.pvBuffer = nullptr;
 
 		out.ulVersion = SECBUFFER_VERSION;
 		out.cBuffers = 1;
@@ -389,23 +388,26 @@ namespace ws {
 
 		sec_status = InitializeSecurityContextW(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr,
 												auth_type == "Negotiate" ? (SEC_WCHAR*)spn.c_str() : nullptr,
-												0, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
+												ISC_REQ_ALLOCATE_MEMORY, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
 												&ctx_handle, &out, &context_attr, &timestamp);
 		if (FAILED(sec_status))
 			throw formatted_error(FMT_STRING("InitializeSecurityContext returned {}"), (enum sec_error)sec_status);
+
+		auto sspi = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+		if (outbuf.pvBuffer)
+			FreeContextBuffer(outbuf.pvBuffer);
 
 		ctx_handle_set = true;
 
 		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
 			sec_status == SEC_E_OK) {
-			auto b64 = b64encode(string_view((char*)outbuf.pvBuffer, outbuf.cbBuffer));
+			auto b64 = b64encode(sspi);
 
 			send_raw(req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n");
-
-			return;
 		}
 
-		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
+		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
 	}
 #else
 	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
