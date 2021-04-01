@@ -78,6 +78,8 @@ namespace ws {
 	}
 
 	void client_thread_pimpl::run() {
+		while (!constructor_done) { } // use spinlock to avoid race condition in constructor
+
 		try {
 			exception_ptr except;
 

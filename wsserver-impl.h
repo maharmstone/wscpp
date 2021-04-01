@@ -79,6 +79,7 @@ namespace ws {
 		client_thread_pimpl(client_thread& parent, int sock, server& serv, const server_msg_handler& msg_handler,
 				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
 #endif
+			constructor_done(false),
 			parent(parent),
 			fd(sock),
 			serv(serv),
@@ -88,7 +89,9 @@ namespace ws {
 				ctp->conn_handler = conn_handler;
 				ctp->disconn_handler = disconn_handler;
 				ctp->run();
-			}, this, msg_handler, conn_handler, disconn_handler) { }
+			}, this, msg_handler, conn_handler, disconn_handler) {
+			constructor_done = true;
+		}
 
 		~client_thread_pimpl();
 
@@ -109,6 +112,7 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 
+		volatile bool constructor_done;
 		client_thread& parent;
 		bool open = true;
 		std::thread::id thread_id;
