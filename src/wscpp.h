@@ -20,6 +20,8 @@
 #include <string>
 #include <functional>
 #include <exception>
+#include <array>
+#include <span>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -89,12 +91,13 @@ namespace ws {
 
 	class WSCPP client_thread {
 	public:
-		client_thread(void* sock, server& serv, const server_msg_handler& msg_handler,
-			      const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
+		client_thread(void* sock, server& serv, const std::span<uint8_t, 16>& ipv6_addr, const server_msg_handler& msg_handler,
+					  const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
 		~client_thread();
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		std::string_view username() const;
 		std::string_view domain_name() const;
+		std::span<uint8_t, 16> ip_addr() const;
 #ifdef _WIN32
 		void impersonate() const;
 		void revert() const;

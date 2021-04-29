@@ -830,7 +830,8 @@ namespace ws {
 #endif
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
-						impl->client_threads.emplace_back(&newsock, *this, impl->msg_handler, impl->conn_handler, impl->disconn_handler);
+						impl->client_threads.emplace_back(&newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
+														  impl->conn_handler, impl->disconn_handler);
 					} else
 						throw sockets_error("accept");
 				}
@@ -889,15 +890,15 @@ namespace ws {
 		delete impl;
 	}
 
-	client_thread::client_thread(void* sock, server& serv, const server_msg_handler& msg_handler,
-				     const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
+	client_thread::client_thread(void* sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
+								 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 #ifdef _WIN32
 		auto fd = *(SOCKET*)sock;
 #else
 		auto fd = *(int*)sock;
 #endif
 
-		impl = new client_thread_pimpl(*this, fd, serv, msg_handler, conn_handler, disconn_handler);
+		impl = new client_thread_pimpl(*this, fd, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
 	}
 
 	string_view client_thread::username() const {
@@ -949,4 +950,10 @@ namespace ws {
 		return impl->impersonation_token();
 	}
 #endif
+
+	span<uint8_t, 16> client_thread::ip_addr() const {
+		while (!impl->constructor_done) { } // use spinlock to avoid race condition in constructor
+
+		return impl->ip_addr;
+	}
 }

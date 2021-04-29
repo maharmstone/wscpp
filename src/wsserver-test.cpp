@@ -1,5 +1,6 @@
 #include "wscpp.h"
 #include <iostream>
+#include <string.h>
 
 using namespace std;
 
@@ -17,14 +18,31 @@ static void msg_handler(ws::client_thread& c, const string_view& sv) {
 	c.send("Cool story bro");
 }
 
+static string format_ip(const span<uint8_t, 16>& ip) {
+	char s[100];
+
+	// FIXME
+
+	s[0] = 0;
+
+	for (unsigned int i = 0; i < 8; i++) {
+		if (i != 0)
+			strcat(s, ":");
+
+		sprintf(s, "%s%02x%02x", s, ip[i*2], ip[(i*2)+1]);
+	}
+
+	return s;
+}
+
 static void conn_handler(ws::client_thread& c) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
 	if (!username.empty())
-		cout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected." << endl;
+		cout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << format_ip(c.ip_addr()) << ")." << endl;
 	else
-		cout << "Client " << &c << " connected." << endl;
+		cout << "Client " << &c << " connected (" << format_ip(c.ip_addr()) << ")." << endl;
 
 	c.send("Lemon curry?");
 }

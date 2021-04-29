@@ -67,11 +67,13 @@ namespace ws {
 	class client_thread_pimpl {
 	public:
 #ifdef _WIN32
-		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const server_msg_handler& msg_handler,
-				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
+		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
+							const server_disconn_handler& disconn_handler) :
 #else
-		client_thread_pimpl(client_thread& parent, int sock, server& serv, const server_msg_handler& msg_handler,
-				    const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) :
+		client_thread_pimpl(client_thread& parent, int sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
+							const server_disconn_handler& disconn_handler) :
 #endif
 			constructor_done(false),
 			parent(parent),
@@ -84,6 +86,7 @@ namespace ws {
 				ctp->disconn_handler = disconn_handler;
 				ctp->run();
 			}, this, msg_handler, conn_handler, disconn_handler) {
+			std::copy(ip_addr.begin(), ip_addr.end(), this->ip_addr.begin());
 			constructor_done = true;
 		}
 
@@ -127,6 +130,7 @@ namespace ws {
 		gss_ctx_id_t ctx_handle = GSS_C_NO_CONTEXT;
 #endif
 		server& serv;
+		std::array<uint8_t, 16> ip_addr;
 		std::thread t;
 		std::string username, domain_name;
 
