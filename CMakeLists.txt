@@ -15,11 +15,11 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 add_definitions(-DWSCPP_EXPORT)
 
-set(SRC_FILES wsclient.cpp
-	wsserver.cpp
-	b64.cpp
-	sha1.cpp
-	wsexcept.cpp)
+set(SRC_FILES src/wsclient.cpp
+	src/wsserver.cpp
+	src/b64.cpp
+	src/sha1.cpp
+	src/wsexcept.cpp)
 
 add_library(wscpp SHARED ${SRC_FILES})
 add_library(wscppstatic STATIC ${SRC_FILES})
@@ -39,7 +39,7 @@ target_compile_options(wscpp PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:
 		/W4>)
 
-set_target_properties(wscpp PROPERTIES PUBLIC_HEADER wscpp.h)
+set_target_properties(wscpp PROPERTIES PUBLIC_HEADER src/wscpp.h)
 
 if(WIN32 AND NOT MSVC)
 	target_link_options(wscpp PUBLIC -static -static-libgcc)
@@ -57,13 +57,13 @@ install(TARGETS wscpp
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libwscpp.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 
 if(BUILD_SAMPLE)
-	add_executable(wsserver-test wsserver-test.cpp)
+	add_executable(wsserver-test src/wsserver-test.cpp)
 	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
 	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsserver-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 
-	add_executable(wsclient-test wsclient-test.cpp)
+	add_executable(wsclient-test src/wsclient-test.cpp)
 	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsclient-test wscpp)
 	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
