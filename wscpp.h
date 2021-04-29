@@ -19,6 +19,7 @@
 
 #include <string>
 #include <functional>
+#include <exception>
 #include <stdint.h>
 
 #ifdef _WIN32

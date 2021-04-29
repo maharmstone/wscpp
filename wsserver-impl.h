@@ -7,14 +7,8 @@
 #include "wscpp.h"
 #include <stdint.h>
 #include <map>
-
-#ifdef __MINGW32__
-#include "mingw.thread.h"
-#include "mingw.shared_mutex.h"
-#else
 #include <thread>
 #include <shared_mutex>
-#endif
 
 #ifdef _WIN32
 #define SECURITY_WIN32

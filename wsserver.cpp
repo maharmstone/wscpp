@@ -19,6 +19,7 @@
 #include <list>
 #include <map>
 #include <shared_mutex>
+#include <mutex>
 #include <iostream>
 #include <sys/types.h>
 #ifndef _WIN32

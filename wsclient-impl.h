@@ -1,12 +1,7 @@
 #pragma once
 
 #include "wscpp.h"
-
-#ifdef __MINGW32__
-#include "mingw.thread.h"
-#else
 #include <thread>
-#endif
 
 #ifdef _WIN32
 #define SECURITY_WIN32

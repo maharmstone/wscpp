@@ -1,12 +1,7 @@
 #include <wscpp.h>
 #include <iostream>
 #include <chrono>
-
-#ifdef __MINGW32__
-#include "mingw.thread.h"
-#else
 #include <thread>
-#endif
 
 using namespace std;
 
