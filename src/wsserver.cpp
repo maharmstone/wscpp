@@ -28,6 +28,7 @@
 #include <netinet/in.h>
 #include <limits.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 #else
 #include <ws2tcpip.h>
 #include <ntdsapi.h>
@@ -955,5 +956,21 @@ namespace ws {
 		while (!impl->constructor_done) { } // use spinlock to avoid race condition in constructor
 
 		return impl->ip_addr;
+	}
+
+	string client_thread::ip_addr_string() const {
+		auto ip = ip_addr();
+
+		static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+
+		if (!memcmp(ip.data(), ipv4_pref.data(), ipv4_pref.size()))
+			return fmt::format("{}.{}.{}.{}", ip[12], ip[13], ip[14], ip[15]);
+		else {
+			char s[INET6_ADDRSTRLEN];
+
+			inet_ntop(AF_INET6, ip.data(), s, sizeof(s));
+
+			return s;
+		}
 	}
 }

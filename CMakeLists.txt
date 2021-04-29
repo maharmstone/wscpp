@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 add_definitions(-DWSCPP_EXPORT)
+add_definitions(-D_WIN32_WINNT=0x0602)
 
 set(SRC_FILES src/wsclient.cpp
 	src/wsserver.cpp
