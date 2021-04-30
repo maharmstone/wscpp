@@ -486,7 +486,6 @@ namespace ws {
 
 			bool first = true;
 			size_t nl = mess.find("\r\n"), nl2 = 0;
-			string verb;
 			map<string, string> headers;
 			unsigned int status = 0;
 
