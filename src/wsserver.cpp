@@ -227,15 +227,19 @@ namespace ws {
 			if (bytes == SOCKET_ERROR) {
 				int err = WSAGetLastError();
 
-				if (err != WSAEWOULDBLOCK)
-					throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
+				if (err == WSAEWOULDBLOCK)
+					continue;
+
+				throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
 			}
 #else
 			if (bytes == -1) {
 				int err = errno;
 
-				if (err != EWOULDBLOCK)
-					throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
+				if (err == EWOULDBLOCK)
+					continue;
+
+				throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
 			}
 #endif
 
