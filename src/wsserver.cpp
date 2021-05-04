@@ -43,6 +43,10 @@
 
 using namespace std;
 
+#ifdef _WIN32
+HRESULT (WINAPI *_SetThreadDescription)(HANDLE hThread, PCWSTR lpThreadDescription);
+#endif
+
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 static string lower(string s) {
@@ -79,8 +83,39 @@ namespace ws {
 		delete impl;
 	}
 
+	static __inline u16string utf8_to_utf16(const string_view& s) {
+		u16string ret;
+
+		if (s.empty())
+			return u"";
+
+		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
+
+		if (len == 0)
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
+
+		ret.resize(len);
+
+		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
+
+		if (len == 0)
+			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
+
+		return ret;
+	}
+
 	void client_thread_pimpl::run() {
 		while (!constructor_done) { } // use spinlock to avoid race condition in constructor
+
+#ifdef _WIN32
+		if (_SetThreadDescription) {
+			try {
+				auto desc = utf8_to_utf16(fmt::format("wscpp thread ({})", parent.ip_addr_string()));
+				_SetThreadDescription(GetCurrentThread(), (PCWSTR)desc.c_str());
+			} catch (...) {
+			}
+		}
+#endif
 
 		try {
 			exception_ptr except;
@@ -239,27 +274,6 @@ namespace ws {
 
 		if (len == 0)
 			throw formatted_error(FMT_STRING("WideCharToMultiByte 2 failed."));
-
-		return ret;
-	}
-
-	static __inline u16string utf8_to_utf16(const string_view& s) {
-		u16string ret;
-
-		if (s.empty())
-			return u"";
-
-		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
-
-		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
-
-		ret.resize(len);
-
-		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
-
-		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
 
 		return ret;
 	}
@@ -974,3 +988,16 @@ namespace ws {
 		}
 	}
 }
+
+#ifdef _WIN32 // FIXME - how do we get this to run if linked statically?
+__declspec(dllexport) BOOL _stdcall DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+	if (fdwReason == DLL_PROCESS_ATTACH) {
+		auto h = LoadLibraryW(L"kernelbase.dll");
+
+		if (h)
+			_SetThreadDescription = (decltype(_SetThreadDescription))(void(*)(void))GetProcAddress(h, "SetThreadDescription");
+	}
+
+	return TRUE;
+}
+#endif
