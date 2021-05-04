@@ -83,6 +83,7 @@ namespace ws {
 		delete impl;
 	}
 
+#ifdef _WIN32
 	static __inline u16string utf8_to_utf16(const string_view& s) {
 		u16string ret;
 
@@ -103,6 +104,7 @@ namespace ws {
 
 		return ret;
 	}
+#endif
 
 	void client_thread_pimpl::run() {
 		while (!constructor_done) { } // use spinlock to avoid race condition in constructor
