@@ -92,7 +92,7 @@ namespace ws {
 
 		~client_thread_pimpl();
 
-		void send_raw(const std::string_view& sv) const;
+		void send_raw(std::string_view sv) const;
 		void handle_handshake(std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
 		std::string recv(unsigned int len = 0);

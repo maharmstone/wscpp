@@ -207,7 +207,7 @@ namespace ws {
 		delete[] msg;
 	}
 
-	void client_thread_pimpl::send_raw(const std::string_view& sv) const {
+	void client_thread_pimpl::send_raw(string_view sv) const {
 #ifdef _WIN32
 		u_long mode = 1;
 
@@ -225,28 +225,37 @@ namespace ws {
 			throw formatted_error(FMT_STRING("fcntl failed"));
 #endif
 
-		int bytes = send(fd, sv.data(), (int)sv.length(), 0);
+		do {
+			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
 #ifdef _WIN32
-		if (bytes == SOCKET_ERROR) {
-			int err = WSAGetLastError();
+			if (bytes == SOCKET_ERROR) {
+				int err = WSAGetLastError();
 
-			if (err != WSAEWOULDBLOCK)
-				throw formatted_error(FMT_STRING("send failed ({})."), err);
-		}
+				if (err != WSAEWOULDBLOCK)
+					throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
+			}
+#else
+			if (bytes == -1) {
+				int err = errno;
 
+				if (err != EWOULDBLOCK)
+					throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
+			}
+#endif
+
+			if ((size_t)bytes == sv.length())
+				break;
+
+			sv = sv.substr(bytes);
+		} while (true);
+
+#ifdef _WIN32
 		mode = 0;
 
 		if (ioctlsocket(fd, FIONBIO, &mode) != 0)
 			throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), WSAGetLastError());
 #else
-		if (bytes == -1) {
-			int err = errno;
-
-			if (err != EWOULDBLOCK)
-				throw formatted_error(FMT_STRING("send failed ({})."), err);
-		}
-
 		flags &= ~O_NONBLOCK;
 
 		if (fcntl(fd, F_SETFL, flags) != 0)
