@@ -2,12 +2,15 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <syncstream>
 
 using namespace std;
 
 static void msg_handler(ws::client& c, const string_view& sv, enum ws::opcode opcode) {
-	if (opcode == ws::opcode::text)
-		cout << "Message from server: " << sv << endl;
+	if (opcode == ws::opcode::text) {
+		osyncstream out(cout);
+		out << "Message from server: " << sv << endl;
+	}
 }
 
 static void disconn_handler(ws::client& c, const exception_ptr& except) {
