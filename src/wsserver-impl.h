@@ -66,15 +66,9 @@ namespace ws {
 
 	class client_thread_pimpl {
 	public:
-#ifdef _WIN32
-		client_thread_pimpl(client_thread& parent, SOCKET sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+		client_thread_pimpl(client_thread& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
 							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
 							const server_disconn_handler& disconn_handler) :
-#else
-		client_thread_pimpl(client_thread& parent, int sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
-							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
-							const server_disconn_handler& disconn_handler) :
-#endif
 			constructor_done(false),
 			parent(parent),
 			fd(sock),
@@ -118,14 +112,13 @@ namespace ws {
 		server_disconn_handler disconn_handler;
 		std::string recvbuf, payloadbuf;
 		enum opcode last_opcode;
+		socket_t fd;
 #ifdef _WIN32
-		SOCKET fd;
 		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
 		CtxtHandle ctx_handle;
 		bool ctx_handle_set = false;
 		unique_handle token{INVALID_HANDLE_VALUE};
 #else
-		int fd;
 		gss_cred_id_t cred_handle = 0;
 		gss_ctx_id_t ctx_handle = GSS_C_NO_CONTEXT;
 #endif

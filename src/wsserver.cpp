@@ -790,11 +790,10 @@ namespace ws {
 
 				while (true) {
 					struct sockaddr_in6 their_addr;
+					socket_t newsock;
 #ifdef _WIN32
-					SOCKET newsock;
 					int size = sizeof(their_addr);
 #else
-					int newsock;
 					socklen_t size = sizeof(their_addr);
 #endif
 
@@ -807,7 +806,7 @@ namespace ws {
 #endif
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
-						impl->client_threads.emplace_back(&newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
+						impl->client_threads.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
 														  impl->conn_handler, impl->disconn_handler);
 					} else
 						throw sockets_error("accept");
@@ -867,15 +866,9 @@ namespace ws {
 		delete impl;
 	}
 
-	client_thread::client_thread(void* sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
+	client_thread::client_thread(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
 								 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
-#ifdef _WIN32
-		auto fd = *(SOCKET*)sock;
-#else
-		auto fd = *(int*)sock;
-#endif
-
-		impl = new client_thread_pimpl(*this, fd, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
+		impl = new client_thread_pimpl(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
 	}
 
 	string_view client_thread::username() const {
