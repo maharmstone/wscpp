@@ -1497,3 +1497,7 @@ struct fmt::formatter<enum sec_error> {
 	}
 };
 #endif
+
+#ifndef _WIN32
+std::string errno_to_string(int err);
+#endif

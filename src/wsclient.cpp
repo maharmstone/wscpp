@@ -69,7 +69,7 @@ namespace ws {
 					throw formatted_error(FMT_STRING("socket failed (error {})"), WSAGetLastError());
 #else
 				if (sock == -1)
-					throw formatted_error(FMT_STRING("socket failed (error {})"), errno);
+					throw formatted_error(FMT_STRING("socket failed (error {})"), errno_to_string(errno));
 #endif
 
 #ifdef _WIN32
@@ -103,10 +103,11 @@ namespace ws {
 
 #ifdef _WIN32
 		if (sock == INVALID_SOCKET)
+			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error);
 #else
 		if (sock == -1)
+			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, errno_to_string(wsa_error));
 #endif
-			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error);
 
 		open = true;
 	}
@@ -223,11 +224,8 @@ namespace ws {
 		tv.tv_sec = timeout;
 		tv.tv_usec = 0;
 
-		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
-			int err = errno;
-
-			throw formatted_error(FMT_STRING("setsockopt returned {}."), err);
-		}
+		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+			throw formatted_error(FMT_STRING("setsockopt returned {}."), errno_to_string(errno));
 #endif
 	}
 
@@ -243,7 +241,7 @@ namespace ws {
 				throw formatted_error(FMT_STRING("send failed (error {})"), WSAGetLastError());
 #else
 			if (ret == -1)
-				throw formatted_error(FMT_STRING("send failed (error {})"), errno);
+				throw formatted_error(FMT_STRING("send failed (error {})"), errno_to_string(errno));
 #endif
 
 			if ((size_t)ret < s.length())
@@ -267,15 +265,14 @@ namespace ws {
 			int bytes = ::recv(sock, s, sizeof(s), MSG_PEEK);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR) {
-				auto err = WSAGetLastError();
+			if (bytes == SOCKET_ERROR)
+				throw formatted_error(FMT_STRING("recv 1 failed ({})."), WSAGetLastError());
 #else
-			if (bytes == -1) {
-				auto err = errno;
+			if (bytes == -1)
+				throw formatted_error(FMT_STRING("recv 1 failed ({})."), errno_to_string(errno));
 #endif
 
-				throw formatted_error(FMT_STRING("recv 1 failed ({})."), err);
-			} else if (bytes == 0) {
+			if (bytes == 0) {
 				open = false;
 				return "";
 			}
@@ -650,7 +647,7 @@ namespace ws {
 				return "";
 			}
 
-			throw formatted_error(FMT_STRING("recv failed ({})."), err);
+			throw formatted_error(FMT_STRING("recv failed ({})."), errno_to_string(err));
 		}
 #endif
 

@@ -211,7 +211,7 @@ namespace ws {
 				throw formatted_error(FMT_STRING("send failed ({})."), WSAGetLastError());
 #else
 			if (bytes == -1)
-				throw formatted_error(FMT_STRING("send failed ({})."), errno);
+				throw formatted_error(FMT_STRING("send failed ({})."), errno_to_string(errno));
 #endif
 
 			if ((size_t)bytes == sv.length())
@@ -547,7 +547,7 @@ namespace ws {
 			open = false;
 			return "";
 		} else if (bytes == -1)
-			throw formatted_error(FMT_STRING("recv failed ({})."), err);
+			throw formatted_error(FMT_STRING("recv failed ({})."), errno_to_string(err));
 #endif
 
 		return s.substr(0, bytes);
