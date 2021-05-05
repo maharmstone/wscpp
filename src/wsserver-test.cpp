@@ -1,5 +1,6 @@
 #include "wscpp.h"
 #include <iostream>
+#include <syncstream>
 #include <string.h>
 
 using namespace std;
@@ -10,10 +11,14 @@ static void msg_handler(ws::client_thread& c, const string_view& sv) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	if (!username.empty())
-		cout << "Message from client " << &c << " (" << domain_name << "\\" << username << "): " << sv << endl;
-	else
-		cout << "Message from client " << &c << ": " << sv << endl;
+	{
+		osyncstream out(cout);
+
+		if (!username.empty())
+			out << "Message from client " << &c << " (" << domain_name << "\\" << username << "): " << sv << endl;
+		else
+			out << "Message from client " << &c << ": " << sv << endl;
+	}
 
 	c.send("Cool story bro");
 }
@@ -22,10 +27,14 @@ static void conn_handler(ws::client_thread& c) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	if (!username.empty())
-		cout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
-	else
-		cout << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
+	{
+		osyncstream out(cout);
+
+		if (!username.empty())
+			out << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
+		else
+			out << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
+	}
 
 	c.send("Lemon curry?");
 }
@@ -34,16 +43,21 @@ static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	if (!username.empty())
-		cout << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
-	else
-		cout << "Client " << &c << " disconnected." << endl;
+	{
+		osyncstream out(cout);
+
+		if (!username.empty())
+			out << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
+		else
+			out << "Client " << &c << " disconnected." << endl;
+	}
 
 	if (except) {
 		try {
 			rethrow_exception(except);
 		} catch (const exception& e) {
-			cout << "Exception: " << e.what() << endl;
+			osyncstream out(cout);
+			out << "Exception: " << e.what() << endl;
 		} catch (...) {
 		}
 	}
