@@ -6,28 +6,8 @@
 
 using namespace std;
 
-static void msg_handler(ws::client& c, const string_view& sv, enum ws::opcode opcode) {
-	if (opcode == ws::opcode::text) {
-		osyncstream out(cout);
-		out << "Message from server: " << sv << endl;
-	}
-}
-
-static void disconn_handler(ws::client& c, const exception_ptr& except) {
-	printf("Disconnected.\n");
-
-	if (except) {
-		try {
-			rethrow_exception(except);
-		} catch (const exception& e) {
-			printf("Exception: %s\n", e.what());
-		} catch (...) {
-		}
-	}
-}
-
 static void main2(const string& hostname, uint16_t port) {
-	printf("Connecting to WebSocket server...\n");
+	osyncstream(cout) << "Connecting to WebSocket server..." << endl;
 
 	vector<thread> ts;
 
@@ -38,32 +18,31 @@ static void main2(const string& hostname, uint16_t port) {
 
 				ws::client client(hostname, port, "/",
 						[&](ws::client& c, const string_view& sv, enum ws::opcode opcode) {
-							if (opcode == ws::opcode::text) {
-								osyncstream out(cout);
-								out << "Message from server: " << sv << endl;
-							} else if (opcode == ws::opcode::pong)
+							if (opcode == ws::opcode::text)
+								osyncstream(cout) << "Message from server: " << sv << endl;
+							else if (opcode == ws::opcode::pong)
 								done = true;
 						},
 						[&](ws::client& c, const exception_ptr& except) {
-							printf("Disconnected %u.\n", i);
+							osyncstream(cout) << "Disconnected " << i << "." << endl;
 
 							if (except) {
 								try {
 									rethrow_exception(except);
 								} catch (const exception& e) {
-									printf("Propagated exception %u: %s\n", i, e.what());
+									osyncstream(cout) << "Propagated exception " << i << ": " << e.what() << endl;
 								} catch (...) {
 								}
 							}
 						});
 
-				printf("Connected %u.\n", i);
+				osyncstream(cout) << "Connected " << i << "." << endl;
 
 				client.send("", ws::opcode::ping);
 
 				while (!done) { }
 			} catch (const exception& e) {
-				printf("Exception %u: %s\n", i, e.what());
+				osyncstream(cout) << "Exception " << i << ": " << e.what() << endl;
 			}
 		}, i);
 	}
