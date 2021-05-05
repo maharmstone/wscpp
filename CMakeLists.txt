@@ -69,6 +69,12 @@ if(BUILD_SAMPLE)
 	target_link_libraries(wsclient-test wscpp)
 	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
+	add_executable(wsclient-test2 src/wsclient-test2.cpp)
+	target_include_directories(wsclient-test2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+	target_link_libraries(wsclient-test2 wscpp)
+	install(TARGETS wsclient-test2 DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test2.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 endif()
 
 install(TARGETS wscppstatic DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
