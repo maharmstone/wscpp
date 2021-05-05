@@ -203,44 +203,15 @@ namespace ws {
 	}
 
 	void client_thread_pimpl::send_raw(string_view sv) const {
-#ifdef _WIN32
-		u_long mode = 1;
-
-		if (ioctlsocket(fd, FIONBIO, &mode) != 0)
-			throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), WSAGetLastError());
-#else
-		int flags = fcntl(fd, F_GETFL, 0);
-
-		if (flags == -1)
-			throw formatted_error(FMT_STRING("fcntl returned -1"));
-
-		flags |= O_NONBLOCK;
-
-		if (fcntl(fd, F_SETFL, flags) != 0)
-			throw formatted_error(FMT_STRING("fcntl failed"));
-#endif
-
 		do {
 			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR) {
-				int err = WSAGetLastError();
-
-				if (err == WSAEWOULDBLOCK)
-					continue;
-
-				throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
-			}
+			if (bytes == SOCKET_ERROR)
+				throw formatted_error(FMT_STRING("send failed ({})."), WSAGetLastError());
 #else
-			if (bytes == -1) {
-				int err = errno;
-
-				if (err == EWOULDBLOCK)
-					continue;
-
-				throw formatted_error(FMT_STRING("send failed ({})."), err); // FIXME - restore mode
-			}
+			if (bytes == -1)
+				throw formatted_error(FMT_STRING("send failed ({})."), errno);
 #endif
 
 			if ((size_t)bytes == sv.length())
@@ -248,18 +219,6 @@ namespace ws {
 
 			sv = sv.substr(bytes);
 		} while (true);
-
-#ifdef _WIN32
-		mode = 0;
-
-		if (ioctlsocket(fd, FIONBIO, &mode) != 0)
-			throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), WSAGetLastError());
-#else
-		flags &= ~O_NONBLOCK;
-
-		if (fcntl(fd, F_SETFL, flags) != 0)
-			throw formatted_error(FMT_STRING("fcntl failed"));
-#endif
 	}
 
 #ifdef _WIN32
@@ -569,26 +528,21 @@ namespace ws {
 
 		s.resize(len);
 
-		do {
-			bytes = ::recv(fd, s.data(), len, 0);
+		bytes = ::recv(fd, s.data(), len, 0);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR)
-				err = WSAGetLastError();
-		} while (bytes == SOCKET_ERROR && err == WSAEWOULDBLOCK);
-#else
-			if (bytes == -1)
-				err = errno;
-		} while (bytes == -1 && err == EWOULDBLOCK);
-#endif
+		if (bytes == SOCKET_ERROR)
+			err = WSAGetLastError();
 
-#ifdef _WIN32
 		if (bytes == 0 || (bytes == SOCKET_ERROR && err == WSAECONNRESET)) {
 			open = false;
 			return "";
 		} else if (bytes == SOCKET_ERROR)
 			throw formatted_error(FMT_STRING("recv failed ({})."), err);
 #else
+		if (bytes == -1)
+			err = errno;
+
 		if (bytes == 0 || (bytes == -1 && err == ECONNRESET)) {
 			open = false;
 			return "";
