@@ -208,7 +208,7 @@ namespace ws {
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("send failed ({})."), WSAGetLastError());
+				throw formatted_error(FMT_STRING("send failed ({})."), wsa_error_to_string(WSAGetLastError()));
 #else
 			if (bytes == -1)
 				throw formatted_error(FMT_STRING("send failed ({})."), errno_to_string(errno));
@@ -538,7 +538,7 @@ namespace ws {
 			open = false;
 			return "";
 		} else if (bytes == SOCKET_ERROR)
-			throw formatted_error(FMT_STRING("recv failed ({})."), err);
+			throw formatted_error(FMT_STRING("recv failed ({})."), wsa_error_to_string(err));
 #else
 		if (bytes == -1)
 			err = errno;

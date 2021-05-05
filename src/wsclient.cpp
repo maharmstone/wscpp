@@ -66,7 +66,7 @@ namespace ws {
 				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 #ifdef _WIN32
 				if (sock == INVALID_SOCKET)
-					throw formatted_error(FMT_STRING("socket failed (error {})"), WSAGetLastError());
+					throw formatted_error(FMT_STRING("socket failed (error {})"), wsa_error_to_string(WSAGetLastError()));
 #else
 				if (sock == -1)
 					throw formatted_error(FMT_STRING("socket failed (error {})"), errno_to_string(errno));
@@ -103,7 +103,7 @@ namespace ws {
 
 #ifdef _WIN32
 		if (sock == INVALID_SOCKET)
-			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error);
+			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error_to_string(wsa_error));
 #else
 		if (sock == -1)
 			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, errno_to_string(wsa_error));
@@ -214,11 +214,8 @@ namespace ws {
 #ifdef _WIN32
 		DWORD tv = timeout * 1000;
 
-		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0) {
-			int err = WSAGetLastError();
-
-			throw formatted_error(FMT_STRING("setsockopt returned {}."), err);
-		}
+		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+			throw formatted_error(FMT_STRING("setsockopt returned {}."), wsa_error_to_string(WSAGetLastError()));
 #else
 		struct timeval tv;
 		tv.tv_sec = timeout;
@@ -238,7 +235,7 @@ namespace ws {
 
 #ifdef _WIN32
 			if (ret == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("send failed (error {})"), WSAGetLastError());
+				throw formatted_error(FMT_STRING("send failed (error {})"), wsa_error_to_string(WSAGetLastError()));
 #else
 			if (ret == -1)
 				throw formatted_error(FMT_STRING("send failed (error {})"), errno_to_string(errno));
@@ -266,7 +263,7 @@ namespace ws {
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("recv 1 failed ({})."), WSAGetLastError());
+				throw formatted_error(FMT_STRING("recv 1 failed ({})."), wsa_error_to_string(WSAGetLastError()));
 #else
 			if (bytes == -1)
 				throw formatted_error(FMT_STRING("recv 1 failed ({})."), errno_to_string(errno));
@@ -638,7 +635,7 @@ namespace ws {
 				return "";
 			}
 
-			throw formatted_error(FMT_STRING("recv failed ({})."), err);
+			throw formatted_error(FMT_STRING("recv failed ({})."), wsa_error_to_string(err));
 		}
 #else
 		if (bytes == -1) {
