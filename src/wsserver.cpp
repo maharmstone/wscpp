@@ -75,8 +75,6 @@ namespace ws {
 		if (ctx_handle_set)
 			DeleteSecurityContext(&ctx_handle);
 #endif
-
-		t.join();
 	}
 
 	client_thread::~client_thread() {
@@ -107,8 +105,6 @@ namespace ws {
 #endif
 
 	void client_thread_pimpl::run() {
-		while (!constructor_done) { } // use spinlock to avoid race condition in constructor
-
 #ifdef _WIN32
 		if (_SetThreadDescription) {
 			try {
@@ -142,8 +138,6 @@ namespace ws {
 				disconn_handler(parent, except);
 
 			thread del_thread([&]() {
-				unique_lock<shared_mutex> guard(serv.impl->vector_mutex);
-
 				for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
 					if (it->impl->thread_id == thread_id) {
 						serv.impl->client_threads.erase(it);
@@ -160,6 +154,99 @@ namespace ws {
 #else
 			::close(fd);
 #endif
+		}
+	}
+
+	void client_thread_pimpl::nb_read() {
+		auto msg = recv(0);
+
+		if (!open)
+			return;
+
+		recvbuf += move(msg);
+
+		if (state == state_enum::http)
+			process_http_messages();
+
+		if (state != state_enum::websocket)
+			return;
+
+		while (true) {
+			if (recvbuf.length() < 2)
+				return;
+
+			bool fin = (recvbuf[0] & 0x80) != 0;
+			auto opcode = (enum opcode)(uint8_t)(recvbuf[0] & 0xf);
+			bool mask = (recvbuf[1] & 0x80) != 0;
+			uint64_t len = recvbuf[1] & 0x7f;
+
+			auto sv = string_view(recvbuf).substr(2);
+
+			if (len == 126) {
+				if (sv.length() < 2)
+					return;
+
+				len = ((uint8_t)sv[0] << 8) | (uint8_t)sv[1];
+				sv = sv.substr(2);
+			} else if (len == 127) {
+				if (sv.length() < 8)
+					return;
+
+				len = (uint8_t)sv[0];
+				len <<= 8;
+				len |= (uint8_t)sv[1];
+				len <<= 8;
+				len |= (uint8_t)sv[2];
+				len <<= 8;
+				len |= (uint8_t)sv[3];
+				len <<= 8;
+				len |= (uint8_t)sv[4];
+				len <<= 8;
+				len |= (uint8_t)sv[5];
+				len <<= 8;
+				len |= (uint8_t)sv[6];
+				len <<= 8;
+				len |= (uint8_t)sv[7];
+
+				sv = sv.substr(8);
+			}
+
+			string_view mask_key;
+
+			if (mask) {
+				if (sv.length() < 4)
+					return;
+
+				mask_key = sv.substr(0, 4);
+				sv = sv.substr(4);
+			}
+
+			if (sv.length() < len)
+				return;
+
+			span<char> payload((char*)&sv[0], len);
+
+			if (mask) {
+				for (unsigned int i = 0; i < payload.size(); i++) {
+					payload[i] ^= mask_key[i % 4];
+				}
+			}
+
+			if (!fin) {
+				if (opcode != opcode::invalid)
+					last_opcode = opcode;
+
+				payloadbuf += sv.substr(0, len);
+			} else if (!payloadbuf.empty()) {
+				payloadbuf += sv.substr(0, len);
+
+				parse_ws_message(last_opcode, payloadbuf);
+				payloadbuf.clear();
+			} else
+				parse_ws_message(opcode, sv.substr(0, len));
+
+			sv = sv.substr(len);
+			recvbuf = recvbuf.substr(sv.data() - recvbuf.data());
 		}
 	}
 
@@ -506,7 +593,6 @@ namespace ws {
 		send_raw("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
 
 		state = state_enum::websocket;
-		recvbuf = "";
 
 		if (conn_handler)
 			conn_handler(parent);
@@ -616,14 +702,14 @@ namespace ws {
 
 			process_http_message(recvbuf.substr(0, dnl + 2));
 
+			recvbuf = recvbuf.substr(dnl + 4);
+
 			if (state != state_enum::http)
 				break;
-
-			recvbuf = recvbuf.substr(dnl + 4);
 		} while (true);
 	}
 
-	void client_thread_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
+	void client_thread_pimpl::parse_ws_message(enum opcode opcode, const string_view& payload) {
 		switch (opcode) {
 			case opcode::close:
 				open = false;
@@ -784,24 +870,100 @@ namespace ws {
 					throw sockets_error("listen");
 #endif
 
+				vector<socket_t> socks;
+
 				while (true) {
-					struct sockaddr_in6 their_addr;
-					socket_t newsock;
+					socket_t max_sock;
+					fd_set read_fds, write_fds, exc_fds;
+
+					max_sock = impl->sock;
+
+					FD_ZERO(&read_fds);
+					FD_ZERO(&write_fds);
+					FD_ZERO(&exc_fds);
+
+					FD_SET(impl->sock, &read_fds);
+					FD_SET(impl->sock, &exc_fds);
+
+					for (auto& ct : impl->client_threads) {
+						auto& impl = *ct.impl;
+
+						// FIXME - identify non-empty buffers, and flush on write message?
+						FD_SET(impl.fd, &read_fds);
+						FD_SET(impl.fd, &exc_fds);
+
+						if (impl.fd > max_sock)
+							max_sock = impl.fd;
+					}
+
+					// FIXME - test with > 64 concurrent clients
+
+					if (select(max_sock + 1, &read_fds, &write_fds, &exc_fds, 0) < 0)
+						throw sockets_error("select");
+
+					if (FD_ISSET(impl->sock, &read_fds)) {
+						socket_t newsock;
+						struct sockaddr_in6 their_addr;
 #ifdef _WIN32
-					int size = sizeof(their_addr);
+						int size = sizeof(their_addr);
 #else
-					socklen_t size = sizeof(their_addr);
+						socklen_t size = sizeof(their_addr);
 #endif
 
-					newsock = accept(impl->sock, reinterpret_cast<sockaddr*>(&their_addr), &size);
+						newsock = accept(impl->sock, reinterpret_cast<sockaddr*>(&their_addr), &size);
 
-					if (newsock != INVALID_SOCKET) {
-						unique_lock<shared_mutex> guard(impl->vector_mutex);
+						// FIXME - don't bring down whole server because of one bad socket
 
-						impl->client_threads.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
-														  impl->conn_handler, impl->disconn_handler);
-					} else
-						throw sockets_error("accept");
+#ifdef _WIN32
+						u_long mode = 1;
+
+						if (ioctlsocket(newsock, FIONBIO, &mode) != 0)
+								throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), wsa_error_to_string(WSAGetLastError()));
+#else
+						int flags = fcntl(newsock, F_GETFL, 0);
+
+						if (flags == -1)
+							throw runtime_error("fcntl returned -1");
+
+						if (!(flags & O_NONBLOCK)) {
+							flags |= O_NONBLOCK;
+
+							if (fcntl(newsock, F_SETFL, flags) != 0)
+								throw runtime_error("fcntl failed");
+						}
+#endif
+
+						if (newsock != INVALID_SOCKET) {
+							impl->client_threads.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
+															  impl->conn_handler, impl->disconn_handler);
+						} else
+							throw sockets_error("accept");
+					} else if (FD_ISSET(impl->sock, &exc_fds)) {
+#ifdef _WIN32
+						throw formatted_error("exception on listening socket: {}", wsa_error_to_string(WSAGetLastError()));
+#else
+						throw formatted_error("exception on listening socket: {}", errno_to_string(errno));
+#endif
+					} else {
+						for (auto it = impl->client_threads.begin(); it != impl->client_threads.end(); it++) {
+							auto& ct = *it;
+
+							if (FD_ISSET(ct.impl->fd, &read_fds)) {
+								ct.impl->nb_read();
+
+								if (!ct.impl->open) {
+									if (impl->disconn_handler)
+										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
+
+									impl->client_threads.erase(it);
+								}
+
+								break;
+							}
+							// FIXME - exceptions (disconnect client)
+							// FIXME - writes
+						}
+					}
 				}
 			} catch (...) {
 #ifdef _WIN32
@@ -830,8 +992,6 @@ namespace ws {
 	}
 
 	void server::for_each(function<void(client_thread&)> func) {
-		std::shared_lock<std::shared_mutex> guard(impl->vector_mutex);
-
 		for (auto& ct : impl->client_threads) {
 			if (ct.impl->state == client_thread_pimpl::state_enum::websocket)
 				func(ct);
@@ -914,8 +1074,6 @@ namespace ws {
 #endif
 
 	span<uint8_t, 16> client_thread::ip_addr() const {
-		while (!impl->constructor_done) { } // use spinlock to avoid race condition in constructor
-
 		return impl->ip_addr;
 	}
 

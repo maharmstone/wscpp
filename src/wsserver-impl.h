@@ -61,7 +61,6 @@ namespace ws {
 		std::string auth_type;
 		socket_t sock = INVALID_SOCKET;
 		std::list<client_thread> client_threads;
-		std::shared_mutex vector_mutex;
 	};
 
 	class client_thread_pimpl {
@@ -69,19 +68,13 @@ namespace ws {
 		client_thread_pimpl(client_thread& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
 							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
 							const server_disconn_handler& disconn_handler) :
-			constructor_done(false),
 			parent(parent),
+			msg_handler(msg_handler),
+			conn_handler(conn_handler),
+			disconn_handler(disconn_handler),
 			fd(sock),
-			serv(serv),
-			t([](client_thread_pimpl* ctp, const server_msg_handler& msg_handler,
-			     const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
-				ctp->msg_handler = msg_handler;
-				ctp->conn_handler = conn_handler;
-				ctp->disconn_handler = disconn_handler;
-				ctp->run();
-			}, this, msg_handler, conn_handler, disconn_handler) {
+			serv(serv) {
 			std::copy(ip_addr.begin(), ip_addr.end(), this->ip_addr.begin());
-			constructor_done = true;
 		}
 
 		~client_thread_pimpl();
@@ -93,9 +86,10 @@ namespace ws {
 		std::string recv_full(unsigned int len);
 		void process_http_message(const std::string& mess);
 		void process_http_messages();
-		void parse_ws_message(enum opcode opcode, const std::string& payload);
+		void parse_ws_message(enum opcode opcode, const std::string_view& payload);
 		void websocket_loop();
 		void run();
+		void nb_read();
 #ifdef _WIN32
 		void get_username(HANDLE token);
 		void impersonate() const;
@@ -103,7 +97,6 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 
-		volatile bool constructor_done;
 		client_thread& parent;
 		bool open = true;
 		std::thread::id thread_id;
@@ -124,7 +117,6 @@ namespace ws {
 #endif
 		server& serv;
 		std::array<uint8_t, 16> ip_addr;
-		std::thread t;
 		std::string username, domain_name;
 
 		enum class state_enum {
