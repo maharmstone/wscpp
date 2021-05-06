@@ -224,9 +224,9 @@ namespace ws {
 			if (sv.length() < len)
 				return;
 
-			span<char> payload((char*)&sv[0], len);
+			if (mask && len != 0) {
+				span<char> payload((char*)&sv[0], len);
 
-			if (mask) {
 				for (unsigned int i = 0; i < payload.size(); i++) {
 					payload[i] ^= mask_key[i % 4];
 				}
