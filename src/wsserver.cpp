@@ -751,11 +751,7 @@ namespace ws {
 
 			impl->sock = socket(AF_INET6, SOCK_STREAM, 0);
 
-#ifdef _WIN32
 			if (impl->sock == INVALID_SOCKET)
-#else
-			if (impl->sock == -1)
-#endif
 				throw formatted_error(FMT_STRING("socket failed."));
 
 			try {
@@ -799,11 +795,7 @@ namespace ws {
 
 					newsock = accept(impl->sock, reinterpret_cast<sockaddr*>(&their_addr), &size);
 
-#ifdef _WIN32
 					if (newsock != INVALID_SOCKET) {
-#else
-					if (newsock != -1) {
-#endif
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
 						impl->client_threads.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
@@ -847,13 +839,13 @@ namespace ws {
 	}
 
 	void server::close() {
+		if (impl->sock != INVALID_SOCKET) {
 #ifdef _WIN32
-		if (impl->sock != INVALID_SOCKET)
 			closesocket(impl->sock);
 #else
-		if (impl->sock != -1)
 			::close(impl->sock);
 #endif
+		}
 	}
 
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,

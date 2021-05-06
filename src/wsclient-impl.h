@@ -8,6 +8,10 @@
 #include <sspi.h>
 #endif
 
+#ifndef _WIN32
+#define INVALID_SOCKET -1
+#endif
+
 namespace ws {
 	class client_pimpl {
 	public:
@@ -32,13 +36,12 @@ namespace ws {
 		std::string path;
 		client_msg_handler msg_handler;
 		client_disconn_handler disconn_handler;
+		socket_t sock = INVALID_SOCKET;
 #ifdef _WIN32
-		SOCKET sock = INVALID_SOCKET;
 		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
 		CtxtHandle ctx_handle;
 		bool ctx_handle_set = false;
 #else
-		int sock = -1;
 		gss_cred_id_t cred_handle = 0;
 		gss_ctx_id_t ctx_handle = GSS_C_NO_CONTEXT;
 #endif

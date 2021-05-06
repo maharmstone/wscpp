@@ -33,6 +33,10 @@ public:
 typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
 #endif
 
+#ifndef _WIN32
+#define INVALID_SOCKET -1
+#endif
+
 namespace ws {
 	class client_thread_pimpl;
 
@@ -55,11 +59,7 @@ namespace ws {
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
 		std::string auth_type;
-#ifdef _WIN32
-		SOCKET sock = INVALID_SOCKET;
-#else
-		int sock = -1;
-#endif
+		socket_t sock = INVALID_SOCKET;
 		std::list<client_thread> client_threads;
 		std::shared_mutex vector_mutex;
 	};

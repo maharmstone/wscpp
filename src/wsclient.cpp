@@ -64,13 +64,13 @@ namespace ws {
 				char hostname[NI_MAXHOST];
 
 				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
+				if (sock == INVALID_SOCKET) {
 #ifdef _WIN32
-				if (sock == INVALID_SOCKET)
 					throw formatted_error(FMT_STRING("socket failed (error {})"), wsa_error_to_string(WSAGetLastError()));
 #else
-				if (sock == -1)
 					throw formatted_error(FMT_STRING("socket failed (error {})"), errno_to_string(errno));
 #endif
+				}
 
 #ifdef _WIN32
 				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == SOCKET_ERROR) {
@@ -83,7 +83,7 @@ namespace ws {
 				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == -1) {
 					wsa_error = errno;
 					close(sock);
-					sock = -1;
+					sock = INVALID_SOCKET;
 					continue;
 				}
 #endif
@@ -101,13 +101,13 @@ namespace ws {
 
 		freeaddrinfo(result);
 
+		if (sock == INVALID_SOCKET) {
 #ifdef _WIN32
-		if (sock == INVALID_SOCKET)
 			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error_to_string(wsa_error));
 #else
-		if (sock == -1)
 			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, errno_to_string(wsa_error));
 #endif
+		}
 
 		open = true;
 	}

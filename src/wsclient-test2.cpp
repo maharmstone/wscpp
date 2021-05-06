@@ -14,11 +14,15 @@
 using namespace std;
 
 static void main2(const string& hostname, uint16_t port) {
+	unsigned int num_connected = 0, num_disconnected = 0;
+
+	constexpr unsigned int num_threads = 1000;
+
 	syncout << "Connecting to WebSocket server..." << endl;
 
 	vector<thread> ts;
 
-	for (unsigned int i = 0; i < 1000; i++) {
+	for (unsigned int i = 0; i < num_threads; i++) {
 		ts.emplace_back([&](unsigned int i) {
 			try {
 				condition_variable cv;
@@ -39,7 +43,8 @@ static void main2(const string& hostname, uint16_t port) {
 							}
 						},
 						[&](ws::client& c, const exception_ptr& except) {
-							syncout << "Disconnected " << i << "." << endl;
+							num_disconnected++;
+							syncout << "Disconnected " << i << " (" << num_disconnected << "/" << num_threads << ")." << endl;
 
 							if (except) {
 								try {
@@ -51,7 +56,8 @@ static void main2(const string& hostname, uint16_t port) {
 							}
 						});
 
-				syncout << "Connected " << i << "." << endl;
+				num_connected++;
+				syncout << "Connected " << i << " (" << num_connected << "/" << num_threads << ")." << endl;
 
 				client.send("", ws::opcode::ping);
 
