@@ -2,6 +2,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <condition_variable>
 
 #if __has_include(<syncstream>)
 #include <syncstream>
@@ -20,14 +21,22 @@ static void main2(const string& hostname, uint16_t port) {
 	for (unsigned int i = 0; i < 1000; i++) {
 		ts.emplace_back([&](unsigned int i) {
 			try {
+				condition_variable cv;
+				mutex m;
 				bool done = false;
 
 				ws::client client(hostname, port, "/",
 						[&](ws::client& c, const string_view& sv, enum ws::opcode opcode) {
 							if (opcode == ws::opcode::text)
-								syncout << "Message from server: " << sv << endl;
-							else if (opcode == ws::opcode::pong)
-								done = true;
+								syncout << "Message from server (" << i << "): " << sv << endl;
+							else if (opcode == ws::opcode::pong) {
+								{
+									lock_guard<mutex> lk(m);
+									done = true;
+								}
+
+								cv.notify_one();
+							}
 						},
 						[&](ws::client& c, const exception_ptr& except) {
 							syncout << "Disconnected " << i << "." << endl;
@@ -46,7 +55,10 @@ static void main2(const string& hostname, uint16_t port) {
 
 				client.send("", ws::opcode::ping);
 
-				while (!done) { }
+				{
+					unique_lock<mutex> lk(m);
+					cv.wait(lk, [&]{ return done; });
+				}
 			} catch (const exception& e) {
 				syncout << "Exception " << i << ": " << e.what() << endl;
 			}
