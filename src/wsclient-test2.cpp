@@ -2,12 +2,18 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+
+#if __has_include(<syncstream>)
 #include <syncstream>
+#define syncout std::osyncstream(std::cout)
+#else
+#define syncout std::cout
+#endif
 
 using namespace std;
 
 static void main2(const string& hostname, uint16_t port) {
-	osyncstream(cout) << "Connecting to WebSocket server..." << endl;
+	syncout << "Connecting to WebSocket server..." << endl;
 
 	vector<thread> ts;
 
@@ -19,30 +25,30 @@ static void main2(const string& hostname, uint16_t port) {
 				ws::client client(hostname, port, "/",
 						[&](ws::client& c, const string_view& sv, enum ws::opcode opcode) {
 							if (opcode == ws::opcode::text)
-								osyncstream(cout) << "Message from server: " << sv << endl;
+								syncout << "Message from server: " << sv << endl;
 							else if (opcode == ws::opcode::pong)
 								done = true;
 						},
 						[&](ws::client& c, const exception_ptr& except) {
-							osyncstream(cout) << "Disconnected " << i << "." << endl;
+							syncout << "Disconnected " << i << "." << endl;
 
 							if (except) {
 								try {
 									rethrow_exception(except);
 								} catch (const exception& e) {
-									osyncstream(cout) << "Propagated exception " << i << ": " << e.what() << endl;
+									syncout << "Propagated exception " << i << ": " << e.what() << endl;
 								} catch (...) {
 								}
 							}
 						});
 
-				osyncstream(cout) << "Connected " << i << "." << endl;
+				syncout << "Connected " << i << "." << endl;
 
 				client.send("", ws::opcode::ping);
 
 				while (!done) { }
 			} catch (const exception& e) {
-				osyncstream(cout) << "Exception " << i << ": " << e.what() << endl;
+				syncout << "Exception " << i << ": " << e.what() << endl;
 			}
 		}, i);
 	}

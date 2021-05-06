@@ -1,7 +1,13 @@
 #include "wscpp.h"
 #include <iostream>
-#include <syncstream>
 #include <string.h>
+
+#if __has_include(<syncstream>)
+#include <syncstream>
+#define syncout std::osyncstream(std::cout)
+#else
+#define syncout std::cout
+#endif
 
 using namespace std;
 
@@ -11,14 +17,10 @@ static void msg_handler(ws::client_thread& c, const string_view& sv) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	{
-		osyncstream out(cout);
-
-		if (!username.empty())
-			out << "Message from client " << &c << " (" << domain_name << "\\" << username << "): " << sv << endl;
-		else
-			out << "Message from client " << &c << ": " << sv << endl;
-	}
+	if (!username.empty())
+		syncout << "Message from client " << &c << " (" << domain_name << "\\" << username << "): " << sv << endl;
+	else
+		syncout << "Message from client " << &c << ": " << sv << endl;
 
 	c.send("Cool story bro");
 }
@@ -27,14 +29,10 @@ static void conn_handler(ws::client_thread& c) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	{
-		osyncstream out(cout);
-
-		if (!username.empty())
-			out << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
-		else
-			out << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
-	}
+	if (!username.empty())
+		syncout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
+	else
+		syncout << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
 
 	c.send("Lemon curry?");
 }
@@ -43,21 +41,16 @@ static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
-	{
-		osyncstream out(cout);
-
-		if (!username.empty())
-			out << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
-		else
-			out << "Client " << &c << " disconnected." << endl;
-	}
+	if (!username.empty())
+		syncout << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
+	else
+		syncout << "Client " << &c << " disconnected." << endl;
 
 	if (except) {
 		try {
 			rethrow_exception(except);
 		} catch (const exception& e) {
-			osyncstream out(cout);
-			out << "Exception: " << e.what() << endl;
+			syncout << "Exception: " << e.what() << endl;
 		} catch (...) {
 		}
 	}
