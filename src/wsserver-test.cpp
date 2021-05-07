@@ -11,7 +11,7 @@
 
 using namespace std;
 
-#define BACKLOG 10
+#define BACKLOG 4096
 
 static void msg_handler(ws::server_client& c, const string_view& sv) {
 	const auto& username = c.username();
