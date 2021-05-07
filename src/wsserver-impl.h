@@ -7,8 +7,7 @@
 #include "wscpp.h"
 #include <stdint.h>
 #include <map>
-#include <thread>
-#include <shared_mutex>
+#include <memory>
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -82,14 +81,11 @@ namespace ws {
 		void send_raw(std::string_view sv) const;
 		void handle_handshake(std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
-		std::string recv(unsigned int len = 0);
-		std::string recv_full(unsigned int len);
+		std::string recv();
 		void process_http_message(const std::string& mess);
 		void process_http_messages();
 		void parse_ws_message(enum opcode opcode, const std::string_view& payload);
-		void websocket_loop();
-		void run();
-		void nb_read();
+		void read();
 #ifdef _WIN32
 		void get_username(HANDLE token);
 		void impersonate() const;
@@ -99,7 +95,6 @@ namespace ws {
 
 		client_thread& parent;
 		bool open = true;
-		std::thread::id thread_id;
 		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;

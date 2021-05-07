@@ -43,10 +43,6 @@
 
 using namespace std;
 
-#ifdef _WIN32
-HRESULT (WINAPI *_SetThreadDescription)(HANDLE hThread, PCWSTR lpThreadDescription);
-#endif
-
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 static string lower(string s) {
@@ -104,61 +100,8 @@ namespace ws {
 	}
 #endif
 
-	void client_thread_pimpl::run() {
-#ifdef _WIN32
-		if (_SetThreadDescription) {
-			try {
-				auto desc = utf8_to_utf16(fmt::format("wscpp thread ({})", parent.ip_addr_string()));
-				_SetThreadDescription(GetCurrentThread(), (PCWSTR)desc.c_str());
-			} catch (...) {
-			}
-		}
-#endif
-
-		try {
-			exception_ptr except;
-
-			thread_id = this_thread::get_id();
-
-			while (open && state == state_enum::http) {
-				recvbuf += recv();
-
-				process_http_messages();
-			}
-
-			if (open && state == state_enum::websocket) {
-				try {
-					websocket_loop();
-				} catch (...) {
-					except = current_exception();
-				}
-			}
-
-			if (disconn_handler)
-				disconn_handler(parent, except);
-
-			thread del_thread([&]() {
-				for (auto it = serv.impl->client_threads.begin(); it != serv.impl->client_threads.end(); it++) {
-					if (it->impl->thread_id == thread_id) {
-						serv.impl->client_threads.erase(it);
-						break;
-					}
-				}
-			});
-
-			del_thread.detach();
-		} catch (const exception& e) {
-			cerr << e.what() << endl;
-#ifdef _WIN32
-			closesocket(fd);
-#else
-			::close(fd);
-#endif
-		}
-	}
-
-	void client_thread_pimpl::nb_read() {
-		auto msg = recv(0);
+	void client_thread_pimpl::read() {
+		auto msg = recv();
 
 		if (!open)
 			return;
@@ -605,16 +548,11 @@ namespace ws {
 		}
 	}
 
-	string client_thread_pimpl::recv(unsigned int len) {
-		string s;
+	string client_thread_pimpl::recv() {
+		char s[4096];
 		int bytes, err = 0;
 
-		if (len == 0)
-			len = 4096;
-
-		s.resize(len);
-
-		bytes = ::recv(fd, s.data(), len, 0);
+		bytes = ::recv(fd, s, sizeof(s), 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR)
@@ -636,7 +574,7 @@ namespace ws {
 			throw formatted_error(FMT_STRING("recv failed ({})."), errno_to_string(err));
 #endif
 
-		return s.substr(0, bytes);
+		return string(s, bytes);
 	}
 
 	void client_thread_pimpl::process_http_message(const string& mess) {
@@ -728,94 +666,6 @@ namespace ws {
 
 			default:
 				break;
-		}
-	}
-
-	string client_thread_pimpl::recv_full(unsigned int len) {
-		string s;
-
-		while (true) {
-			s += recv(len - s.length());
-
-			if (!open)
-				return "";
-
-			if (s.length() >= len)
-				return s;
-		}
-	}
-
-	void client_thread_pimpl::websocket_loop() {
-		while (open) {
-			string header = recv_full(2);
-
-			if (!open)
-				break;
-
-			bool fin = (header[0] & 0x80) != 0;
-			auto opcode = (enum opcode)(uint8_t)(header[0] & 0xf);
-			bool mask = (header[1] & 0x80) != 0;
-			uint64_t len = header[1] & 0x7f;
-
-			if (len == 126) {
-				string extlen = recv_full(2);
-
-				if (!open)
-					break;
-
-				len = ((uint8_t)extlen[0] << 8) | (uint8_t)extlen[1];
-			} else if (len == 127) {
-				string extlen = recv_full(8);
-
-				if (!open)
-					break;
-
-				len = (uint8_t)extlen[0];
-				len <<= 8;
-				len |= (uint8_t)extlen[1];
-				len <<= 8;
-				len |= (uint8_t)extlen[2];
-				len <<= 8;
-				len |= (uint8_t)extlen[3];
-				len <<= 8;
-				len |= (uint8_t)extlen[4];
-				len <<= 8;
-				len |= (uint8_t)extlen[5];
-				len <<= 8;
-				len |= (uint8_t)extlen[6];
-				len <<= 8;
-				len |= (uint8_t)extlen[7];
-			}
-
-			string mask_key;
-			if (mask) {
-				mask_key = recv_full(4);
-
-				if (!open)
-					break;
-			}
-
-			string payload = len == 0 ? "" : recv_full((unsigned int)len);
-
-			if (!open)
-				break;
-
-			if (mask) {
-				for (unsigned int i = 0; i < payload.length(); i++) {
-					payload[i] ^= mask_key[i % 4];
-				}
-			}
-
-			if (!fin) {
-				if (opcode != opcode::invalid)
-					last_opcode = opcode;
-
-				payloadbuf += payload;
-			} else if (payloadbuf != "") {
-				parse_ws_message(last_opcode, payloadbuf + payload);
-				payloadbuf = "";
-			} else
-				parse_ws_message(opcode, payload);
 		}
 	}
 
@@ -949,7 +799,7 @@ namespace ws {
 							auto& ct = *it;
 
 							if (FD_ISSET(ct.impl->fd, &read_fds)) {
-								ct.impl->nb_read();
+								ct.impl->read();
 
 								if (!ct.impl->open) {
 									if (impl->disconn_handler)
@@ -1093,16 +943,3 @@ namespace ws {
 		}
 	}
 }
-
-#ifdef _WIN32 // FIXME - how do we get this to run if linked statically?
-__declspec(dllexport) BOOL _stdcall DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
-	if (fdwReason == DLL_PROCESS_ATTACH) {
-		auto h = LoadLibraryW(L"kernelbase.dll");
-
-		if (h)
-			_SetThreadDescription = (decltype(_SetThreadDescription))(void(*)(void))GetProcAddress(h, "SetThreadDescription");
-	}
-
-	return TRUE;
-}
-#endif
