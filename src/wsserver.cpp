@@ -734,22 +734,19 @@ namespace ws {
 
 				while (true) {
 					socket_t max_sock;
-					fd_set read_fds, write_fds, exc_fds;
+					fd_set read_fds, write_fds;
 
 					max_sock = impl->sock;
 
 					FD_ZERO(&read_fds);
 					FD_ZERO(&write_fds);
-					FD_ZERO(&exc_fds);
 
 					FD_SET(impl->sock, &read_fds);
-					FD_SET(impl->sock, &exc_fds);
 
 					for (auto& ct : impl->clients) {
 						auto& impl = *ct.impl;
 
 						FD_SET(impl.fd, &read_fds);
-						FD_SET(impl.fd, &exc_fds);
 
 						if (!impl.sendbuf.empty())
 							FD_SET(impl.fd, &write_fds);
@@ -760,7 +757,7 @@ namespace ws {
 
 					// FIXME - test with > 64 concurrent clients
 
-					if (select(max_sock + 1, &read_fds, &write_fds, &exc_fds, 0) < 0)
+					if (select(max_sock + 1, &read_fds, &write_fds, nullptr, 0) < 0)
 						throw sockets_error("select");
 
 					if (FD_ISSET(impl->sock, &read_fds)) {
@@ -800,12 +797,6 @@ namespace ws {
 													   impl->conn_handler, impl->disconn_handler);
 						} else
 							throw sockets_error("accept");
-					} else if (FD_ISSET(impl->sock, &exc_fds)) {
-#ifdef _WIN32
-						throw formatted_error("exception on listening socket: {}", wsa_error_to_string(WSAGetLastError()));
-#else
-						throw formatted_error("exception on listening socket: {}", errno_to_string(errno));
-#endif
 					} else {
 						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 							auto& ct = *it;
@@ -826,8 +817,6 @@ namespace ws {
 
 								ct.impl->send_raw(to_send);
 							}
-
-							// FIXME - exceptions (disconnect client)
 						}
 					}
 				}
