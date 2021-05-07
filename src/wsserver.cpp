@@ -232,16 +232,26 @@ namespace ws {
 		impl->send_raw(payload);
 	}
 
-	void server_client_pimpl::send_raw(string_view sv) const {
+	void server_client_pimpl::send_raw(string_view sv) {
 		do {
 			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("send failed ({})."), wsa_error_to_string(WSAGetLastError()));
+			if (bytes == SOCKET_ERROR) {
+				if (WSAGetLastError() == WSAEWOULDBLOCK) {
+					sendbuf.append(sv);
+					return;
+				} else
+					throw formatted_error(FMT_STRING("send failed ({})."), wsa_error_to_string(WSAGetLastError()));
+			}
 #else
-			if (bytes == -1)
-				throw formatted_error(FMT_STRING("send failed ({})."), errno_to_string(errno));
+			if (bytes == -1) {
+				if (errno == EWOULDBLOCK) {
+					sendbuf.append(sv);
+					return;
+				} else
+					throw formatted_error(FMT_STRING("send failed ({})."), errno_to_string(errno));
+			}
 #endif
 
 			if ((size_t)bytes == sv.length())
@@ -738,9 +748,11 @@ namespace ws {
 					for (auto& ct : impl->clients) {
 						auto& impl = *ct.impl;
 
-						// FIXME - identify non-empty buffers, and flush on write message?
 						FD_SET(impl.fd, &read_fds);
 						FD_SET(impl.fd, &exc_fds);
+
+						if (!impl.sendbuf.empty())
+							FD_SET(impl.fd, &write_fds);
 
 						if (impl.fd > max_sock)
 							max_sock = impl.fd;
@@ -809,9 +821,13 @@ namespace ws {
 								}
 
 								break;
+							} else if (!ct.impl->sendbuf.empty() && FD_ISSET(ct.impl->fd, &write_fds)) {
+								string to_send = move(ct.impl->sendbuf);
+
+								ct.impl->send_raw(to_send);
 							}
+
 							// FIXME - exceptions (disconnect client)
-							// FIXME - writes
 						}
 					}
 				}

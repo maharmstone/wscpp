@@ -78,7 +78,7 @@ namespace ws {
 
 		~server_client_pimpl();
 
-		void send_raw(std::string_view sv) const;
+		void send_raw(std::string_view sv);
 		void handle_handshake(std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
 		std::string recv();
@@ -113,6 +113,7 @@ namespace ws {
 		server& serv;
 		std::array<uint8_t, 16> ip_addr;
 		std::string username, domain_name;
+		std::string sendbuf;
 
 		enum class state_enum {
 			http,
