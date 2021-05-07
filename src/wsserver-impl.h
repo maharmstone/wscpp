@@ -59,12 +59,12 @@ namespace ws {
 		server_disconn_handler disconn_handler;
 		std::string auth_type;
 		socket_t sock = INVALID_SOCKET;
-		std::list<client_thread> client_threads;
+		std::list<server_client> clients;
 	};
 
 	class server_client_pimpl {
 	public:
-		server_client_pimpl(client_thread& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+		server_client_pimpl(server_client& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
 							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
 							const server_disconn_handler& disconn_handler) :
 			parent(parent),
@@ -93,7 +93,7 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 
-		client_thread& parent;
+		server_client& parent;
 		bool open = true;
 		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;

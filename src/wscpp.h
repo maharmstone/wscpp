@@ -64,14 +64,14 @@ namespace ws {
 	};
 
 	class client;
-	class client_thread;
+	class server_client;
 
 	typedef std::function<void(client&, const std::string_view&, enum opcode opcode)> client_msg_handler;
 	typedef std::function<void(client&, const std::exception_ptr&)> client_disconn_handler;
 
-	typedef std::function<void(client_thread&, const std::string_view&)> server_msg_handler;
-	typedef std::function<void(client_thread&)> server_conn_handler;
-	typedef std::function<void(client_thread&, const std::exception_ptr&)> server_disconn_handler;
+	typedef std::function<void(server_client&, const std::string_view&)> server_msg_handler;
+	typedef std::function<void(server_client&)> server_conn_handler;
+	typedef std::function<void(server_client&, const std::exception_ptr&)> server_disconn_handler;
 
 	class sockets_error : public std::exception {
 	public:
@@ -95,11 +95,11 @@ namespace ws {
 	using socket_t = int;
 #endif
 
-	class WSCPP client_thread {
+	class WSCPP server_client {
 	public:
-		client_thread(socket_t sock, server& serv, const std::span<uint8_t, 16>& ipv6_addr, const server_msg_handler& msg_handler,
+		server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ipv6_addr, const server_msg_handler& msg_handler,
 					  const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
-		~client_thread();
+		~server_client();
 		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
 		std::string_view username() const;
 		std::string_view domain_name() const;
@@ -131,10 +131,10 @@ namespace ws {
 		~server();
 
 		void start();
-		void for_each(std::function<void(client_thread&)> func);
+		void for_each(std::function<void(server_client&)> func);
 		void close();
 
-		friend client_thread;
+		friend server_client;
 		friend server_client_pimpl;
 
 	private:

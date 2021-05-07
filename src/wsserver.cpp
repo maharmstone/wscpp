@@ -73,7 +73,7 @@ namespace ws {
 #endif
 	}
 
-	client_thread::~client_thread() {
+	server_client::~server_client() {
 		delete impl;
 	}
 
@@ -193,7 +193,7 @@ namespace ws {
 		}
 	}
 
-	void client_thread::send(const string_view& payload, enum opcode opcode) const {
+	void server_client::send(const string_view& payload, enum opcode opcode) const {
 		size_t len = payload.length();
 
 		if (len <= 125) {
@@ -735,7 +735,7 @@ namespace ws {
 					FD_SET(impl->sock, &read_fds);
 					FD_SET(impl->sock, &exc_fds);
 
-					for (auto& ct : impl->client_threads) {
+					for (auto& ct : impl->clients) {
 						auto& impl = *ct.impl;
 
 						// FIXME - identify non-empty buffers, and flush on write message?
@@ -784,8 +784,8 @@ namespace ws {
 #endif
 
 						if (newsock != INVALID_SOCKET) {
-							impl->client_threads.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
-															  impl->conn_handler, impl->disconn_handler);
+							impl->clients.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
+													   impl->conn_handler, impl->disconn_handler);
 						} else
 							throw sockets_error("accept");
 					} else if (FD_ISSET(impl->sock, &exc_fds)) {
@@ -795,7 +795,7 @@ namespace ws {
 						throw formatted_error("exception on listening socket: {}", errno_to_string(errno));
 #endif
 					} else {
-						for (auto it = impl->client_threads.begin(); it != impl->client_threads.end(); it++) {
+						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 							auto& ct = *it;
 
 							if (FD_ISSET(ct.impl->fd, &read_fds)) {
@@ -805,7 +805,7 @@ namespace ws {
 									if (impl->disconn_handler)
 										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-									impl->client_threads.erase(it);
+									impl->clients.erase(it);
 								}
 
 								break;
@@ -841,8 +841,8 @@ namespace ws {
 #endif
 	}
 
-	void server::for_each(function<void(client_thread&)> func) {
-		for (auto& ct : impl->client_threads) {
+	void server::for_each(function<void(server_client&)> func) {
+		for (auto& ct : impl->clients) {
 			if (ct.impl->state == server_client_pimpl::state_enum::websocket)
 				func(ct);
 		}
@@ -868,16 +868,16 @@ namespace ws {
 		delete impl;
 	}
 
-	client_thread::client_thread(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
+	server_client::server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
 								 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
 		impl = new server_client_pimpl(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
 	}
 
-	string_view client_thread::username() const {
+	string_view server_client::username() const {
 		return impl->username;
 	}
 
-	string_view client_thread::domain_name() const {
+	string_view server_client::domain_name() const {
 		return impl->domain_name;
 	}
 
@@ -906,11 +906,11 @@ namespace ws {
 			throw formatted_error(FMT_STRING("RevertSecurityContext returned {}"), (enum sec_error)sec_status);
 	}
 
-	void client_thread::impersonate() const {
+	void server_client::impersonate() const {
 		impl->impersonate();
 	}
 
-	void client_thread::revert() const {
+	void server_client::revert() const {
 		impl->revert();
 	}
 
@@ -918,16 +918,16 @@ namespace ws {
 		return token.get();
 	}
 
-	HANDLE client_thread::impersonation_token() const {
+	HANDLE server_client::impersonation_token() const {
 		return impl->impersonation_token();
 	}
 #endif
 
-	span<uint8_t, 16> client_thread::ip_addr() const {
+	span<uint8_t, 16> server_client::ip_addr() const {
 		return impl->ip_addr;
 	}
 
-	string client_thread::ip_addr_string() const {
+	string server_client::ip_addr_string() const {
 		auto ip = ip_addr();
 
 		static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };

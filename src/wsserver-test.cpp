@@ -13,7 +13,7 @@ using namespace std;
 
 #define BACKLOG 10
 
-static void msg_handler(ws::client_thread& c, const string_view& sv) {
+static void msg_handler(ws::server_client& c, const string_view& sv) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
@@ -25,7 +25,7 @@ static void msg_handler(ws::client_thread& c, const string_view& sv) {
 	c.send("Cool story bro");
 }
 
-static void conn_handler(ws::client_thread& c) {
+static void conn_handler(ws::server_client& c) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
@@ -37,7 +37,7 @@ static void conn_handler(ws::client_thread& c) {
 	c.send("Lemon curry?");
 }
 
-static void disconn_handler(ws::client_thread& c, const exception_ptr& except) {
+static void disconn_handler(ws::server_client& c, const exception_ptr& except) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
