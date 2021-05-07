@@ -37,7 +37,7 @@ typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
 #endif
 
 namespace ws {
-	class client_thread_pimpl;
+	class server_client_pimpl;
 
 	class server_pimpl {
 	public:
@@ -62,9 +62,9 @@ namespace ws {
 		std::list<client_thread> client_threads;
 	};
 
-	class client_thread_pimpl {
+	class server_client_pimpl {
 	public:
-		client_thread_pimpl(client_thread& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+		server_client_pimpl(client_thread& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
 							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
 							const server_disconn_handler& disconn_handler) :
 			parent(parent),
@@ -76,7 +76,7 @@ namespace ws {
 			std::copy(ip_addr.begin(), ip_addr.end(), this->ip_addr.begin());
 		}
 
-		~client_thread_pimpl();
+		~server_client_pimpl();
 
 		void send_raw(std::string_view sv) const;
 		void handle_handshake(std::map<std::string, std::string>& headers);

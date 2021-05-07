@@ -87,7 +87,7 @@ namespace ws {
 	};
 
 	class server;
-	class client_thread_pimpl;
+	class server_client_pimpl;
 
 #ifdef _WIN32
 	using socket_t = SOCKET;
@@ -113,11 +113,11 @@ namespace ws {
 
 		void* context = nullptr;
 
-		friend client_thread_pimpl;
+		friend server_client_pimpl;
 		friend server;
 
 	private:
-		client_thread_pimpl* impl;
+		server_client_pimpl* impl;
 	};
 
 	class server_pimpl;
@@ -135,7 +135,7 @@ namespace ws {
 		void close();
 
 		friend client_thread;
-		friend client_thread_pimpl;
+		friend server_client_pimpl;
 
 	private:
 		server_pimpl* impl;

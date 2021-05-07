@@ -55,7 +55,7 @@ static string lower(string s) {
 }
 
 namespace ws {
-	client_thread_pimpl::~client_thread_pimpl() {
+	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
 		if ((int)fd != SOCKET_ERROR)
 			closesocket(fd);
@@ -100,7 +100,7 @@ namespace ws {
 	}
 #endif
 
-	void client_thread_pimpl::read() {
+	void server_client_pimpl::read() {
 		auto msg = recv();
 
 		if (!open)
@@ -232,7 +232,7 @@ namespace ws {
 		impl->send_raw(payload);
 	}
 
-	void client_thread_pimpl::send_raw(string_view sv) const {
+	void server_client_pimpl::send_raw(string_view sv) const {
 		do {
 			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
@@ -275,7 +275,7 @@ namespace ws {
 		return ret;
 	}
 
-	void client_thread_pimpl::get_username(HANDLE token) {
+	void server_client_pimpl::get_username(HANDLE token) {
 		vector<uint8_t> buf;
 		TOKEN_USER* tu;
 		DWORD ret = 0;
@@ -343,7 +343,7 @@ namespace ws {
 	}
 #endif
 
-	void client_thread_pimpl::handle_handshake(map<string, string>& headers) {
+	void server_client_pimpl::handle_handshake(map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
 			string auth;
 #ifdef _WIN32
@@ -541,14 +541,14 @@ namespace ws {
 			conn_handler(parent);
 	}
 
-	void client_thread_pimpl::internal_server_error(const string& s) {
+	void server_client_pimpl::internal_server_error(const string& s) {
 		try {
 			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + s);
 		} catch (...) {
 		}
 	}
 
-	string client_thread_pimpl::recv() {
+	string server_client_pimpl::recv() {
 		char s[4096];
 		int bytes, err = 0;
 
@@ -577,7 +577,7 @@ namespace ws {
 		return string(s, bytes);
 	}
 
-	void client_thread_pimpl::process_http_message(const string& mess) {
+	void server_client_pimpl::process_http_message(const string& mess) {
 		bool first = true;
 		size_t nl = mess.find("\r\n"), nl2 = 0;
 		string verb, path;
@@ -631,7 +631,7 @@ namespace ws {
 		}
 	}
 
-	void client_thread_pimpl::process_http_messages() {
+	void server_client_pimpl::process_http_messages() {
 		do {
 			size_t dnl = recvbuf.find("\r\n\r\n");
 
@@ -647,7 +647,7 @@ namespace ws {
 		} while (true);
 	}
 
-	void client_thread_pimpl::parse_ws_message(enum opcode opcode, const string_view& payload) {
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, const string_view& payload) {
 		switch (opcode) {
 			case opcode::close:
 				open = false;
@@ -843,7 +843,7 @@ namespace ws {
 
 	void server::for_each(function<void(client_thread&)> func) {
 		for (auto& ct : impl->client_threads) {
-			if (ct.impl->state == client_thread_pimpl::state_enum::websocket)
+			if (ct.impl->state == server_client_pimpl::state_enum::websocket)
 				func(ct);
 		}
 	}
@@ -870,7 +870,7 @@ namespace ws {
 
 	client_thread::client_thread(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
 								 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
-		impl = new client_thread_pimpl(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
+		impl = new server_client_pimpl(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
 	}
 
 	string_view client_thread::username() const {
@@ -882,7 +882,7 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	void client_thread_pimpl::impersonate() const {
+	void server_client_pimpl::impersonate() const {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
@@ -894,7 +894,7 @@ namespace ws {
 			throw formatted_error(FMT_STRING("ImpersonateSecurityContext returned {}"), (enum sec_error)sec_status);
 	}
 
-	void client_thread_pimpl::revert() const {
+	void server_client_pimpl::revert() const {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
@@ -914,7 +914,7 @@ namespace ws {
 		impl->revert();
 	}
 
-	HANDLE client_thread_pimpl::impersonation_token() const {
+	HANDLE server_client_pimpl::impersonation_token() const {
 		return token.get();
 	}
 
