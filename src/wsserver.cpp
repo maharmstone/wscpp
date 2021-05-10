@@ -743,16 +743,20 @@ namespace ws {
 
 					FD_SET(impl->sock, &read_fds);
 
-					for (auto& ct : impl->clients) {
-						auto& impl = *ct.impl;
+					{
+						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
-						FD_SET(impl.fd, &read_fds);
+						for (auto& ct : impl->clients) {
+							auto& impl = *ct.impl;
 
-						if (!impl.sendbuf.empty())
-							FD_SET(impl.fd, &write_fds);
+							FD_SET(impl.fd, &read_fds);
 
-						if (impl.fd > max_sock)
-							max_sock = impl.fd;
+							if (!impl.sendbuf.empty())
+								FD_SET(impl.fd, &write_fds);
+
+							if (impl.fd > max_sock)
+								max_sock = impl.fd;
+						}
 					}
 
 					// FIXME - test with > 64 concurrent clients
@@ -793,11 +797,15 @@ namespace ws {
 #endif
 
 						if (newsock != INVALID_SOCKET) {
+							unique_lock<shared_mutex> guard(impl->vector_mutex);
+
 							impl->clients.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
 													   impl->conn_handler, impl->disconn_handler);
 						} else
 							throw sockets_error("accept");
 					} else {
+						unique_lock<shared_mutex> guard(impl->vector_mutex);
+
 						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 							auto& ct = *it;
 
@@ -847,6 +855,8 @@ namespace ws {
 	}
 
 	void server::for_each(function<void(server_client&)> func) {
+		unique_lock<shared_mutex> guard(impl->vector_mutex);
+
 		for (auto& ct : impl->clients) {
 			if (ct.impl->state == server_client_pimpl::state_enum::websocket)
 				func(ct);
