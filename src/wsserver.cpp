@@ -854,12 +854,14 @@ namespace ws {
 #endif
 	}
 
-	void server::for_each(function<void(server_client&)> func) {
+	void server::for_each(function<bool(server_client&)> func) {
 		unique_lock<shared_mutex> guard(impl->vector_mutex);
 
 		for (auto& ct : impl->clients) {
-			if (ct.impl->state == server_client_pimpl::state_enum::websocket)
-				func(ct);
+			if (ct.impl->state == server_client_pimpl::state_enum::websocket) {
+				if (!func(ct))
+					break;
+			}
 		}
 	}
 

@@ -131,7 +131,7 @@ namespace ws {
 		~server();
 
 		void start();
-		void for_each(std::function<void(server_client&)> func);
+		void for_each(std::function<bool(server_client&)> func);
 		void close();
 
 		friend server_client;
