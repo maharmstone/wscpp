@@ -750,9 +750,7 @@ namespace ws {
 							auto& impl = *ct.impl;
 
 							FD_SET(impl.fd, &read_fds);
-
-							if (!impl.sendbuf.empty())
-								FD_SET(impl.fd, &write_fds);
+							FD_SET(impl.fd, &write_fds);
 
 							if (impl.fd > max_sock)
 								max_sock = impl.fd;
