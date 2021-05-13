@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <poll.h>
 #else
 #include <ws2tcpip.h>
 #include <ntdsapi.h>
@@ -775,15 +776,16 @@ namespace ws {
 					if (WaitForSingleObject(ev, INFINITE) == WAIT_FAILED)
 						throw formatted_error(FMT_STRING("WaitForSingleObject failed (error {})."), GetLastError());
 #else
-					socket_t max_sock;
-					fd_set read_fds, write_fds;
+					vector<struct pollfd> pollfds;
 
-					max_sock = impl->sock;
+					pollfds.reserve(impl->clients.size() + 1);
 
-					FD_ZERO(&read_fds);
-					FD_ZERO(&write_fds);
+					{
+						auto& serv_pf = pollfds.emplace_back();
 
-					FD_SET(impl->sock, &read_fds);
+						serv_pf.fd = impl->sock;
+						serv_pf.events = POLLIN;
+					}
 
 					{
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
@@ -791,18 +793,15 @@ namespace ws {
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
 
-							FD_SET(impl.fd, &read_fds);
-							FD_SET(impl.fd, &write_fds);
+							auto& pf = pollfds.emplace_back();
 
-							if (impl.fd > max_sock)
-								max_sock = impl.fd;
+							pf.fd = impl.fd;
+							pf.events = POLLIN;
 						}
 					}
 
-					// FIXME - test with > 64 concurrent clients
-
-					if (select(max_sock + 1, &read_fds, &write_fds, nullptr, 0) < 0)
-						throw sockets_error("select");
+					if (poll(&pollfds[0], pollfds.size(), -1) < 0)
+						throw sockets_error("poll");
 #endif
 
 #ifdef _WIN32
@@ -811,7 +810,7 @@ namespace ws {
 
 					if (netev.lNetworkEvents & FD_ACCEPT) {
 #else
-					if (FD_ISSET(impl->sock, &read_fds)) {
+					if (pollfds[0].revents) {
 #endif
 						socket_t newsock;
 						struct sockaddr_in6 their_addr;
@@ -858,17 +857,14 @@ namespace ws {
 					{
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
+#ifdef _WIN32
 						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 							auto& ct = *it;
 
-#ifdef _WIN32
 							if (WSAEnumNetworkEvents(ct.impl->fd, ev, &netev))
 								throw formatted_error(FMT_STRING("WSAEnumNetworkEvents failed (error {})."), wsa_error_to_string(WSAGetLastError()));
 
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
-#else
-							if (FD_ISSET(ct.impl->fd, &read_fds)) {
-#endif
 								ct.impl->read();
 
 								if (!ct.impl->open) {
@@ -879,16 +875,45 @@ namespace ws {
 								}
 
 								break;
-#ifdef _WIN32
 							} else if (!ct.impl->sendbuf.empty() && netev.lNetworkEvents & FD_WRITE) {
-#else
-							} else if (!ct.impl->sendbuf.empty() && FD_ISSET(ct.impl->fd, &write_fds)) {
-#endif
 								string to_send = move(ct.impl->sendbuf);
 
 								ct.impl->send_raw(to_send);
+
+								break;
 							}
 						}
+#else
+						for (const auto& pf : pollfds) {
+							if (!pf.revents)
+								continue;
+
+							for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
+								auto& ct = *it;
+
+								if (ct.impl->fd == pf.fd) {
+									if (pf.revents & POLLIN)
+										ct.impl->read();
+									else if (pf.revents & POLLOUT) {
+										string to_send = move(ct.impl->sendbuf);
+
+										ct.impl->send_raw(to_send);
+									}
+
+									if (pf.revents & (POLLHUP | POLLERR | POLLNVAL) || !ct.impl->open) {
+										if (impl->disconn_handler)
+											impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
+
+										impl->clients.erase(it);
+									}
+
+									break;
+								}
+							}
+
+							break;
+						}
+#endif
 					}
 				}
 			} catch (...) {
