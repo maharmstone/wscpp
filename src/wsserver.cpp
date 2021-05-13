@@ -88,14 +88,14 @@ namespace ws {
 		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
+			throw formatted_error("MultiByteToWideChar 1 failed.");
 
 		ret.resize(len);
 
 		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
+			throw formatted_error("MultiByteToWideChar 2 failed.");
 
 		return ret;
 	}
@@ -243,7 +243,7 @@ namespace ws {
 					sendbuf.append(sv);
 					return;
 				} else
-					throw formatted_error(FMT_STRING("send failed ({})."), wsa_error_to_string(WSAGetLastError()));
+					throw formatted_error("send failed ({}).", wsa_error_to_string(WSAGetLastError()));
 			}
 #else
 			if (bytes == -1) {
@@ -251,7 +251,7 @@ namespace ws {
 					sendbuf.append(sv);
 					return;
 				} else
-					throw formatted_error(FMT_STRING("send failed ({})."), errno_to_string(errno));
+					throw formatted_error("send failed ({}).", errno_to_string(errno));
 			}
 #endif
 
@@ -273,7 +273,7 @@ namespace ws {
 									nullptr, nullptr);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("WideCharToMultiByte 1 failed."));
+			throw formatted_error("WideCharToMultiByte 1 failed.");
 
 		ret.resize(len);
 
@@ -281,7 +281,7 @@ namespace ws {
 								nullptr, nullptr);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("WideCharToMultiByte 2 failed."));
+			throw formatted_error("WideCharToMultiByte 2 failed.");
 
 		return ret;
 	}
@@ -301,24 +301,24 @@ namespace ws {
 			auto le = GetLastError();
 
 			if (le != ERROR_INSUFFICIENT_BUFFER)
-				throw formatted_error(FMT_STRING("GetTokenInformation failed (last error {})"), le);
+				throw formatted_error("GetTokenInformation failed (last error {})", le);
 		}
 
 		buf.resize(ret);
 		tu = (TOKEN_USER*)&buf[0];
 
 		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0)
-			throw formatted_error(FMT_STRING("GetTokenInformation failed (last error {})"), GetLastError());
+			throw formatted_error("GetTokenInformation failed (last error {})", GetLastError());
 
 		if (!IsValidSid(tu->User.Sid))
-			throw formatted_error(FMT_STRING("Invalid SID."));
+			throw formatted_error("Invalid SID.");
 
 		user_size = sizeof(usernamew) / sizeof(WCHAR);
 		domain_size = sizeof(domain_namew) / sizeof(WCHAR);
 
 		if (!LookupAccountSidW(nullptr, tu->User.Sid, usernamew, &user_size, domain_namew,
 							   &domain_size, &use))
-			throw formatted_error(FMT_STRING("LookupAccountSid failed (last error {})"), GetLastError());
+			throw formatted_error("LookupAccountSid failed (last error {})", GetLastError());
 
 		username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
 		domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
@@ -341,10 +341,10 @@ namespace ws {
 
 		err = getaddrinfo(hostname, nullptr, &hints, &info);
 		if (err != 0)
-			throw formatted_error(FMT_STRING("getaddrinfo failed for {} (error {})."), hostname, err);
+			throw formatted_error("getaddrinfo failed for {} (error {}).", hostname, err);
 
 		if (!info)
-			throw formatted_error(FMT_STRING("Could not get fully-qualified domain name."));
+			throw formatted_error("Could not get fully-qualified domain name.");
 
 		string ret = info->ai_canonname;
 
@@ -392,13 +392,13 @@ namespace ws {
 				if (auth_type == "Negotiate") { // FIXME - log error if this fails, rather than throwing exception?
 					auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
 					if (FAILED(ret))
-						throw formatted_error(FMT_STRING("DsServerRegisterSpn returned {}"), ret);
+						throw formatted_error("DsServerRegisterSpn returned {}", ret);
 				}
 
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status))
-					throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {}"), (enum sec_error)sec_status);
+					throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
 			}
 #else
 			if (cred_handle == 0) {
@@ -457,7 +457,7 @@ namespace ws {
 				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
 				return;
 			} else if (FAILED(sec_status))
-				throw formatted_error(FMT_STRING("AcceptSecurityContext returned {}"), (enum sec_error)sec_status);
+				throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
 
 			ctx_handle_set = true;
 
@@ -477,7 +477,7 @@ namespace ws {
 				sec_status = QuerySecurityContextToken(&ctx_handle, &h);
 
 				if (FAILED(sec_status))
-					throw formatted_error(FMT_STRING("QuerySecurityContextToken returned {}"), (enum sec_error)sec_status);
+					throw formatted_error("QuerySecurityContextToken returned {}", (enum sec_error)sec_status);
 
 				token.reset(h);
 			}
@@ -573,7 +573,7 @@ namespace ws {
 			open = false;
 			return "";
 		} else if (bytes == SOCKET_ERROR)
-			throw formatted_error(FMT_STRING("recv failed ({})."), wsa_error_to_string(err));
+			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 #else
 		if (bytes == -1)
 			err = errno;
@@ -582,7 +582,7 @@ namespace ws {
 			open = false;
 			return "";
 		} else if (bytes == -1)
-			throw formatted_error(FMT_STRING("recv failed ({})."), errno_to_string(err));
+			throw formatted_error("recv failed ({}).", errno_to_string(err));
 #endif
 
 		return string(s, bytes);
@@ -686,7 +686,7 @@ namespace ws {
 		wsa_event() {
 			h = WSACreateEvent();
 			if (h == WSA_INVALID_EVENT)
-				throw formatted_error(FMT_STRING("WSACreateEvent failed (error {})."), WSAGetLastError());
+				throw formatted_error("WSACreateEvent failed (error {}).", WSAGetLastError());
 		}
 
 		~wsa_event() {
@@ -707,7 +707,7 @@ namespace ws {
 		WSADATA wsaData;
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-			throw formatted_error(FMT_STRING("WSAStartup failed."));
+			throw formatted_error("WSAStartup failed.");
 #endif
 
 		try {
@@ -721,7 +721,7 @@ namespace ws {
 			impl->sock = socket(AF_INET6, SOCK_STREAM, 0);
 
 			if (impl->sock == INVALID_SOCKET)
-				throw formatted_error(FMT_STRING("socket failed."));
+				throw formatted_error("socket failed.");
 
 			try {
 				int reuseaddr = 1;
@@ -760,7 +760,7 @@ namespace ws {
 					WSANETWORKEVENTS netev;
 
 					if (WSAEventSelect(impl->sock, ev, FD_ACCEPT) == SOCKET_ERROR)
-						throw formatted_error(FMT_STRING("WSAEventSelect failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+						throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 					{
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
@@ -769,12 +769,12 @@ namespace ws {
 							auto& impl = *ct.impl;
 
 							if (WSAEventSelect(impl.fd, ev, FD_READ | FD_WRITE | FD_CLOSE) == SOCKET_ERROR)
-								throw formatted_error(FMT_STRING("WSAEventSelect failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+								throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 						}
 					}
 
 					if (WaitForSingleObject(ev, INFINITE) == WAIT_FAILED)
-						throw formatted_error(FMT_STRING("WaitForSingleObject failed (error {})."), GetLastError());
+						throw formatted_error("WaitForSingleObject failed (error {}).", GetLastError());
 #else
 					vector<struct pollfd> pollfds;
 
@@ -806,7 +806,7 @@ namespace ws {
 
 #ifdef _WIN32
 					if (WSAEnumNetworkEvents(impl->sock, ev, &netev))
-						throw formatted_error(FMT_STRING("WSAEnumNetworkEvents failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+						throw formatted_error("WSAEnumNetworkEvents failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 					if (netev.lNetworkEvents & FD_ACCEPT) {
 #else
@@ -828,7 +828,7 @@ namespace ws {
 						u_long mode = 1;
 
 						if (ioctlsocket(newsock, FIONBIO, &mode) != 0)
-								throw formatted_error(FMT_STRING("ioctlsocket failed ({})."), wsa_error_to_string(WSAGetLastError()));
+								throw formatted_error("ioctlsocket failed ({}).", wsa_error_to_string(WSAGetLastError()));
 #else
 						int flags = fcntl(newsock, F_GETFL, 0);
 
@@ -862,7 +862,7 @@ namespace ws {
 							auto& ct = *it;
 
 							if (WSAEnumNetworkEvents(ct.impl->fd, ev, &netev))
-								throw formatted_error(FMT_STRING("WSAEnumNetworkEvents failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+								throw formatted_error("WSAEnumNetworkEvents failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
 								ct.impl->read();
@@ -991,24 +991,24 @@ namespace ws {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
-			throw formatted_error(FMT_STRING("ctx_handle not set"));
+			throw formatted_error("ctx_handle not set");
 
 		sec_status = ImpersonateSecurityContext((PCtxtHandle)&ctx_handle);
 
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("ImpersonateSecurityContext returned {}"), (enum sec_error)sec_status);
+			throw formatted_error("ImpersonateSecurityContext returned {}", (enum sec_error)sec_status);
 	}
 
 	void server_client_pimpl::revert() const {
 		SECURITY_STATUS sec_status;
 
 		if (!ctx_handle_set)
-			throw formatted_error(FMT_STRING("ctx_handle not set"));
+			throw formatted_error("ctx_handle not set");
 
 		sec_status = RevertSecurityContext((PCtxtHandle)&ctx_handle);
 
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("RevertSecurityContext returned {}"), (enum sec_error)sec_status);
+			throw formatted_error("RevertSecurityContext returned {}", (enum sec_error)sec_status);
 	}
 
 	void server_client::impersonate() const {

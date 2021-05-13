@@ -57,7 +57,7 @@ namespace ws {
 		hints.ai_protocol = IPPROTO_TCP;
 
 		if (getaddrinfo(host.c_str(), to_string(port).c_str(), &hints, &result) != 0)
-			throw formatted_error(FMT_STRING("getaddr failed."));
+			throw formatted_error("getaddr failed.");
 
 		try {
 			for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
@@ -66,9 +66,9 @@ namespace ws {
 				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 				if (sock == INVALID_SOCKET) {
 #ifdef _WIN32
-					throw formatted_error(FMT_STRING("socket failed (error {})"), wsa_error_to_string(WSAGetLastError()));
+					throw formatted_error("socket failed (error {})", wsa_error_to_string(WSAGetLastError()));
 #else
-					throw formatted_error(FMT_STRING("socket failed (error {})"), errno_to_string(errno));
+					throw formatted_error("socket failed (error {})", errno_to_string(errno));
 #endif
 				}
 
@@ -103,9 +103,9 @@ namespace ws {
 
 		if (sock == INVALID_SOCKET) {
 #ifdef _WIN32
-			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, wsa_error_to_string(wsa_error));
+			throw formatted_error("Could not connect to {} (error {}).", host, wsa_error_to_string(wsa_error));
 #else
-			throw formatted_error(FMT_STRING("Could not connect to {} (error {})."), host, errno_to_string(wsa_error));
+			throw formatted_error("Could not connect to {} (error {}).", host, errno_to_string(wsa_error));
 #endif
 		}
 
@@ -124,7 +124,7 @@ namespace ws {
 		WSADATA wsa_data;
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
-			throw formatted_error(FMT_STRING("WSAStartup failed."));
+			throw formatted_error("WSAStartup failed.");
 #endif
 
 		try {
@@ -215,14 +215,14 @@ namespace ws {
 		DWORD tv = timeout * 1000;
 
 		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-			throw formatted_error(FMT_STRING("setsockopt returned {}."), wsa_error_to_string(WSAGetLastError()));
+			throw formatted_error("setsockopt returned {}.", wsa_error_to_string(WSAGetLastError()));
 #else
 		struct timeval tv;
 		tv.tv_sec = timeout;
 		tv.tv_usec = 0;
 
 		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-			throw formatted_error(FMT_STRING("setsockopt returned {}."), errno_to_string(errno));
+			throw formatted_error("setsockopt returned {}.", errno_to_string(errno));
 #endif
 	}
 
@@ -235,14 +235,14 @@ namespace ws {
 
 #ifdef _WIN32
 			if (ret == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("send failed (error {})"), wsa_error_to_string(WSAGetLastError()));
+				throw formatted_error("send failed (error {})", wsa_error_to_string(WSAGetLastError()));
 #else
 			if (ret == -1)
-				throw formatted_error(FMT_STRING("send failed (error {})"), errno_to_string(errno));
+				throw formatted_error("send failed (error {})", errno_to_string(errno));
 #endif
 
 			if ((size_t)ret < s.length())
-				throw formatted_error(FMT_STRING("send sent {} bytes, expected {}"), ret, s.length());
+				throw formatted_error("send sent {} bytes, expected {}", ret, s.length());
 		} catch (...) {
 			if (timeout != 0)
 				set_send_timeout(0);
@@ -263,10 +263,10 @@ namespace ws {
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR)
-				throw formatted_error(FMT_STRING("recv 1 failed ({})."), wsa_error_to_string(WSAGetLastError()));
+				throw formatted_error("recv 1 failed ({}).", wsa_error_to_string(WSAGetLastError()));
 #else
 			if (bytes == -1)
-				throw formatted_error(FMT_STRING("recv 1 failed ({})."), errno_to_string(errno));
+				throw formatted_error("recv 1 failed ({}).", errno_to_string(errno));
 #endif
 
 			if (bytes == 0) {
@@ -288,7 +288,7 @@ namespace ws {
 #else
 				if (ret == -1)
 #endif
-					throw formatted_error(FMT_STRING("recv 2 failed."));
+					throw formatted_error("recv 2 failed.");
 				else if (ret == 0) {
 					open = false;
 					return "";
@@ -303,7 +303,7 @@ namespace ws {
 #else
 				if (ret == -1)
 #endif
-					throw formatted_error(FMT_STRING("recv 4 failed."));
+					throw formatted_error("recv 4 failed.");
 				else if (ret == 0) {
 					open = false;
 					return "";
@@ -322,14 +322,14 @@ namespace ws {
 		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 1 failed."));
+			throw formatted_error("MultiByteToWideChar 1 failed.");
 
 		ret.resize(len);
 
 		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
 
 		if (len == 0)
-			throw formatted_error(FMT_STRING("MultiByteToWideChar 2 failed."));
+			throw formatted_error("MultiByteToWideChar 2 failed.");
 
 		return ret;
 	}
@@ -344,13 +344,13 @@ namespace ws {
 		u16string spn;
 
 		if (auth_type == "Negotiate" && fqdn.empty())
-			throw formatted_error(FMT_STRING("Cannot do Negotiate authentication as FQDN not found."));
+			throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
 
 		if (!SecIsValidHandle(&cred_handle)) {
 			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
 												   nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 			if (FAILED(sec_status))
-				throw formatted_error(FMT_STRING("AcquireCredentialsHandle returned {}"), (enum sec_error)sec_status);
+				throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
 		}
 
 		auto auth = b64decode(auth_msg);
@@ -385,7 +385,7 @@ namespace ws {
 												ISC_REQ_ALLOCATE_MEMORY, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
 												&ctx_handle, &out, &context_attr, &timestamp);
 		if (FAILED(sec_status))
-			throw formatted_error(FMT_STRING("InitializeSecurityContext returned {}"), (enum sec_error)sec_status);
+			throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
 
 		auto sspi = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
 
@@ -411,7 +411,7 @@ namespace ws {
 		string outbuf;
 
 		if (auth_type == "Negotiate" && fqdn.empty())
-			throw formatted_error(FMT_STRING("Cannot do Negotiate authentication as FQDN not found."));
+			throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
 
 		if (cred_handle != 0) {
 			major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
@@ -474,7 +474,7 @@ namespace ws {
 			string mess = recv_http();
 
 			if (!open)
-				throw formatted_error(FMT_STRING("Socket closed unexpectedly."));
+				throw formatted_error("Socket closed unexpectedly.");
 
 			again = false;
 
@@ -499,7 +499,7 @@ namespace ws {
 						try {
 							status = stoul(ss);
 						} catch (...) {
-							throw formatted_error(FMT_STRING("Error calling stoul on \"{}\""), ss);
+							throw formatted_error("Error calling stoul on \"{}\"", ss);
 						}
 					}
 
@@ -540,13 +540,13 @@ namespace ws {
 			}
 
 			if (status != 101)
-				throw formatted_error(FMT_STRING("Server returned HTTP status {}, expected 101."), status);
+				throw formatted_error("Server returned HTTP status {}, expected 101.", status);
 
 			if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
-				throw formatted_error(FMT_STRING("Malformed response."));
+				throw formatted_error("Malformed response.");
 
 			if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
-				throw formatted_error(FMT_STRING("Invalid value for Sec-WebSocket-Accept."));
+				throw formatted_error("Invalid value for Sec-WebSocket-Accept.");
 		} while (again);
 	}
 
@@ -635,7 +635,7 @@ namespace ws {
 				return "";
 			}
 
-			throw formatted_error(FMT_STRING("recv failed ({})."), wsa_error_to_string(err));
+			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 		}
 #else
 		if (bytes == -1) {
@@ -644,7 +644,7 @@ namespace ws {
 				return "";
 			}
 
-			throw formatted_error(FMT_STRING("recv failed ({})."), errno_to_string(err));
+			throw formatted_error("recv failed ({}).", errno_to_string(err));
 		}
 #endif
 
