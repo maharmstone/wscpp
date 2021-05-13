@@ -679,6 +679,28 @@ namespace ws {
 		}
 	}
 
+#ifdef _WIN32
+	class wsa_event {
+	public:
+		wsa_event() {
+			h = WSACreateEvent();
+			if (h == WSA_INVALID_EVENT)
+				throw formatted_error(FMT_STRING("WSACreateEvent failed (error {})."), WSAGetLastError());
+		}
+
+		~wsa_event() {
+			WSACloseEvent(h);
+		}
+
+		operator WSAEVENT() {
+			return h;
+		}
+
+	private:
+		WSAEVENT h;
+	};
+#endif
+
 	void server::start() {
 #ifdef _WIN32
 		WSADATA wsaData;
@@ -716,6 +738,8 @@ namespace ws {
 
 				if (listen(impl->sock, impl->backlog) == SOCKET_ERROR)
 					throw sockets_error("listen");
+
+				wsa_event ev;
 #else
 				if (setsockopt(impl->sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == -1)
 					throw sockets_error("setsockopt");
@@ -730,9 +754,27 @@ namespace ws {
 					throw sockets_error("listen");
 #endif
 
-				vector<socket_t> socks;
-
 				while (true) {
+#ifdef _WIN32
+					WSANETWORKEVENTS netev;
+
+					if (WSAEventSelect(impl->sock, ev, FD_ACCEPT) == SOCKET_ERROR)
+						throw formatted_error(FMT_STRING("WSAEventSelect failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+
+					{
+						unique_lock<shared_mutex> guard(impl->vector_mutex);
+
+						for (auto& ct : impl->clients) {
+							auto& impl = *ct.impl;
+
+							if (WSAEventSelect(impl.fd, ev, FD_READ | FD_WRITE | FD_CLOSE) == SOCKET_ERROR)
+								throw formatted_error(FMT_STRING("WSAEventSelect failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+						}
+					}
+
+					if (WaitForSingleObject(ev, INFINITE) == WAIT_FAILED)
+						throw formatted_error(FMT_STRING("WaitForSingleObject failed (error {})."), GetLastError());
+#else
 					socket_t max_sock;
 					fd_set read_fds, write_fds;
 
@@ -761,8 +803,16 @@ namespace ws {
 
 					if (select(max_sock + 1, &read_fds, &write_fds, nullptr, 0) < 0)
 						throw sockets_error("select");
+#endif
 
+#ifdef _WIN32
+					if (WSAEnumNetworkEvents(impl->sock, ev, &netev))
+						throw formatted_error(FMT_STRING("WSAEnumNetworkEvents failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+
+					if (netev.lNetworkEvents & FD_ACCEPT) {
+#else
 					if (FD_ISSET(impl->sock, &read_fds)) {
+#endif
 						socket_t newsock;
 						struct sockaddr_in6 their_addr;
 #ifdef _WIN32
@@ -801,13 +851,24 @@ namespace ws {
 													   impl->conn_handler, impl->disconn_handler);
 						} else
 							throw sockets_error("accept");
-					} else {
+
+						continue;
+					}
+
+					{
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
 						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 							auto& ct = *it;
 
+#ifdef _WIN32
+							if (WSAEnumNetworkEvents(ct.impl->fd, ev, &netev))
+								throw formatted_error(FMT_STRING("WSAEnumNetworkEvents failed (error {})."), wsa_error_to_string(WSAGetLastError()));
+
+							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
+#else
 							if (FD_ISSET(ct.impl->fd, &read_fds)) {
+#endif
 								ct.impl->read();
 
 								if (!ct.impl->open) {
@@ -818,7 +879,11 @@ namespace ws {
 								}
 
 								break;
+#ifdef _WIN32
+							} else if (!ct.impl->sendbuf.empty() && netev.lNetworkEvents & FD_WRITE) {
+#else
 							} else if (!ct.impl->sendbuf.empty() && FD_ISSET(ct.impl->fd, &write_fds)) {
+#endif
 								string to_send = move(ct.impl->sendbuf);
 
 								ct.impl->send_raw(to_send);
