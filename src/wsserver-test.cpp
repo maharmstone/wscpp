@@ -22,7 +22,11 @@ static void msg_handler(ws::server_client& c, const string_view& sv) {
 	else
 		syncout << "Message from client " << &c << ": " << sv << endl;
 
-	c.send("Cool story bro");
+	try {
+		c.send("Cool story bro");
+	} catch (const exception& e) {
+		cerr << e.what() << endl;
+	}
 }
 
 static void conn_handler(ws::server_client& c) {
@@ -34,7 +38,11 @@ static void conn_handler(ws::server_client& c) {
 	else
 		syncout << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
 
-	c.send("Lemon curry?");
+	try {
+		c.send("Lemon curry?");
+	} catch (const exception& e) {
+		cerr << e.what() << endl;
+	}
 }
 
 static void disconn_handler(ws::server_client& c, const exception_ptr& except) {
