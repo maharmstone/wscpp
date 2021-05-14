@@ -858,11 +858,14 @@ namespace ws {
 						unique_lock<shared_mutex> guard(impl->vector_mutex);
 
 #ifdef _WIN32
-						for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
-							auto& ct = *it;
-
+						for (auto& ct : impl->clients) {
 							if (WSAEnumNetworkEvents(ct.impl->fd, ev, &netev))
 								throw formatted_error("WSAEnumNetworkEvents failed (error {}).", wsa_error_to_string(WSAGetLastError()));
+
+							if (!(netev.lNetworkEvents & (FD_READ | FD_CLOSE | FD_WRITE)))
+								continue;
+
+							guard.unlock();
 
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
 								ct.impl->read();
@@ -871,11 +874,18 @@ namespace ws {
 									if (impl->disconn_handler)
 										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-									impl->clients.erase(it);
+									guard.lock();
+
+									for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
+										if (&*it == &ct) {
+											impl->clients.erase(it);
+											break;
+										}
+									}
 								}
 
 								break;
-							} else if (!ct.impl->sendbuf.empty() && netev.lNetworkEvents & FD_WRITE) {
+							} else if (netev.lNetworkEvents & FD_WRITE) {
 								string to_send = move(ct.impl->sendbuf);
 
 								ct.impl->send_raw(to_send);
@@ -888,9 +898,9 @@ namespace ws {
 							if (!pf.revents)
 								continue;
 
-							for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
-								auto& ct = *it;
+							guard.unlock();
 
+							for (auto& ct : impl->clients) {
 								if (ct.impl->fd == pf.fd) {
 									if (pf.revents & POLLIN)
 										ct.impl->read();
@@ -904,7 +914,14 @@ namespace ws {
 										if (impl->disconn_handler)
 											impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-										impl->clients.erase(it);
+										guard.lock();
+
+										for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
+											if (&*it == &ct) {
+												impl->clients.erase(it);
+												break;
+											}
+										}
 									}
 
 									break;
