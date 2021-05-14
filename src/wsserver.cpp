@@ -763,7 +763,7 @@ namespace ws {
 						throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 					{
-						unique_lock<shared_mutex> guard(impl->vector_mutex);
+						shared_lock<shared_mutex> guard(impl->vector_mutex);
 
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
@@ -788,7 +788,7 @@ namespace ws {
 					}
 
 					{
-						unique_lock<shared_mutex> guard(impl->vector_mutex);
+						shared_lock<shared_mutex> guard(impl->vector_mutex);
 
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
@@ -855,7 +855,7 @@ namespace ws {
 					}
 
 					{
-						unique_lock<shared_mutex> guard(impl->vector_mutex);
+						shared_lock<shared_mutex> guard(impl->vector_mutex);
 
 #ifdef _WIN32
 						for (auto& ct : impl->clients) {
@@ -874,7 +874,7 @@ namespace ws {
 									if (impl->disconn_handler)
 										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-									guard.lock();
+									unique_lock<shared_mutex> guard2(impl->vector_mutex);
 
 									for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 										if (&*it == &ct) {
@@ -914,7 +914,7 @@ namespace ws {
 										if (impl->disconn_handler)
 											impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-										guard.lock();
+										unique_lock<shared_mutex> guard2(impl->vector_mutex);
 
 										for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 											if (&*it == &ct) {
@@ -960,7 +960,7 @@ namespace ws {
 	}
 
 	void server::for_each(function<bool(server_client&)> func) {
-		unique_lock<shared_mutex> guard(impl->vector_mutex);
+		shared_lock<shared_mutex> guard(impl->vector_mutex);
 
 		for (auto& ct : impl->clients) {
 			if (ct.impl->state == server_client_pimpl::state_enum::websocket) {
