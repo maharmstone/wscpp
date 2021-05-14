@@ -1,6 +1,7 @@
 #include "wscpp.h"
 #include <iostream>
 #include <string.h>
+#include <memory>
 
 #if __has_include(<syncstream>)
 #include <syncstream>
@@ -29,7 +30,7 @@ static void msg_handler(ws::server_client& c, const string_view& sv) {
 	}
 }
 
-static void conn_handler(ws::server_client& c) {
+static void conn_handler(ws::server& serv, ws::server_client& c) {
 	const auto& username = c.username();
 	const auto& domain_name = c.domain_name();
 
@@ -37,6 +38,12 @@ static void conn_handler(ws::server_client& c) {
 		syncout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
 	else
 		syncout << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
+
+	serv.for_each([&](ws::server_client& ct) {
+		ct.send("new client");
+
+		return true;
+	});
 
 	try {
 		c.send("Lemon curry?");
@@ -65,11 +72,17 @@ static void disconn_handler(ws::server_client& c, const exception_ptr& except) {
 }
 
 static void main2(uint16_t port) {
-	ws::server serv(port, BACKLOG, msg_handler, conn_handler, disconn_handler, "Negotiate");
+	unique_ptr<ws::server> serv;
+
+	serv.reset(new ws::server(port, BACKLOG, msg_handler,
+					[&](ws::server_client& c) {
+						conn_handler(*serv, c);
+					},
+					disconn_handler, "Negotiate"));
 
 	printf("Starting WebSocket server...\n");
 
-	serv.start();
+	serv->start();
 
 	printf("WebSocket server stopped.\n");
 }
