@@ -60,7 +60,7 @@ namespace ws {
 		std::string auth_type;
 		socket_t sock = INVALID_SOCKET;
 		std::list<server_client> clients;
-		std::shared_mutex vector_mutex;
+		std::recursive_mutex vector_mutex;
 	};
 
 	class server_client_pimpl {

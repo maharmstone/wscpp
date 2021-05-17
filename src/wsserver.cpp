@@ -18,7 +18,6 @@
 #include <string>
 #include <list>
 #include <map>
-#include <shared_mutex>
 #include <mutex>
 #include <iostream>
 #include <sys/types.h>
@@ -763,7 +762,7 @@ namespace ws {
 						throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 					{
-						shared_lock<shared_mutex> guard(impl->vector_mutex);
+						unique_lock guard(impl->vector_mutex);
 
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
@@ -788,7 +787,7 @@ namespace ws {
 					}
 
 					{
-						shared_lock<shared_mutex> guard(impl->vector_mutex);
+						unique_lock guard(impl->vector_mutex);
 
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
@@ -844,7 +843,7 @@ namespace ws {
 #endif
 
 						if (newsock != INVALID_SOCKET) {
-							unique_lock<shared_mutex> guard(impl->vector_mutex);
+							unique_lock guard(impl->vector_mutex);
 
 							impl->clients.emplace_back(newsock, *this, their_addr.sin6_addr.s6_addr, impl->msg_handler,
 													   impl->conn_handler, impl->disconn_handler);
@@ -855,7 +854,7 @@ namespace ws {
 					}
 
 					{
-						shared_lock<shared_mutex> guard(impl->vector_mutex);
+						unique_lock guard(impl->vector_mutex);
 
 #ifdef _WIN32
 						for (auto& ct : impl->clients) {
@@ -865,16 +864,12 @@ namespace ws {
 							if (!(netev.lNetworkEvents & (FD_READ | FD_CLOSE | FD_WRITE)))
 								continue;
 
-							guard.unlock();
-
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
 								ct.impl->read();
 
 								if (!ct.impl->open) {
 									if (impl->disconn_handler)
 										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
-
-									unique_lock<shared_mutex> guard2(impl->vector_mutex);
 
 									for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 										if (&*it == &ct) {
@@ -912,7 +907,7 @@ namespace ws {
 										if (impl->disconn_handler)
 											impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
 
-										unique_lock<shared_mutex> guard2(impl->vector_mutex);
+										unique_lock guard2(impl->vector_mutex);
 
 										for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 											if (&*it == &ct) {
@@ -958,7 +953,7 @@ namespace ws {
 	}
 
 	void server::for_each(function<bool(server_client&)> func) {
-		shared_lock<shared_mutex> guard(impl->vector_mutex);
+		unique_lock guard(impl->vector_mutex);
 
 		for (auto& ct : impl->clients) {
 			if (ct.impl->state == server_client_pimpl::state_enum::websocket) {
