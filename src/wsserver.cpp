@@ -796,7 +796,7 @@ namespace ws {
 							auto& pf = pollfds.emplace_back();
 
 							pf.fd = impl.fd;
-							pf.events = POLLIN;
+							pf.events = POLLIN | POLLOUT;
 						}
 					}
 
