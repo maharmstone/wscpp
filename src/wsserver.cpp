@@ -883,15 +883,13 @@ namespace ws {
 										}
 									}
 								}
-
-								break;
 							} else if (netev.lNetworkEvents & FD_WRITE) {
 								string to_send = move(ct.impl->sendbuf);
 
 								ct.impl->send_raw(to_send);
-
-								break;
 							}
+
+							break;
 						}
 #else
 						for (const auto& pf : pollfds) {
