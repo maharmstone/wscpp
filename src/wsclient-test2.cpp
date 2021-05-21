@@ -2,6 +2,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <vector>
 #include <condition_variable>
 
 #if __has_include(<syncstream>)
