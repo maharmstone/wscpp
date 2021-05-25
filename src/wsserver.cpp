@@ -891,8 +891,6 @@ namespace ws {
 							if (!pf.revents)
 								continue;
 
-							guard.unlock();
-
 							for (auto& ct : impl->clients) {
 								if (ct.impl->fd == pf.fd) {
 									if (pf.revents & POLLIN)
@@ -906,8 +904,6 @@ namespace ws {
 									if (pf.revents & (POLLHUP | POLLERR | POLLNVAL) || !ct.impl->open) {
 										if (impl->disconn_handler)
 											impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
-
-										unique_lock guard2(impl->vector_mutex);
 
 										for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
 											if (&*it == &ct) {
