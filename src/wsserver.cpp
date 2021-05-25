@@ -767,7 +767,12 @@ namespace ws {
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
 
-							if (WSAEventSelect(impl.fd, ev, FD_READ | FD_WRITE | FD_CLOSE) == SOCKET_ERROR)
+							long events = FD_READ | FD_CLOSE;
+
+							if (!impl.sendbuf.empty())
+								events |= FD_WRITE;
+
+							if (WSAEventSelect(impl.fd, ev, events) == SOCKET_ERROR)
 								throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 						}
 					}
@@ -795,7 +800,10 @@ namespace ws {
 							auto& pf = pollfds.emplace_back();
 
 							pf.fd = impl.fd;
-							pf.events = POLLIN | POLLOUT;
+							pf.events = POLLIN;
+
+							if (!impl.sendbuf.empty())
+								pf.events |= POLLOUT;
 						}
 					}
 
