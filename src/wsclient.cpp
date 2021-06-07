@@ -737,9 +737,9 @@ namespace ws {
 					last_opcode = opcode;
 
 				payloadbuf += payload;
-			} else if (payloadbuf != "") {
+			} else if (!payloadbuf.empty()) {
 				parse_ws_message(last_opcode, payloadbuf + payload);
-				payloadbuf = "";
+				payloadbuf.clear();
 			} else
 				parse_ws_message(opcode, payload);
 		}
