@@ -584,19 +584,13 @@ namespace ws {
 		impl->send_raw(payload, timeout);
 	}
 
-	string client_pimpl::recv(unsigned int len) {
-		string s;
+	void client_pimpl::recv(unsigned int len, void* data) {
 		int bytes, err = 0;
 		unsigned int left;
 		char* buf;
 
-		if (len == 0)
-			len = 4096;
-
-		s.resize(len);
-
 		left = len;
-		buf = s.data();
+		buf = (char*)data;
 
 		do {
 			bytes = ::recv(sock, buf, left, 0);
@@ -615,7 +609,7 @@ namespace ws {
 
 			if (bytes == 0) {
 				open = false;
-				return "";
+				return;
 			}
 
 			buf += bytes;
@@ -626,7 +620,7 @@ namespace ws {
 		if (bytes == SOCKET_ERROR) {
 			if (err == WSAECONNRESET) {
 				open = false;
-				return "";
+				return;
 			}
 
 			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
@@ -635,14 +629,12 @@ namespace ws {
 		if (bytes == -1) {
 			if (err == ECONNRESET) {
 				open = false;
-				return "";
+				return;
 			}
 
 			throw formatted_error("recv failed ({}).", errno_to_string(err));
 		}
 #endif
-
-		return s;
 	}
 
 	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
@@ -667,69 +659,79 @@ namespace ws {
 		string payloadbuf;
 
 		while (open) {
-			string header = recv(2);
+			header h;
+
+			recv(sizeof(header), &h);
 
 			if (!open)
 				break;
 
-			bool fin = (header[0] & 0x80) != 0;
-			auto opcode = (enum opcode)(uint8_t)(header[0] & 0xf);
-			bool mask = (header[1] & 0x80) != 0;
-			uint64_t len = header[1] & 0x7f;
+			auto len = (uint64_t)h.len;
 
 			if (len == 126) {
-				string extlen = recv(2);
+				uint16_t extlen;
+
+				recv(sizeof(extlen), &extlen);
 
 				if (!open)
 					break;
 
 #ifdef _MSC_VER
-				len = _byteswap_ushort(*(uint16_t*)extlen.data());
+				len = _byteswap_ushort(extlen);
 #else
-				len = __builtin_bswap16(*(uint16_t*)extlen.data());
+				len = __builtin_bswap16(extlen);
 #endif
 			} else if (len == 127) {
-				string extlen = recv(8);
+				uint64_t extlen;
+
+				recv(sizeof(extlen), &extlen);
 
 				if (!open)
 					break;
 
 #ifdef _MSC_VER
-				len = _byteswap_uint64(*(uint64_t*)extlen.data());
+				len = _byteswap_uint64(extlen);
 #else
-				len = __builtin_bswap64(*(uint64_t*)extlen.data());
+				len = __builtin_bswap64(extlen);
 #endif
 			}
 
-			string mask_key;
-			if (mask) {
-				mask_key = recv(4);
+			char mask_key[4];
+
+			if (h.mask) {
+				recv(sizeof(mask_key), mask_key);
 
 				if (!open)
 					break;
 			}
 
-			string payload = len == 0 ? "" : recv((unsigned int)len);
+			string payload;
+
+			if (len > 0) {
+				payload.resize(len);
+				recv(payload.length(), payload.data());
+			}
 
 			if (!open)
 				break;
 
-			if (mask) {
+			if (h.mask) {
+				// FIXME - speed this up by treating mask_key as uint32_t?
 				for (unsigned int i = 0; i < payload.length(); i++) {
 					payload[i] ^= mask_key[i % 4];
 				}
 			}
 
-			if (!fin) {
-				if (opcode != opcode::invalid)
-					last_opcode = opcode;
+			if (!h.fin) {
+				if (h.opcode != opcode::invalid)
+					last_opcode = h.opcode;
 
 				payloadbuf += payload;
 			} else if (!payloadbuf.empty()) {
 				parse_ws_message(last_opcode, payloadbuf + payload);
 				payloadbuf.clear();
 			} else
-				parse_ws_message(opcode, payload);
+				parse_ws_message(h.opcode, payload);
 		}
 	}
 

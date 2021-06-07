@@ -13,6 +13,29 @@
 #endif
 
 namespace ws {
+	struct header {
+		header() = default;
+
+		constexpr header(bool fin, enum opcode opcode, bool mask, uint8_t len) :
+			opcode(opcode), fin(fin), len(len), mask(mask) { }
+
+		enum opcode opcode : 7;
+		bool fin : 1;
+		uint8_t len : 7;
+		bool mask : 1;
+	};
+
+	static_assert(sizeof(header) == 2);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, false, 0)) == 0x0000);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, false, 0)) == 0x0001);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, false, 0)) == 0x0081);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, false, 0x7f)) == 0x7f00);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, false, 0x7f)) == 0x7f01);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, false, 0x7f)) == 0x7f81);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, true, 0x7f)) == 0xff00);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, true, 0x7f)) == 0xff01);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, true, 0x7f)) == 0xff81);
+
 	class client_pimpl {
 	public:
 		client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
@@ -27,7 +50,7 @@ namespace ws {
 		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();
 		void recv_thread();
-		std::string recv(unsigned int len);
+		void recv(unsigned int len, void* buf);
 		void parse_ws_message(enum opcode opcode, const std::string& payload);
 
 		client& parent;
