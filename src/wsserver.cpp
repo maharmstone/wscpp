@@ -767,10 +767,7 @@ namespace ws {
 						for (auto& ct : impl->clients) {
 							auto& impl = *ct.impl;
 
-							long events = FD_READ | FD_CLOSE;
-
-							if (!impl.sendbuf.empty())
-								events |= FD_WRITE;
+							long events = FD_READ | FD_WRITE | FD_CLOSE;
 
 							if (WSAEventSelect(impl.fd, ev, events) == SOCKET_ERROR)
 								throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
@@ -806,6 +803,8 @@ namespace ws {
 								pf.events |= POLLOUT;
 						}
 					}
+
+					// FIXME - what if send buffer fills up between lock release and poll?
 
 					if (poll(&pollfds[0], pollfds.size(), -1) < 0)
 						throw sockets_error("poll");
