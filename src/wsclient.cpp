@@ -670,6 +670,8 @@ namespace ws {
 	}
 
 	void client_pimpl::recv_thread() {
+		string payloadbuf;
+
 		while (open) {
 			string header = recv(2);
 

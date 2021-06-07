@@ -47,7 +47,6 @@ namespace ws {
 #endif
 		bool open = false;
 		std::thread* t = nullptr;
-		std::string payloadbuf;
 		std::string fqdn;
 		enum opcode last_opcode;
     };
