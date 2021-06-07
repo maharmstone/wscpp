@@ -683,28 +683,22 @@ namespace ws {
 				if (!open)
 					break;
 
-				len = ((uint8_t)extlen[0] << 8) | (uint8_t)extlen[1];
+#ifdef _MSC_VER
+				len = _byteswap_ushort(*(uint16_t*)extlen.data());
+#else
+				len = __builtin_bswap16(*(uint16_t*)extlen.data());
+#endif
 			} else if (len == 127) {
 				string extlen = recv(8);
 
 				if (!open)
 					break;
 
-				len = (uint8_t)extlen[0];
-				len <<= 8;
-				len |= (uint8_t)extlen[1];
-				len <<= 8;
-				len |= (uint8_t)extlen[2];
-				len <<= 8;
-				len |= (uint8_t)extlen[3];
-				len <<= 8;
-				len |= (uint8_t)extlen[4];
-				len <<= 8;
-				len |= (uint8_t)extlen[5];
-				len <<= 8;
-				len |= (uint8_t)extlen[6];
-				len <<= 8;
-				len |= (uint8_t)extlen[7];
+#ifdef _MSC_VER
+				len = _byteswap_uint64(*(uint64_t*)extlen.data());
+#else
+				len = __builtin_bswap64(*(uint64_t*)extlen.data());
+#endif
 			}
 
 			string mask_key;
