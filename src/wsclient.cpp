@@ -604,20 +604,14 @@ namespace ws {
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR) {
 				err = WSAGetLastError();
+				break;
+			}
 #else
 			if (bytes == -1) {
 				err = errno;
-#endif
-
-#ifdef _WIN32
-				if (err == WSAEWOULDBLOCK)
-#else
-				if (err == EWOULDBLOCK)
-#endif
-					continue;
-				else
-					break;
+				break;
 			}
+#endif
 
 			if (bytes == 0) {
 				open = false;
