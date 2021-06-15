@@ -233,6 +233,11 @@ namespace ws {
 	}
 
 	void server_client_pimpl::send_raw(string_view sv) {
+		if (!sendbuf.empty()) {
+			sendbuf.append(sv);
+			return;
+		}
+
 		do {
 			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
 
