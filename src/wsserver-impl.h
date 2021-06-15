@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <map>
 #include <memory>
+#include "wsexcept.h"
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -38,6 +39,28 @@ typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
 
 namespace ws {
 	class server_client_pimpl;
+
+#ifdef _WIN32
+	class wsa_event {
+	public:
+		wsa_event() {
+			h = WSACreateEvent();
+			if (h == WSA_INVALID_EVENT)
+				throw formatted_error("WSACreateEvent failed (error {}).", WSAGetLastError());
+		}
+
+		~wsa_event() {
+			WSACloseEvent(h);
+		}
+
+		operator WSAEVENT() {
+			return h;
+		}
+
+	private:
+		WSAEVENT h;
+	};
+#endif
 
 	class server_pimpl {
 	public:

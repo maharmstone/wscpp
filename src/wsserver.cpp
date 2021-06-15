@@ -39,7 +39,6 @@
 #include "wsserver-impl.h"
 #include "b64.h"
 #include "sha1.h"
-#include "wsexcept.h"
 
 using namespace std;
 
@@ -683,28 +682,6 @@ namespace ws {
 				break;
 		}
 	}
-
-#ifdef _WIN32
-	class wsa_event {
-	public:
-		wsa_event() {
-			h = WSACreateEvent();
-			if (h == WSA_INVALID_EVENT)
-				throw formatted_error("WSACreateEvent failed (error {}).", WSAGetLastError());
-		}
-
-		~wsa_event() {
-			WSACloseEvent(h);
-		}
-
-		operator WSAEVENT() {
-			return h;
-		}
-
-	private:
-		WSAEVENT h;
-	};
-#endif
 
 	void server::start() {
 #ifdef _WIN32
