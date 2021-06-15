@@ -234,6 +234,9 @@ namespace ws {
 	void server_client_pimpl::send_raw(string_view sv) {
 		if (!sendbuf.empty()) {
 			sendbuf.append(sv);
+#ifdef _WIN32
+			serv.impl->ev.set();
+#endif
 			return;
 		}
 
@@ -244,6 +247,7 @@ namespace ws {
 			if (bytes == SOCKET_ERROR) {
 				if (WSAGetLastError() == WSAEWOULDBLOCK) {
 					sendbuf.append(sv);
+					serv.impl->ev.set();
 					return;
 				} else
 					throw formatted_error("send failed ({}).", wsa_error_to_string(WSAGetLastError()));
@@ -720,8 +724,6 @@ namespace ws {
 
 				if (listen(impl->sock, impl->backlog) == SOCKET_ERROR)
 					throw sockets_error("listen");
-
-				wsa_event ev;
 #else
 				if (setsockopt(impl->sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuseaddr), sizeof(int)) == -1)
 					throw sockets_error("setsockopt");
@@ -740,23 +742,25 @@ namespace ws {
 #ifdef _WIN32
 					WSANETWORKEVENTS netev;
 
-					if (WSAEventSelect(impl->sock, ev, FD_ACCEPT) == SOCKET_ERROR)
-						throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
-
 					{
 						unique_lock guard(impl->vector_mutex);
 
+						impl->ev.reset();
+
+						if (WSAEventSelect(impl->sock, impl->ev, FD_ACCEPT) == SOCKET_ERROR)
+							throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
+
 						for (auto& ct : impl->clients) {
-							auto& impl = *ct.impl;
+							auto& climpl = *ct.impl;
 
 							long events = FD_READ | FD_WRITE | FD_CLOSE;
 
-							if (WSAEventSelect(impl.fd, ev, events) == SOCKET_ERROR)
+							if (WSAEventSelect(climpl.fd, impl->ev, events) == SOCKET_ERROR)
 								throw formatted_error("WSAEventSelect failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 						}
 					}
 
-					if (WaitForSingleObject(ev, INFINITE) == WAIT_FAILED)
+					if (WaitForSingleObject(impl->ev, INFINITE) == WAIT_FAILED)
 						throw formatted_error("WaitForSingleObject failed (error {}).", GetLastError());
 #else
 					vector<struct pollfd> pollfds;
@@ -793,7 +797,7 @@ namespace ws {
 #endif
 
 #ifdef _WIN32
-					if (WSAEnumNetworkEvents(impl->sock, ev, &netev))
+					if (WSAEnumNetworkEvents(impl->sock, impl->ev, &netev))
 						throw formatted_error("WSAEnumNetworkEvents failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 					if (netev.lNetworkEvents & FD_ACCEPT) {
@@ -847,7 +851,7 @@ namespace ws {
 
 #ifdef _WIN32
 						for (auto& ct : impl->clients) {
-							if (WSAEnumNetworkEvents(ct.impl->fd, ev, &netev))
+							if (WSAEnumNetworkEvents(ct.impl->fd, impl->ev, &netev))
 								throw formatted_error("WSAEnumNetworkEvents failed (error {}).", wsa_error_to_string(WSAGetLastError()));
 
 							if (!(netev.lNetworkEvents & (FD_READ | FD_CLOSE | FD_WRITE)))

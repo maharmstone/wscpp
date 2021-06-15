@@ -57,6 +57,16 @@ namespace ws {
 			return h;
 		}
 
+		void reset() {
+			if (!WSAResetEvent(h))
+				throw formatted_error("WSAResetEvent failed (error {}).", WSAGetLastError());
+		}
+
+		void set() {
+			if (!WSASetEvent(h))
+				throw formatted_error("WSASetEvent failed (error {}).", WSAGetLastError());
+		}
+
 	private:
 		WSAEVENT h;
 	};
@@ -84,6 +94,9 @@ namespace ws {
 		socket_t sock = INVALID_SOCKET;
 		std::list<server_client> clients;
 		std::recursive_mutex vector_mutex;
+#ifdef _WIN32
+		wsa_event ev;
+#endif
 	};
 
 	class server_client_pimpl {
