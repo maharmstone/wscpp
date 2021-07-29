@@ -72,5 +72,6 @@ namespace ws {
 		std::thread* t = nullptr;
 		std::string fqdn;
 		enum opcode last_opcode;
+		std::string recvbuf;
     };
 }

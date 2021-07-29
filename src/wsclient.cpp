@@ -255,18 +255,26 @@ namespace ws {
 	}
 
 	string client_pimpl::recv_http() {
-		string buf;
-
 		do {
+			auto pos = recvbuf.find("\r\n\r\n");
+
+			if (pos != string::npos) {
+				auto ret = recvbuf.substr(0, pos + 4);
+
+				recvbuf = recvbuf.substr(pos + 4);
+
+				return ret;
+			}
+
 			char s[4096];
-			int bytes = ::recv(sock, s, sizeof(s), MSG_PEEK);
+			int bytes = ::recv(sock, s, sizeof(s), 0);
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR)
-				throw formatted_error("recv 1 failed ({}).", wsa_error_to_string(WSAGetLastError()));
+				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
 #else
 			if (bytes == -1)
-				throw formatted_error("recv 1 failed ({}).", errno_to_string(errno));
+				throw formatted_error("recv failed ({}).", errno_to_string(errno));
 #endif
 
 			if (bytes == 0) {
@@ -274,41 +282,7 @@ namespace ws {
 				return "";
 			}
 
-			buf += string(s, bytes);
-
-			size_t endmsg = string(s, bytes).find("\r\n\r\n");
-
-			if (endmsg != string::npos) {
-				int ret;
-
-				ret = ::recv(sock, s, (int)(endmsg + 4), MSG_WAITALL);
-
-#ifdef _WIN32
-				if (ret == SOCKET_ERROR)
-#else
-				if (ret == -1)
-#endif
-					throw formatted_error("recv 2 failed.");
-				else if (ret == 0) {
-					open = false;
-					return "";
-				}
-
-				return buf.substr(0, buf.find("\r\n\r\n") + 4);
-			} else {
-				int ret = ::recv(sock, s, bytes, MSG_WAITALL);
-
-#ifdef _WIN32
-				if (ret == SOCKET_ERROR)
-#else
-				if (ret == -1)
-#endif
-					throw formatted_error("recv 4 failed.");
-				else if (ret == 0) {
-					open = false;
-					return "";
-				}
-			}
+			recvbuf += string(s, bytes);
 		} while (true);
 	}
 
@@ -589,8 +563,24 @@ namespace ws {
 		unsigned int left;
 		char* buf;
 
+		if (len == 0)
+			return;
+
 		left = len;
 		buf = (char*)data;
+
+		if (!recvbuf.empty()) {
+			auto to_copy = min(left, (unsigned int)recvbuf.length());
+
+			memcpy(buf, recvbuf.data(), to_copy);
+			recvbuf = recvbuf.substr(to_copy);
+
+			if (left == to_copy)
+				return;
+
+			left -= to_copy;
+			buf += to_copy;
+		}
 
 		do {
 			bytes = ::recv(sock, buf, left, 0);
