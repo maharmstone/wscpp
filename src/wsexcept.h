@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fmt/format.h>
+#include <fmt/compile.h>
 #include <string>
 
 #ifndef _WIN32
@@ -22,7 +23,7 @@ private:
 	std::string msg;
 };
 
-#define formatted_error(s, ...) _formatted_error(FMT_STRING(s), ##__VA_ARGS__)
+#define formatted_error(s, ...) _formatted_error(FMT_COMPILE(s), ##__VA_ARGS__)
 
 #ifndef _WIN32
 enum class krb5_minor {
@@ -1080,7 +1081,7 @@ public:
 		gss_buffer_desc status_string;
 		bool first = true;
 
-		msg = fmt::format(FMT_STRING("{} failed (minor {}): "), func, (enum krb5_minor)minor);
+		msg = fmt::format("{} failed (minor {}): ", func, (enum krb5_minor)minor);
 
 		do {
 			gss_display_status(&min_status, major, GSS_C_GSS_CODE, GSS_C_NO_OID,
