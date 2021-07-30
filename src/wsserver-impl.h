@@ -116,7 +116,7 @@ namespace ws {
 		~server_client_pimpl();
 
 		void send_raw(std::string_view sv);
-		void handle_handshake(std::map<std::string, std::string>& headers);
+		void handle_handshake(const std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
 		std::string recv();
 		void process_http_message(const std::string& mess);

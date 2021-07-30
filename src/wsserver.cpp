@@ -361,7 +361,7 @@ namespace ws {
 	}
 #endif
 
-	void server_client_pimpl::handle_handshake(map<string, string>& headers) {
+	void server_client_pimpl::handle_handshake(const map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
 			string auth;
 #ifdef _WIN32
@@ -537,19 +537,19 @@ namespace ws {
 #endif
 		}
 
-		if (headers.count("Upgrade") == 0 || lower(headers["Upgrade"]) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
+		if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 			send_raw("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
 			return;
 		}
 
-		unsigned int version = stoul(headers["Sec-WebSocket-Version"]);
+		unsigned int version = stoul(headers.at("Sec-WebSocket-Version"));
 
 		if (version > 13) {
 			send_raw("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n");
 			return;
 		}
 
-		string resp = b64encode(sha1(headers["Sec-WebSocket-Key"] + MAGIC_STRING));
+		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
 
 		send_raw("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
 
