@@ -239,6 +239,49 @@ static int verify_callback(int preverify, X509_STORE_CTX* x509_ctx) noexcept {
 	}
 }
 
+#ifdef _WIN32
+class cert_store_closer {
+public:
+	typedef HCERTSTORE pointer;
+
+	void operator()(HCERTSTORE h) {
+		CertCloseStore(h, 0);
+	}
+};
+
+class x509_closer {
+public:
+	typedef X509* pointer;
+
+	void operator()(X509* x) {
+		X509_free(x);
+	}
+};
+
+static void add_certs_to_store(X509_STORE* store) {
+	PCCERT_CONTEXT certctx = nullptr;
+
+	unique_ptr<HCERTSTORE, cert_store_closer> h{CertOpenSystemStoreW(0, L"ROOT")};
+
+	if (!h)
+		throw formatted_error("CertOpenSystemStore failed (error {})", GetLastError());
+
+	while ((certctx = CertEnumCertificatesInStore(h.get(), certctx))) {
+		if (!(certctx->dwCertEncodingType & X509_ASN_ENCODING))
+			continue;
+
+		const unsigned char* cert = certctx->pbCertEncoded;
+
+		unique_ptr<X509*, x509_closer> x509{d2i_X509(nullptr, &cert, certctx->cbCertEncoded)};
+
+		if (!x509)
+			continue;
+
+		X509_STORE_add_cert(store, x509.get());
+	}
+}
+#endif
+
 namespace ws {
 	int client_ssl::ssl_read_cb(char* data, int len) {
 		int copied = 0;
@@ -341,6 +384,10 @@ namespace ws {
 
 		if (!SSL_CTX_set_default_verify_paths(ctx.get()))
 			throw ssl_error("SSL_CTX_set_default_verify_paths", ERR_get_error());
+
+#ifdef _WIN32
+		add_certs_to_store(SSL_CTX_get_cert_store(ctx.get()));
+#endif
 
 		SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, verify_callback);
 
