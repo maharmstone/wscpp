@@ -79,6 +79,7 @@ namespace ws {
 		int ssl_read_cb(char* data, int len);
 		int ssl_write_cb(const std::string_view& sv);
 		long ssl_ctrl_cb(int cmd, long num, void* ptr);
+		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
 		void send(std::string_view sv);
 		unsigned int recv(unsigned int len, void* buf);
 
