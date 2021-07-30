@@ -20,6 +20,7 @@
 #include <map>
 #include <mutex>
 #include <iostream>
+#include <charconv>
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/socket.h>
@@ -542,7 +543,13 @@ namespace ws {
 			return;
 		}
 
-		unsigned int version = stoul(headers.at("Sec-WebSocket-Version"));
+		const auto& wsv = headers.at("Sec-WebSocket-Version");
+		unsigned int version;
+
+		auto [ptr, ec] = from_chars(wsv.data(), wsv.data() + wsv.length(), version);
+
+		if (ptr != wsv.data() + wsv.length())
+			throw runtime_error("Invalid Sec-WebSocket-Version value.");
 
 		if (version > 13) {
 			send_raw("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n");
