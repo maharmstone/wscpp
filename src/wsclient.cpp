@@ -31,6 +31,7 @@
 #include <random>
 #include <map>
 #include <stdexcept>
+#include <charconv>
 #include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"
@@ -489,18 +490,17 @@ namespace ws {
 
 					if (space != string::npos && space <= nl) {
 						size_t space2 = mess.find(" ", space + 1);
-						string ss;
+						string_view sv;
 
 						if (space2 == string::npos || space2 > nl)
-							ss = mess.substr(space + 1, nl - space - 1);
+							sv = string_view{mess}.substr(space + 1, nl - space - 1);
 						else
-							ss = mess.substr(space + 1, space2 - space - 1);
+							sv = string_view{mess}.substr(space + 1, space2 - space - 1);
 
-						try {
-							status = stoul(ss);
-						} catch (...) {
-							throw formatted_error("Error calling stoul on \"{}\"", ss);
-						}
+						auto [ptr, ec] = from_chars(sv.data(), sv.data() + sv.length(), status);
+
+						if (ptr != sv.data() + sv.length())
+							throw formatted_error("Server returned invalid HTTP status \"{}\"", sv);
 					}
 
 					first = false;
