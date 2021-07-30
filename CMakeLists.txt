@@ -8,6 +8,7 @@ project(wscpp)
 option(BUILD_SAMPLE "Build sample programs" ON)
 
 find_package(fmt REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,7 +21,8 @@ set(SRC_FILES src/wsclient.cpp
 	src/wsserver.cpp
 	src/b64.cpp
 	src/sha1.cpp
-	src/wsexcept.cpp)
+	src/wsexcept.cpp
+	src/ssl.cpp)
 
 add_library(wscpp SHARED ${SRC_FILES})
 add_library(wscpp-static STATIC ${SRC_FILES})
@@ -33,6 +35,9 @@ endif()
 
 target_link_libraries(wscpp fmt::fmt-header-only)
 target_link_libraries(wscpp-static fmt::fmt-header-only)
+
+target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
+target_link_libraries(wscpp-static OpenSSL::Crypto OpenSSL::SSL)
 
 target_compile_options(wscpp PRIVATE
 	$<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:

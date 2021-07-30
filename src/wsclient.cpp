@@ -42,8 +42,9 @@ using namespace std;
 
 namespace ws {
 	client::client(const string& host, uint16_t port, const string& path,
-		       const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler) {
-		impl = new client_pimpl(*this, host, port, path, msg_handler, disconn_handler);
+				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
+				   bool enc) {
+		impl = new client_pimpl(*this, host, port, path, msg_handler, disconn_handler, enc);
 	}
 
 	void client_pimpl::open_connexion() {
@@ -113,7 +114,8 @@ namespace ws {
 	}
 
 	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
-				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler) :
+							   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
+							   bool enc) :
 			parent(parent),
 			host(host),
 			port(port),
@@ -125,10 +127,14 @@ namespace ws {
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
 			throw formatted_error("WSAStartup failed.");
-#endif
 
 		try {
+#endif
 			open_connexion();
+
+			if (enc)
+				ssl.reset(new client_ssl(*this));
+
 			send_handshake();
 
 			t = new thread([&]() {
@@ -145,12 +151,12 @@ namespace ws {
 				if (this->disconn_handler)
 					this->disconn_handler(parent, except);
 			});
-		} catch (...) {
 #ifdef _WIN32
+		} catch (...) {
 			WSACleanup();
-#endif
 			throw;
 		}
+#endif
 	}
 
 	client::~client() {
@@ -267,19 +273,28 @@ namespace ws {
 			}
 
 			char s[4096];
-			int bytes = ::recv(sock, s, sizeof(s), 0);
+			int bytes;
+
+			if (ssl) {
+				bytes = ssl->recv(sizeof(s), s);
+
+				if (!open)
+					return "";
+			} else {
+				bytes = ::recv(sock, s, sizeof(s), 0);
 
 #ifdef _WIN32
-			if (bytes == SOCKET_ERROR)
-				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
+				if (bytes == SOCKET_ERROR)
+					throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
 #else
-			if (bytes == -1)
-				throw formatted_error("recv failed ({}).", errno_to_string(errno));
+				if (bytes == -1)
+					throw formatted_error("recv failed ({}).", errno_to_string(errno));
 #endif
 
-			if (bytes == 0) {
-				open = false;
-				return "";
+				if (bytes == 0) {
+					open = false;
+					return "";
+				}
 			}
 
 			recvbuf += string(s, bytes);
@@ -371,8 +386,12 @@ namespace ws {
 		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
 			sec_status == SEC_E_OK) {
 			auto b64 = b64encode(sspi);
+			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
-			send_raw(req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n");
+			if (ssl)
+				ssl->send(msg);
+			else
+				send_raw(msg);
 		}
 
 		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
@@ -424,8 +443,12 @@ namespace ws {
 
 		if (!outbuf.empty()) {
 			auto b64 = b64encode(outbuf);
+			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
-			send_raw(req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n");
+			if (ssl)
+				ssl->send(msg);
+			else
+				send_raw(msg);
 
 			return;
 		}
@@ -442,7 +465,10 @@ namespace ws {
 					 "Sec-WebSocket-Key: "s + key + "\r\n"
 					 "Sec-WebSocket-Version: 13\r\n";
 
-		send_raw(req + "\r\n"s);
+		if (ssl)
+			ssl->send(req + "\r\n"s);
+		else
+			send_raw(req + "\r\n"s);
 
 		do {
 			string mess = recv_http();
@@ -554,8 +580,13 @@ namespace ws {
 			memset(&header[10], 0, 4);
 		}
 
-		impl->send_raw(header, timeout);
-		impl->send_raw(payload, timeout);
+		if (impl->ssl) { // FIXME - timeout
+			impl->ssl->send(header);
+			impl->ssl->send(payload);
+		} else {
+			impl->send_raw(header, timeout);
+			impl->send_raw(payload, timeout);
+		}
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
@@ -583,48 +614,57 @@ namespace ws {
 		}
 
 		do {
-			bytes = ::recv(sock, buf, left, 0);
+			if (ssl) {
+				bytes = ssl->recv(left, buf);
+
+				if (open)
+					return;
+			} else {
+				bytes = ::recv(sock, buf, left, 0);
 
 #ifdef _WIN32
+				if (bytes == SOCKET_ERROR) {
+					err = WSAGetLastError();
+					break;
+				}
+#else
+				if (bytes == -1) {
+					err = errno;
+					break;
+				}
+#endif
+
+				if (bytes == 0) {
+					open = false;
+					return;
+				}
+
+				buf += bytes;
+				left -= bytes;
+			}
+		} while (left > 0);
+
+		if (ssl) {
+#ifdef _WIN32
 			if (bytes == SOCKET_ERROR) {
-				err = WSAGetLastError();
-				break;
+				if (err == WSAECONNRESET) {
+					open = false;
+					return;
+				}
+
+				throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 			}
 #else
 			if (bytes == -1) {
-				err = errno;
-				break;
+				if (err == ECONNRESET) {
+					open = false;
+					return;
+				}
+
+				throw formatted_error("recv failed ({}).", errno_to_string(err));
 			}
 #endif
-
-			if (bytes == 0) {
-				open = false;
-				return;
-			}
-
-			buf += bytes;
-			left -= bytes;
-		} while (left > 0);
-
-#ifdef _WIN32
-		if (bytes == SOCKET_ERROR) {
-			if (err == WSAECONNRESET) {
-				open = false;
-				return;
-			}
-
-			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 		}
-#else
-		if (bytes == -1) {
-			if (err == ECONNRESET) {
-				open = false;
-				return;
-			}
-
-			throw formatted_error("recv failed ({}).", errno_to_string(err));
-		}
-#endif
 	}
 
 	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {

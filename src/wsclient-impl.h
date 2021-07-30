@@ -2,6 +2,7 @@
 
 #include "wscpp.h"
 #include <thread>
+#include <bit>
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -10,7 +11,41 @@
 
 #ifndef _WIN32
 #define INVALID_SOCKET -1
+#include <gssapi/gssapi.h>
 #endif
+
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
+
+class bio_meth_deleter {
+public:
+	typedef BIO_METHOD* pointer;
+
+	void operator()(BIO_METHOD* meth) {
+		BIO_meth_free(meth);
+	}
+};
+
+class ssl_deleter {
+public:
+	typedef SSL* pointer;
+
+	void operator()(SSL* ssl) {
+		SSL_free(ssl);
+	}
+};
+
+class ssl_ctx_deleter {
+public:
+	typedef SSL_CTX* pointer;
+
+	void operator()(SSL_CTX* ctx) {
+		SSL_CTX_free(ctx);
+	}
+};
 
 namespace ws {
 	struct header {
@@ -36,10 +71,33 @@ namespace ws {
 	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, true, 0x7f)) == 0xff01);
 	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, true, 0x7f)) == 0xff81);
 
+	class client_pimpl;
+
+	class client_ssl {
+	public:
+		client_ssl(client_pimpl& client);
+		int ssl_read_cb(char* data, int len);
+		int ssl_write_cb(const std::string_view& sv);
+		long ssl_ctrl_cb(int cmd, long num, void* ptr);
+		void send(std::string_view sv);
+		unsigned int recv(unsigned int len, void* buf);
+
+		std::exception_ptr exception;
+
+	private:
+		client_pimpl& client;
+		std::string ssl_recv_buf;
+		BIO* bio;
+		std::unique_ptr<SSL_CTX*, ssl_ctx_deleter> ctx;
+		std::unique_ptr<BIO_METHOD*, bio_meth_deleter> meth;
+		std::unique_ptr<SSL*, ssl_deleter> ssl;
+	};
+
 	class client_pimpl {
 	public:
 		client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
-			     const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler);
+					 const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
+					 bool enc);
 		~client_pimpl();
 
 		void open_connexion();
@@ -72,6 +130,7 @@ namespace ws {
 		std::thread* t = nullptr;
 		std::string fqdn;
 		enum opcode last_opcode;
+		std::unique_ptr<client_ssl> ssl;
 		std::string recvbuf;
     };
 }
