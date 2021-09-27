@@ -22,6 +22,7 @@
 #include <exception>
 #include <array>
 #include <span>
+#include <any>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -111,7 +112,7 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 
-		void* context = nullptr;
+		std::any context;
 
 		friend server_client_pimpl;
 		friend server;
