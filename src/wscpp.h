@@ -66,12 +66,12 @@ namespace ws {
 	class client;
 	class server_client;
 
-	typedef std::function<void(client&, const std::string_view&, enum opcode opcode)> client_msg_handler;
-	typedef std::function<void(client&, const std::exception_ptr&)> client_disconn_handler;
+	using client_msg_handler = std::function<void(client&, const std::string_view&, enum opcode opcode)>;
+	using client_disconn_handler = std::function<void(client&, const std::exception_ptr&)>;
 
-	typedef std::function<void(server_client&, const std::string_view&)> server_msg_handler;
-	typedef std::function<void(server_client&)> server_conn_handler;
-	typedef std::function<void(server_client&, const std::exception_ptr&)> server_disconn_handler;
+	using server_msg_handler = std::function<void(server_client&, const std::string_view&)>;
+	using server_conn_handler = std::function<void(server_client&)>;
+	using server_disconn_handler = std::function<void(server_client&, const std::exception_ptr&)>;
 
 	class sockets_error : public std::exception {
 	public:
