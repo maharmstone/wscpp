@@ -14,12 +14,17 @@
 #include <gssapi/gssapi.h>
 #endif
 
+#include "config.h"
+
+#ifdef WITH_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/conf.h>
 #include <openssl/x509v3.h>
+#endif
 
+#ifdef WITH_OPENSSL
 class bio_meth_deleter {
 public:
 	typedef BIO_METHOD* pointer;
@@ -46,6 +51,7 @@ public:
 		SSL_CTX_free(ctx);
 	}
 };
+#endif
 
 namespace ws {
 	struct header {
@@ -73,6 +79,7 @@ namespace ws {
 
 	class client_pimpl;
 
+#ifdef WITH_OPENSSL
 	class client_ssl {
 	public:
 		client_ssl(client_pimpl& client);
@@ -93,6 +100,7 @@ namespace ws {
 		std::unique_ptr<BIO_METHOD*, bio_meth_deleter> meth;
 		std::unique_ptr<SSL*, ssl_deleter> ssl;
 	};
+#endif
 
 	class client_pimpl {
 	public:
@@ -131,7 +139,9 @@ namespace ws {
 		std::thread* t = nullptr;
 		std::string fqdn;
 		enum opcode last_opcode;
-		std::unique_ptr<client_ssl> ssl;
 		std::string recvbuf;
+#ifdef WITH_OPENSSL
+		std::unique_ptr<client_ssl> ssl;
+#endif
     };
 }

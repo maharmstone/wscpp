@@ -133,8 +133,13 @@ namespace ws {
 #endif
 			open_connexion();
 
+#ifdef WITH_OPENSSL
 			if (enc)
 				ssl.reset(new client_ssl(*this));
+#else
+			if (enc)
+				throw runtime_error("Encryption requested but support has not been compiled in.");
+#endif
 
 			send_handshake();
 
@@ -276,12 +281,14 @@ namespace ws {
 			char s[4096];
 			int bytes;
 
+#ifdef WITH_OPENSSL
 			if (ssl) {
 				bytes = ssl->recv(sizeof(s), s);
 
 				if (!open)
 					return "";
 			} else {
+#endif
 				bytes = ::recv(sock, s, sizeof(s), 0);
 
 #ifdef _WIN32
@@ -296,7 +303,9 @@ namespace ws {
 					open = false;
 					return "";
 				}
+#ifdef WITH_OPENSSL
 			}
+#endif
 
 			recvbuf += string(s, bytes);
 		} while (true);
@@ -389,9 +398,11 @@ namespace ws {
 			auto b64 = b64encode(sspi);
 			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
+#ifdef WITH_OPENSSL
 			if (ssl)
 				ssl->send(msg);
 			else
+#endif
 				send_raw(msg);
 		}
 
@@ -466,9 +477,11 @@ namespace ws {
 					 "Sec-WebSocket-Key: "s + key + "\r\n"
 					 "Sec-WebSocket-Version: 13\r\n";
 
+#ifdef WITH_OPENSSL
 		if (ssl)
 			ssl->send(req + "\r\n"s);
 		else
+#endif
 			send_raw(req + "\r\n"s);
 
 		do {
@@ -580,13 +593,17 @@ namespace ws {
 			memset(&header[10], 0, 4);
 		}
 
+#ifdef WITH_OPENSSL
 		if (impl->ssl) { // FIXME - timeout
 			impl->ssl->send(header);
 			impl->ssl->send(payload);
 		} else {
+#endif
 			impl->send_raw(header, timeout);
 			impl->send_raw(payload, timeout);
+#ifdef WITH_OPENSSL
 		}
+#endif
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
@@ -614,14 +631,15 @@ namespace ws {
 		}
 
 		do {
+#ifdef WITH_OPENSSL
 			if (ssl) {
 				bytes = ssl->recv(left, buf);
 
 				if (open)
 					return;
 			} else {
+#endif
 				bytes = ::recv(sock, buf, left, 0);
-
 #ifdef _WIN32
 				if (bytes == SOCKET_ERROR) {
 					err = WSAGetLastError();
@@ -641,30 +659,30 @@ namespace ws {
 
 				buf += bytes;
 				left -= bytes;
-			}
-		} while (left > 0);
-
-		if (ssl) {
-#ifdef _WIN32
-			if (bytes == SOCKET_ERROR) {
-				if (err == WSAECONNRESET) {
-					open = false;
-					return;
-				}
-
-				throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
-			}
-#else
-			if (bytes == -1) {
-				if (err == ECONNRESET) {
-					open = false;
-					return;
-				}
-
-				throw formatted_error("recv failed ({}).", errno_to_string(err));
+#ifdef WITH_OPENSSL
 			}
 #endif
+		} while (left > 0);
+
+#ifdef _WIN32
+		if (bytes == SOCKET_ERROR) {
+			if (err == WSAECONNRESET) {
+				open = false;
+				return;
+			}
+
+			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 		}
+#else
+		if (bytes == -1) {
+			if (err == ECONNRESET) {
+				open = false;
+				return;
+			}
+
+			throw formatted_error("recv failed ({}).", errno_to_string(err));
+		}
+#endif
 	}
 
 	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {

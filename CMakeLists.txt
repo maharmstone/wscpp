@@ -6,9 +6,13 @@ include(CMakePackageConfigHelpers)
 project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
+option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
 
 find_package(fmt REQUIRED)
-find_package(OpenSSL REQUIRED)
+
+if(WITH_OPENSSL)
+	find_package(OpenSSL REQUIRED)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +20,9 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 add_definitions(-DWSCPP_EXPORT)
 add_definitions(-D_WIN32_WINNT=0x0602)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SRC_FILES src/wsclient.cpp
 	src/wsserver.cpp
@@ -36,8 +43,10 @@ endif()
 target_link_libraries(wscpp fmt::fmt-header-only)
 target_link_libraries(wscpp-static fmt::fmt-header-only)
 
-target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
-target_link_libraries(wscpp-static OpenSSL::Crypto OpenSSL::SSL)
+if(WITH_OPENSSL)
+	target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
+	target_link_libraries(wscpp-static OpenSSL::Crypto OpenSSL::SSL)
+endif()
 
 target_compile_options(wscpp PRIVATE
 	$<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
