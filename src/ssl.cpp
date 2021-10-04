@@ -5,6 +5,9 @@
 #ifndef _WIN32
 #include <sys/socket.h>
 #endif
+#if !defined(WITH_OPENSSL) && defined(_WIN32)
+#include <schannel.h>
+#endif
 
 using namespace std;
 
@@ -477,6 +480,286 @@ namespace ws {
 		}
 
 		return ret;
+	}
+};
+#elif defined(_WIN32)
+namespace ws {
+	client_ssl::client_ssl(client_pimpl& client) : client(client) {
+		SECURITY_STATUS sec_status;
+		SecBuffer outbuf;
+		SecBufferDesc out;
+		uint32_t context_attr;
+		string outstr;
+		SCHANNEL_CRED cred;
+
+		memset(&cred, 0, sizeof(cred));
+
+		cred.dwVersion = SCHANNEL_CRED_VERSION;
+		cred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT;
+		cred.dwFlags = SCH_CRED_AUTO_CRED_VALIDATION;
+
+		sec_status = AcquireCredentialsHandleW(nullptr, (LPWSTR)UNISP_NAME_W, SECPKG_CRED_OUTBOUND, nullptr, &cred,
+											   nullptr, nullptr, &cred_handle, nullptr);
+
+		if (FAILED(sec_status))
+			throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
+
+		outbuf.cbBuffer = 0;
+		outbuf.BufferType = SECBUFFER_TOKEN;
+		outbuf.pvBuffer = nullptr;
+
+		out.ulVersion = SECBUFFER_VERSION;
+		out.cBuffers = 1;
+		out.pBuffers = &outbuf;
+
+		auto host = utf8_to_utf16(client.host);
+
+		sec_status = InitializeSecurityContextW(&cred_handle, nullptr, (SEC_WCHAR*)host.c_str(),
+												ISC_REQ_ALLOCATE_MEMORY, 0, 0, nullptr, 0,
+												&ctx_handle, &out, (ULONG*)&context_attr, nullptr);
+		if (FAILED(sec_status)) {
+			FreeCredentialsHandle(&cred_handle);
+			throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
+		}
+
+		outstr = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+		if (outbuf.pvBuffer)
+			FreeContextBuffer(outbuf.pvBuffer);
+
+		ctx_handle_set = true;
+
+		string payload;
+		bool read_more = false;
+
+		while (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_E_INCOMPLETE_MESSAGE) {
+			array<SecBuffer, 2> inbuf;
+			SecBufferDesc in;
+
+			if (!outstr.empty()) {
+				try {
+					client.send_raw(outstr);
+					outstr.clear();
+				} catch (...) {
+					FreeCredentialsHandle(&cred_handle);
+					throw;
+				}
+			}
+
+			if (payload.empty() || read_more) {
+				char buf[4096];
+
+				auto bytes = ::recv(client.sock, buf, sizeof(buf), 0);
+
+				if (bytes == SOCKET_ERROR) {
+					FreeCredentialsHandle(&cred_handle);
+					throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
+				}
+
+				if (bytes == 0) {
+					client.open = false;
+					FreeCredentialsHandle(&cred_handle);
+					throw runtime_error("Disconnected.");
+				}
+
+				payload += string_view(buf, bytes);
+
+				read_more = false;
+			}
+
+			outbuf.cbBuffer = 0;
+			outbuf.BufferType = SECBUFFER_TOKEN;
+			outbuf.pvBuffer = nullptr;
+
+			inbuf[0].cbBuffer = (long)payload.length();
+			inbuf[0].BufferType = SECBUFFER_TOKEN;
+			inbuf[0].pvBuffer = payload.data();
+
+			inbuf[1].cbBuffer = 0;
+			inbuf[1].BufferType = SECBUFFER_EMPTY;
+			inbuf[1].pvBuffer = nullptr;
+
+			in.ulVersion = SECBUFFER_VERSION;
+			in.cBuffers = inbuf.size();
+			in.pBuffers = inbuf.data();
+
+			sec_status = InitializeSecurityContextW(&cred_handle, &ctx_handle, nullptr,
+													ISC_REQ_ALLOCATE_MEMORY, 0, 0, &in, 0,
+													nullptr, &out, (ULONG*)&context_attr, nullptr);
+
+			if (sec_status == SEC_E_INCOMPLETE_MESSAGE) {
+				read_more = true;
+				continue;
+			}
+
+			if (FAILED(sec_status)) {
+				FreeCredentialsHandle(&cred_handle);
+				throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
+			}
+
+			outstr = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+			if (outbuf.pvBuffer)
+				FreeContextBuffer(outbuf.pvBuffer);
+
+			if (inbuf[1].BufferType == SECBUFFER_EXTRA)
+				payload = payload.substr(payload.length() - inbuf[1].cbBuffer);
+			else
+				payload.clear();
+		}
+
+		if (sec_status != SEC_E_OK) {
+			FreeCredentialsHandle(&cred_handle);
+			throw formatted_error("InitializeSecurityContext returned unexpected status {}", (enum sec_error)sec_status);
+		}
+
+		sec_status = QueryContextAttributes(&ctx_handle, SECPKG_ATTR_STREAM_SIZES, &stream_sizes);
+		if (FAILED(sec_status)) {
+			FreeCredentialsHandle(&cred_handle);
+			throw formatted_error("QueryContextAttributes(SECPKG_ATTR_STREAM_SIZES) returned {}", (enum sec_error)sec_status);
+		}
+	}
+
+	client_ssl::~client_ssl() {
+		if (ctx_handle_set)
+			DeleteSecurityContext(&ctx_handle);
+
+		FreeCredentialsHandle(&cred_handle);
+	}
+
+	void client_ssl::send(std::string_view sv) {
+		SECURITY_STATUS sec_status;
+		array<SecBuffer, 4> buf;
+		SecBufferDesc bufdesc;
+		string payload;
+
+		memset(buf.data(), 0, sizeof(SecBuffer) * buf.size());
+
+		payload.resize(stream_sizes.cbHeader + sv.length() + stream_sizes.cbTrailer);
+
+		buf[0].BufferType = SECBUFFER_STREAM_HEADER;
+		buf[0].pvBuffer = payload.data();
+		buf[0].cbBuffer = stream_sizes.cbHeader;
+
+		buf[1].cbBuffer = (long)sv.length();
+		buf[1].BufferType = SECBUFFER_DATA;
+		buf[1].pvBuffer = payload.data() + stream_sizes.cbHeader;
+
+		buf[2].BufferType = SECBUFFER_STREAM_TRAILER;
+		buf[2].pvBuffer = payload.data() + stream_sizes.cbHeader + sv.length();
+		buf[2].cbBuffer = stream_sizes.cbTrailer;
+
+		buf[3].BufferType = SECBUFFER_EMPTY;
+
+		memcpy(buf[1].pvBuffer, sv.data(), sv.length());
+
+		bufdesc.ulVersion = SECBUFFER_VERSION;
+		bufdesc.cBuffers = buf.size();
+		bufdesc.pBuffers = buf.data();
+
+		sec_status = EncryptMessage(&ctx_handle, 0, &bufdesc, 0);
+
+		if (FAILED(sec_status))
+			throw formatted_error("EncryptMessage returned {}", (enum sec_error)sec_status);
+
+		payload.resize(buf[0].cbBuffer + buf[1].cbBuffer + buf[2].cbBuffer);
+
+		client.send_raw(payload);
+	}
+
+	void client_ssl::recv_raw(void* buf, size_t length) {
+		while (length > 0) {
+			auto bytes = ::recv(client.sock, (char*)buf, length, 0);
+
+			if (bytes == SOCKET_ERROR)
+				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
+
+			if (bytes == 0) {
+				client.open = false;
+				return;
+			}
+
+			buf = (uint8_t*)buf + bytes;
+			length -= bytes;
+		}
+	}
+
+	unsigned int client_ssl::recv(unsigned int len, void* buf) {
+		SECURITY_STATUS sec_status;
+		array<SecBuffer, 4> secbuf;
+		SecBufferDesc bufdesc;
+		string recvbuf;
+		unsigned int copied = 0;
+
+		if (len == 0)
+			return 0;
+
+		if (!ssl_recv_buf.empty()) {
+			auto to_copy = min((size_t)len, ssl_recv_buf.length());
+
+			memcpy(buf, ssl_recv_buf.data(), to_copy);
+			ssl_recv_buf = ssl_recv_buf.substr(to_copy);
+
+			copied += to_copy;
+
+			if (len == to_copy)
+				return copied;
+
+			len -= to_copy;
+			buf = (uint8_t*)buf + to_copy;
+		}
+
+		recvbuf.resize(stream_sizes.cbHeader);
+		recv_raw(recvbuf.data(), recvbuf.length());
+
+		while (true) {
+			bool found = false;
+
+			memset(secbuf.data(), 0, sizeof(SecBuffer) * secbuf.size());
+			secbuf[0].BufferType = SECBUFFER_DATA;
+			secbuf[0].pvBuffer = recvbuf.data();
+			secbuf[0].cbBuffer = (long)recvbuf.length();
+			secbuf[1].BufferType = SECBUFFER_EMPTY;
+			secbuf[2].BufferType = SECBUFFER_EMPTY;
+			secbuf[3].BufferType = SECBUFFER_EMPTY;
+
+			bufdesc.ulVersion = SECBUFFER_VERSION;
+			bufdesc.cBuffers = secbuf.size();
+			bufdesc.pBuffers = secbuf.data();
+
+			sec_status = DecryptMessage(&ctx_handle, &bufdesc, 0, nullptr);
+
+			if (sec_status == SEC_E_INCOMPLETE_MESSAGE && secbuf[0].BufferType == SECBUFFER_MISSING) {
+				recvbuf.resize(recvbuf.length() + secbuf[0].cbBuffer);
+				recv_raw((uint8_t*)recvbuf.data() + recvbuf.length() - secbuf[0].cbBuffer, secbuf[0].cbBuffer);
+				continue;
+			}
+
+			if (FAILED(sec_status))
+				throw formatted_error("DecryptMessage returned {}", (enum sec_error)sec_status);
+
+			for (const auto& b : secbuf) {
+				if (b.BufferType == SECBUFFER_DATA) {
+					auto to_copy = min((size_t)len, (size_t)b.cbBuffer);
+
+					memcpy(buf, b.pvBuffer, to_copy);
+
+					buf = (uint8_t*)buf + to_copy;
+					copied += to_copy;
+					len -= to_copy;
+
+					ssl_recv_buf += string_view((char*)b.pvBuffer + to_copy, b.cbBuffer - to_copy);
+
+					found = true;
+					break;
+				}
+			}
+
+			if (!found)
+				throw runtime_error("DecryptMessage did not return a SECBUFFER_DATA buffer.");
+
+			return copied;
+		}
 	}
 };
 #endif

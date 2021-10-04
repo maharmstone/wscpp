@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include "wsserver-impl.h"
+#include "wsclient-impl.h"
 #include "b64.h"
 #include "sha1.h"
 
@@ -76,29 +77,6 @@ namespace ws {
 	server_client::~server_client() {
 		delete impl;
 	}
-
-#ifdef _WIN32
-	static __inline u16string utf8_to_utf16(const string_view& s) {
-		u16string ret;
-
-		if (s.empty())
-			return u"";
-
-		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
-
-		if (len == 0)
-			throw formatted_error("MultiByteToWideChar 1 failed.");
-
-		ret.resize(len);
-
-		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
-
-		if (len == 0)
-			throw formatted_error("MultiByteToWideChar 2 failed.");
-
-		return ret;
-	}
-#endif
 
 	void server_client_pimpl::read() {
 		auto msg = recv();

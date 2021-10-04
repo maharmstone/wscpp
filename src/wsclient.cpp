@@ -133,7 +133,7 @@ namespace ws {
 #endif
 			open_connexion();
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (enc)
 				ssl.reset(new client_ssl(*this));
 #else
@@ -281,7 +281,7 @@ namespace ws {
 			char s[4096];
 			int bytes;
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl) {
 				bytes = ssl->recv(sizeof(s), s);
 
@@ -303,7 +303,7 @@ namespace ws {
 					open = false;
 					return "";
 				}
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			}
 #endif
 
@@ -312,27 +312,6 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	static __inline u16string utf8_to_utf16(const string_view& s) {
-		u16string ret;
-
-		if (s.empty())
-			return u"";
-
-		auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
-
-		if (len == 0)
-			throw formatted_error("MultiByteToWideChar 1 failed.");
-
-		ret.resize(len);
-
-		len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
-
-		if (len == 0)
-			throw formatted_error("MultiByteToWideChar 2 failed.");
-
-		return ret;
-	}
-
 	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
 		SECURITY_STATUS sec_status;
 		TimeStamp timestamp;
@@ -398,7 +377,7 @@ namespace ws {
 			auto b64 = b64encode(sspi);
 			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl)
 				ssl->send(msg);
 			else
@@ -477,7 +456,7 @@ namespace ws {
 					 "Sec-WebSocket-Key: "s + key + "\r\n"
 					 "Sec-WebSocket-Version: 13\r\n";
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 		if (ssl)
 			ssl->send(req + "\r\n"s);
 		else
@@ -593,7 +572,7 @@ namespace ws {
 			memset(&header[10], 0, 4);
 		}
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 		if (impl->ssl) { // FIXME - timeout
 			impl->ssl->send(header);
 			impl->ssl->send(payload);
@@ -601,7 +580,7 @@ namespace ws {
 #endif
 			impl->send_raw(header, timeout);
 			impl->send_raw(payload, timeout);
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 		}
 #endif
 	}
@@ -631,7 +610,7 @@ namespace ws {
 		}
 
 		do {
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl) {
 				bytes = ssl->recv(left, buf);
 
@@ -659,7 +638,7 @@ namespace ws {
 
 				buf += bytes;
 				left -= bytes;
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 			}
 #endif
 		} while (left > 0);

@@ -53,6 +53,29 @@ public:
 };
 #endif
 
+#ifdef _WIN32
+static __inline std::u16string utf8_to_utf16(const std::string_view& s) {
+	std::u16string ret;
+
+	if (s.empty())
+		return u"";
+
+	auto len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), nullptr, 0);
+
+	if (len == 0)
+		throw std::runtime_error("MultiByteToWideChar 1 failed.");
+
+	ret.resize(len);
+
+	len = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.length(), (wchar_t*)ret.data(), len);
+
+	if (len == 0)
+		throw std::runtime_error("MultiByteToWideChar 2 failed.");
+
+	return ret;
+}
+#endif
+
 namespace ws {
 	struct header {
 		header() = default;
@@ -79,14 +102,19 @@ namespace ws {
 
 	class client_pimpl;
 
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 	class client_ssl {
 	public:
 		client_ssl(client_pimpl& client);
+#ifdef WITH_OPENSSL
 		int ssl_read_cb(char* data, int len);
 		int ssl_write_cb(const std::string_view& sv);
 		long ssl_ctrl_cb(int cmd, long num, void* ptr);
 		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
+#else
+		~client_ssl();
+		void recv_raw(void* buf, size_t length);
+#endif
 		void send(std::string_view sv);
 		unsigned int recv(unsigned int len, void* buf);
 
@@ -95,10 +123,17 @@ namespace ws {
 	private:
 		client_pimpl& client;
 		std::string ssl_recv_buf;
+#ifdef WITH_OPENSSL
 		BIO* bio;
 		std::unique_ptr<SSL_CTX*, ssl_ctx_deleter> ctx;
 		std::unique_ptr<BIO_METHOD*, bio_meth_deleter> meth;
 		std::unique_ptr<SSL*, ssl_deleter> ssl;
+#else
+		CredHandle cred_handle = {(ULONG_PTR)-1, (ULONG_PTR)-1};
+		CtxtHandle ctx_handle;
+		bool ctx_handle_set = false;
+		SecPkgContext_StreamSizes stream_sizes;
+#endif
 	};
 #endif
 
@@ -140,7 +175,7 @@ namespace ws {
 		std::string fqdn;
 		enum opcode last_opcode;
 		std::string recvbuf;
-#ifdef WITH_OPENSSL
+#if defined(WITH_OPENSSL) || defined(_WIN32)
 		std::unique_ptr<client_ssl> ssl;
 #endif
     };
