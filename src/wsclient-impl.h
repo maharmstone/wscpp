@@ -171,7 +171,7 @@ namespace ws {
 		gss_ctx_id_t ctx_handle = GSS_C_NO_CONTEXT;
 #endif
 		bool open = false;
-		std::thread* t = nullptr;
+		std::unique_ptr<std::jthread> t;
 		std::string fqdn;
 		enum opcode last_opcode;
 		std::string recvbuf;

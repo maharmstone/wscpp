@@ -143,7 +143,7 @@ namespace ws {
 
 			send_handshake();
 
-			t = new thread([&]() {
+			t = make_unique<jthread>([&]() {
 				exception_ptr except;
 
 				try {
@@ -193,18 +193,7 @@ namespace ws {
 
 		if (ctx_handle_set)
 			DeleteSecurityContext(&ctx_handle);
-#endif
 
-		if (t) {
-			try {
-				t->join();
-			} catch (...) {
-			}
-
-			delete t;
-		}
-
-#ifdef _WIN32
 		WSACleanup();
 #endif
 	}
