@@ -72,17 +72,15 @@ static void disconn_handler(ws::server_client& c, const exception_ptr& except) {
 }
 
 static void main2(uint16_t port) {
-	unique_ptr<ws::server> serv;
-
-	serv.reset(new ws::server(port, BACKLOG, msg_handler,
+	ws::server serv(port, BACKLOG, msg_handler,
 					[&](ws::server_client& c) {
-						conn_handler(*serv, c);
+						conn_handler(serv, c);
 					},
-					disconn_handler, "Negotiate"));
+					disconn_handler, "Negotiate");
 
 	printf("Starting WebSocket server...\n");
 
-	serv->start();
+	serv.start();
 
 	printf("WebSocket server stopped.\n");
 }
