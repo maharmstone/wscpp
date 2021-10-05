@@ -135,7 +135,7 @@ namespace ws {
 
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (enc)
-				ssl.reset(new client_ssl(*this));
+				ssl = make_unique<client_ssl>(*this);
 #else
 			if (enc)
 				throw runtime_error("Encryption requested but support has not been compiled in.");
