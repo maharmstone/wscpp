@@ -45,7 +45,11 @@ namespace ws {
 	client::client(const string& host, uint16_t port, const string& path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
 				   bool enc) {
-		impl = new client_pimpl(*this, host, port, path, msg_handler, disconn_handler, enc);
+		impl = make_unique<client_pimpl>(*this, host, port, path, msg_handler, disconn_handler, enc);
+	}
+
+	client::~client() {
+		// needs to be defined for unique_ptr to work with impl
 	}
 
 	void client_pimpl::open_connexion() {
@@ -163,10 +167,6 @@ namespace ws {
 			throw;
 		}
 #endif
-	}
-
-	client::~client() {
-		delete impl;
 	}
 
 	client_pimpl::~client_pimpl() {

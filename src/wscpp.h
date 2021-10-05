@@ -23,6 +23,7 @@
 #include <array>
 #include <span>
 #include <any>
+#include <memory>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -154,7 +155,7 @@ namespace ws {
 		bool is_open() const;
 
 	private:
-		client_pimpl* impl;
+		std::unique_ptr<client_pimpl> impl;
 	};
 }
 
