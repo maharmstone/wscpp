@@ -950,11 +950,11 @@ namespace ws {
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
 			   const string_view& auth_type) {
-		impl = new server_pimpl(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
+		impl = make_unique<server_pimpl>(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
 	}
 
 	server::~server() {
-		delete impl;
+		// needs to be defined for unique_ptr with pimpl
 	}
 
 	server_client::server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,

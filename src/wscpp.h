@@ -140,7 +140,7 @@ namespace ws {
 		friend server_client_pimpl;
 
 	private:
-		server_pimpl* impl;
+		std::unique_ptr<server_pimpl> impl;
 	};
 
 	class client_pimpl;
