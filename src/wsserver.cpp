@@ -75,7 +75,7 @@ namespace ws {
 	}
 
 	server_client::~server_client() {
-		delete impl;
+		// needs to be defined for unique_ptr with pimpl
 	}
 
 	void server_client_pimpl::read() {
@@ -959,7 +959,7 @@ namespace ws {
 
 	server_client::server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr, const server_msg_handler& msg_handler,
 								 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler) {
-		impl = new server_client_pimpl(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
+		impl = make_unique<server_client_pimpl>(*this, sock, serv, ip_addr, msg_handler, conn_handler, disconn_handler);
 	}
 
 	string_view server_client::username() const {
