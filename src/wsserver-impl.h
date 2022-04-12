@@ -123,6 +123,7 @@ namespace ws {
 		void process_http_messages();
 		void parse_ws_message(enum opcode opcode, const std::string_view& payload);
 		void read();
+		std::string ip_addr_string() const;
 #ifdef _WIN32
 		void get_username(HANDLE token);
 		void impersonate() const;

@@ -229,7 +229,7 @@ namespace ws {
 					serv.impl->ev.set();
 					return;
 				} else
-					throw formatted_error("send failed ({}).", wsa_error_to_string(WSAGetLastError()));
+					throw formatted_error("send failed to {} ({}).", ip_addr_string(), wsa_error_to_string(WSAGetLastError()));
 			}
 #else
 			if (bytes == -1) {
@@ -237,7 +237,7 @@ namespace ws {
 					sendbuf.append(sv);
 					return;
 				} else
-					throw formatted_error("send failed ({}).", errno_to_string(errno));
+					throw formatted_error("send failed to {} ({}).", ip_addr_string(), errno_to_string(errno));
 			}
 #endif
 
@@ -1016,19 +1016,21 @@ namespace ws {
 		return impl->ip_addr;
 	}
 
-	string server_client::ip_addr_string() const {
-		auto ip = ip_addr();
-
+	string server_client_pimpl::ip_addr_string() const {
 		static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
 
-		if (!memcmp(ip.data(), ipv4_pref.data(), ipv4_pref.size()))
-			return fmt::format("{}.{}.{}.{}", ip[12], ip[13], ip[14], ip[15]);
+		if (!memcmp(ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
+			return fmt::format("{}.{}.{}.{}", ip_addr[12], ip_addr[13], ip_addr[14], ip_addr[15]);
 		else {
 			char s[INET6_ADDRSTRLEN];
 
-			inet_ntop(AF_INET6, ip.data(), s, sizeof(s));
+			inet_ntop(AF_INET6, ip_addr.data(), s, sizeof(s));
 
 			return s;
 		}
+	}
+
+	string server_client::ip_addr_string() const {
+		return impl->ip_addr_string();
 	}
 }
