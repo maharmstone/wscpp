@@ -228,16 +228,24 @@ namespace ws {
 					sendbuf.append(sv);
 					serv.impl->ev.set();
 					return;
-				} else
-					throw formatted_error("send failed to {} ({}).", ip_addr_string(), wsa_error_to_string(WSAGetLastError()));
+				}
+
+				if (WSAGetLastError() == WSAECONNABORTED)
+					closesocket(fd);
+
+				throw formatted_error("send failed to {} ({}).", ip_addr_string(), wsa_error_to_string(WSAGetLastError()));
 			}
 #else
 			if (bytes == -1) {
 				if (errno == EWOULDBLOCK) {
 					sendbuf.append(sv);
 					return;
-				} else
-					throw formatted_error("send failed to {} ({}).", ip_addr_string(), errno_to_string(errno));
+				}
+
+				if (errno == ECONNABORTED)
+					close(fd);
+
+				throw formatted_error("send failed to {} ({}).", ip_addr_string(), errno_to_string(errno));
 			}
 #endif
 
