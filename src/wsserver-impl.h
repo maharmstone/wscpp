@@ -119,7 +119,7 @@ namespace ws {
 		void handle_handshake(const std::map<std::string, std::string>& headers);
 		void internal_server_error(const std::string& s);
 		std::string recv();
-		void process_http_message(const std::string& mess);
+		void process_http_message(std::string_view mess);
 		void process_http_messages();
 		void parse_ws_message(enum opcode opcode, const std::string_view& payload);
 		void read();

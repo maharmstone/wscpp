@@ -597,7 +597,7 @@ namespace ws {
 		return string(s, bytes);
 	}
 
-	void server_client_pimpl::process_http_message(const string& mess) {
+	void server_client_pimpl::process_http_message(string_view mess) {
 		bool first = true;
 		size_t nl = mess.find("\r\n"), nl2 = 0;
 		string verb, path;
