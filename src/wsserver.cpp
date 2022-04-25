@@ -578,7 +578,7 @@ namespace ws {
 		if (bytes == SOCKET_ERROR)
 			err = WSAGetLastError();
 
-		if (bytes == 0 || (bytes == SOCKET_ERROR && err == WSAECONNRESET)) {
+		if (bytes == 0 || (bytes == SOCKET_ERROR && (err == WSAECONNRESET || err == WSAECONNABORTED))) {
 			open = false;
 			return "";
 		} else if (bytes == SOCKET_ERROR)
@@ -587,7 +587,7 @@ namespace ws {
 		if (bytes == -1)
 			err = errno;
 
-		if (bytes == 0 || (bytes == -1 && err == ECONNRESET)) {
+		if (bytes == 0 || (bytes == -1 && (err == ECONNRESET || err == ECONNABORTED))) {
 			open = false;
 			return "";
 		} else if (bytes == -1)
