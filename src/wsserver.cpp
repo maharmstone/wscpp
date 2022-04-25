@@ -561,9 +561,9 @@ namespace ws {
 			conn_handler(parent);
 	}
 
-	void server_client_pimpl::internal_server_error(const string& s) {
+	void server_client_pimpl::internal_server_error(string_view s) {
 		try {
-			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + s);
+			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s));
 		} catch (...) {
 		}
 	}
