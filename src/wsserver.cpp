@@ -174,6 +174,9 @@ namespace ws {
 	void server_client::send(const string_view& payload, enum opcode opcode) const {
 		size_t len = payload.length();
 
+		if (!impl->open)
+			return;
+
 		if (len <= 125) {
 			char msg[2];
 
@@ -207,6 +210,9 @@ namespace ws {
 			impl->send_raw(string_view(msg, 10));
 		}
 
+		if (!impl->open)
+			return;
+
 		impl->send_raw(payload);
 	}
 
@@ -231,7 +237,7 @@ namespace ws {
 				}
 
 				if (WSAGetLastError() == WSAECONNABORTED)
-					closesocket(fd);
+					open = false;
 
 				throw formatted_error("send failed to {} ({}).", ip_addr_string(), wsa_error_to_string(WSAGetLastError()));
 			}
@@ -243,7 +249,7 @@ namespace ws {
 				}
 
 				if (errno == ECONNABORTED)
-					close(fd);
+					open = false;
 
 				throw formatted_error("send failed to {} ({}).", ip_addr_string(), errno_to_string(errno));
 			}
@@ -545,6 +551,9 @@ namespace ws {
 		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
 
 		send_raw("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
+
+		if (!open)
+			return;
 
 		state = state_enum::websocket;
 
@@ -850,24 +859,24 @@ namespace ws {
 							if (!(netev.lNetworkEvents & (FD_READ | FD_CLOSE | FD_WRITE)))
 								continue;
 
-							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE)) {
+							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE))
 								ct.impl->read();
-
-								if (!ct.impl->open) {
-									if (impl->disconn_handler)
-										impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
-
-									for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
-										if (&*it == &ct) {
-											impl->clients.erase(it);
-											break;
-										}
-									}
-								}
-							} else if (netev.lNetworkEvents & FD_WRITE) {
+							else if (netev.lNetworkEvents & FD_WRITE) {
 								string to_send = move(ct.impl->sendbuf);
 
 								ct.impl->send_raw(to_send);
+							}
+
+							if (!ct.impl->open) {
+								if (impl->disconn_handler)
+									impl->disconn_handler(ct, {}); // FIXME - catch and propagate exceptions
+
+								for (auto it = impl->clients.begin(); it != impl->clients.end(); it++) {
+									if (&*it == &ct) {
+										impl->clients.erase(it);
+										break;
+									}
+								}
 							}
 
 							break;
