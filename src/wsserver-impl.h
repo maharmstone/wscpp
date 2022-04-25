@@ -76,7 +76,7 @@ namespace ws {
 	public:
 		server_pimpl(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
-					 const std::string_view& auth_type) :
+					 std::string_view auth_type) :
 			port(port),
 			backlog(backlog),
 			msg_handler(msg_handler),
@@ -121,7 +121,7 @@ namespace ws {
 		std::string recv();
 		void process_http_message(std::string_view mess);
 		void process_http_messages();
-		void parse_ws_message(enum opcode opcode, const std::string_view& payload);
+		void parse_ws_message(enum opcode opcode, std::string_view payload);
 		void read();
 		std::string ip_addr_string() const;
 #ifdef _WIN32

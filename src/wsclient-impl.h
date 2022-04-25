@@ -54,7 +54,7 @@ public:
 #endif
 
 #ifdef _WIN32
-static __inline std::u16string utf8_to_utf16(const std::string_view& s) {
+static __inline std::u16string utf8_to_utf16(std::string_view s) {
 	std::u16string ret;
 
 	if (s.empty())
@@ -108,7 +108,7 @@ namespace ws {
 		client_ssl(client_pimpl& client);
 #ifdef WITH_OPENSSL
 		int ssl_read_cb(char* data, int len);
-		int ssl_write_cb(const std::string_view& sv);
+		int ssl_write_cb(std::string_view sv);
 		long ssl_ctrl_cb(int cmd, long num, void* ptr);
 		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
 #else
@@ -145,10 +145,10 @@ namespace ws {
 		~client_pimpl();
 
 		void open_connexion();
-		void send_auth_response(const std::string_view& auth_type, const std::string_view& auth_msg, const std::string& req);
+		void send_auth_response(std::string_view auth_type, std::string_view auth_msg, const std::string& req);
 		void send_handshake();
 		std::string random_key();
-		void send_raw(const std::string_view& s, unsigned int timeout = 0) const;
+		void send_raw(std::string_view s, unsigned int timeout = 0) const;
 		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();
 		void recv_thread();

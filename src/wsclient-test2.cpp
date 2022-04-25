@@ -31,7 +31,7 @@ static void main2(const string& hostname, uint16_t port) {
 				bool done = false;
 
 				ws::client client(hostname, port, "/",
-						[&](ws::client& c, const string_view& sv, enum ws::opcode opcode) {
+						[&](ws::client& c, string_view sv, enum ws::opcode opcode) {
 							if (opcode == ws::opcode::text)
 								syncout << "Message from server (" << i << "): " << sv << endl;
 							else if (opcode == ws::opcode::pong) {

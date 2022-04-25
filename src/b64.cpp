@@ -22,7 +22,7 @@ static const unsigned char base64_table[65] =
 * Returns: Allocated buffer of out_len bytes of encoded data,
 * or empty string on failure
 */
-std::string b64encode(const std::string_view& sv) {
+std::string b64encode(std::string_view sv) {
 	const unsigned char* src = (const unsigned char*)sv.data();
 	size_t len = sv.length();
 	unsigned char *out, *pos;
@@ -78,7 +78,7 @@ static const int B64index[256] = {
 	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
-std::string b64decode(const std::string_view& sv) {
+std::string b64decode(std::string_view sv) {
 	auto p = (unsigned char*)sv.data();
 	int pad = sv.length() > 0 && (sv.length() % 4 || p[sv.length() - 1] == '=');
 	const size_t L = ((sv.length() + 3) / 4 - pad) * 4;

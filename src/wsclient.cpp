@@ -227,7 +227,7 @@ namespace ws {
 #endif
 	}
 
-	void client_pimpl::send_raw(const string_view& s, unsigned int timeout) const {
+	void client_pimpl::send_raw(string_view s, unsigned int timeout) const {
 		if (timeout != 0)
 			set_send_timeout(timeout);
 
@@ -301,7 +301,7 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
+	void client_pimpl::send_auth_response(string_view auth_type, string_view auth_msg, const string& req) {
 		SECURITY_STATUS sec_status;
 		TimeStamp timestamp;
 		SecBuffer inbufs[2], outbuf;
@@ -377,7 +377,7 @@ namespace ws {
 		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
 	}
 #else
-	void client_pimpl::send_auth_response(const string_view& auth_type, const string_view& auth_msg, const string& req) {
+	void client_pimpl::send_auth_response(string_view auth_type, string_view auth_msg, const string& req) {
 		OM_uint32 major_status, minor_status;
 		gss_buffer_desc recv_tok, send_tok, name_buf;
 		gss_name_t gss_name;
@@ -531,7 +531,7 @@ namespace ws {
 		} while (again);
 	}
 
-	void client::send(const string_view& payload, enum opcode opcode, unsigned int timeout) const {
+	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
 		string header;
 		uint64_t len = payload.length();
 

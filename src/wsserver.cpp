@@ -171,7 +171,7 @@ namespace ws {
 		}
 	}
 
-	void server_client::send(const string_view& payload, enum opcode opcode) const {
+	void server_client::send(string_view payload, enum opcode opcode) const {
 		size_t len = payload.length();
 
 		if (!impl->open)
@@ -263,7 +263,7 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	static __inline string utf16_to_utf8(const u16string_view& s) {
+	static __inline string utf16_to_utf8(u16string_view s) {
 		string ret;
 
 		if (s.empty())
@@ -667,7 +667,7 @@ namespace ws {
 		} while (true);
 	}
 
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, const string_view& payload) {
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, string_view payload) {
 		switch (opcode) {
 			case opcode::close:
 				open = false;
@@ -966,7 +966,7 @@ namespace ws {
 
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
-			   const string_view& auth_type) {
+			   string_view auth_type) {
 		impl = make_unique<server_pimpl>(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
 	}
 

@@ -12,7 +12,7 @@
 
 using namespace std;
 
-static void msg_handler(ws::client& c, const string_view& sv, enum ws::opcode opcode) {
+static void msg_handler(ws::client& c, string_view sv, enum ws::opcode opcode) {
 	if (opcode == ws::opcode::text)
 		syncout << "Message from server: " << sv << endl;
 }

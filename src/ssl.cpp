@@ -341,7 +341,7 @@ namespace ws {
 		return copied;
 	}
 
-	int client_ssl::ssl_write_cb(const string_view& sv) {
+	int client_ssl::ssl_write_cb(string_view sv) {
 		client.send_raw(sv);
 
 		return (int)sv.length();

@@ -68,10 +68,10 @@ namespace ws {
 	class client;
 	class server_client;
 
-	using client_msg_handler = std::function<void(client&, const std::string_view&, enum opcode opcode)>;
+	using client_msg_handler = std::function<void(client&, std::string_view, enum opcode opcode)>;
 	using client_disconn_handler = std::function<void(client&, const std::exception_ptr&)>;
 
-	using server_msg_handler = std::function<void(server_client&, const std::string_view&)>;
+	using server_msg_handler = std::function<void(server_client&, std::string_view)>;
 	using server_conn_handler = std::function<void(server_client&)>;
 	using server_disconn_handler = std::function<void(server_client&, const std::exception_ptr&)>;
 
@@ -102,7 +102,7 @@ namespace ws {
 		server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ipv6_addr, const server_msg_handler& msg_handler,
 					  const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
 		~server_client();
-		void send(const std::string_view& payload, enum opcode opcode = opcode::text) const;
+		void send(std::string_view payload, enum opcode opcode = opcode::text) const;
 		std::string_view username() const;
 		std::string_view domain_name() const;
 		std::span<uint8_t, 16> ip_addr() const;
@@ -129,7 +129,7 @@ namespace ws {
 		server(uint16_t port, int backlog, const server_msg_handler& msg_handler = nullptr,
 			   const server_conn_handler& conn_handler = nullptr,
 			   const server_disconn_handler& disconn_handler = nullptr,
-			   const std::string_view& auth_type = "");
+			   std::string_view auth_type = "");
 		~server();
 
 		void start();
@@ -150,7 +150,7 @@ namespace ws {
 		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr,
 			   const client_disconn_handler& disconn_handler = nullptr, bool enc = false);
 		~client();
-		void send(const std::string_view& payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
+		void send(std::string_view payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
 		void join() const;
 		bool is_open() const;
 

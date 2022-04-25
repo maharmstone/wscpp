@@ -1075,7 +1075,7 @@ struct fmt::formatter<enum krb5_minor> {
 
 class gss_error : public std::exception {
 public:
-	gss_error(const std::string_view& func, OM_uint32 major, OM_uint32 minor) {
+	gss_error(std::string_view func, OM_uint32 major, OM_uint32 minor) {
 		OM_uint32 message_context = 0;
 		OM_uint32 min_status;
 		gss_buffer_desc status_string;
