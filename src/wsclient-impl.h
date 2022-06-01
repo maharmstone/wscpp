@@ -116,7 +116,7 @@ namespace ws {
 		void recv_raw(void* buf, size_t length);
 #endif
 		void send(std::span<const uint8_t> sv);
-		unsigned int recv(unsigned int len, void* buf);
+		unsigned int recv(std::span<uint8_t> s);
 
 		std::exception_ptr exception;
 

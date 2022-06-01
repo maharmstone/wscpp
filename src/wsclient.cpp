@@ -267,18 +267,18 @@ namespace ws {
 				return ret;
 			}
 
-			char s[4096];
+			uint8_t s[4096];
 			int bytes;
 
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl) {
-				bytes = ssl->recv(sizeof(s), s);
+				bytes = ssl->recv(s);
 
 				if (!open)
 					return "";
 			} else {
 #endif
-				bytes = ::recv(sock, s, sizeof(s), 0);
+				bytes = ::recv(sock, (char*)s, sizeof(s), 0);
 
 #ifdef _WIN32
 				if (bytes == SOCKET_ERROR)
@@ -296,7 +296,7 @@ namespace ws {
 			}
 #endif
 
-			recvbuf += string(s, bytes);
+			recvbuf += string((char*)s, bytes);
 		} while (true);
 	}
 
@@ -610,7 +610,7 @@ namespace ws {
 		do {
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl) {
-				bytes = ssl->recv(left, buf);
+				bytes = ssl->recv(span((uint8_t*)buf, left));
 
 				if (open)
 					return;

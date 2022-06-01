@@ -468,8 +468,8 @@ namespace ws {
 		}
 	}
 
-	unsigned int client_ssl::recv(unsigned int len, void* buf) {
-		auto ret = SSL_read(ssl.get(), buf, len);
+	unsigned int client_ssl::recv(span<uint8_t> s) {
+		auto ret = SSL_read(ssl.get(), s.data(), s.size());
 
 		if (ret <= 0) {
 			if (exception)
@@ -683,29 +683,28 @@ namespace ws {
 		}
 	}
 
-	unsigned int client_ssl::recv(unsigned int len, void* buf) {
+	unsigned int client_ssl::recv(span<uint8_t> s) {
 		SECURITY_STATUS sec_status;
 		array<SecBuffer, 4> secbuf;
 		SecBufferDesc bufdesc;
 		string recvbuf;
 		unsigned int copied = 0;
 
-		if (len == 0)
+		if (s.empty())
 			return 0;
 
 		if (!ssl_recv_buf.empty()) {
-			auto to_copy = min((size_t)len, ssl_recv_buf.length());
+			auto to_copy = min(s.size(), ssl_recv_buf.length());
 
-			memcpy(buf, ssl_recv_buf.data(), to_copy);
+			memcpy(s.data(), ssl_recv_buf.data(), to_copy);
 			ssl_recv_buf = ssl_recv_buf.substr(to_copy);
 
 			copied += to_copy;
 
-			if (len == to_copy)
+			if (s.size() == to_copy)
 				return copied;
 
-			len -= to_copy;
-			buf = (uint8_t*)buf + to_copy;
+			s = s.subspan(to_copy);
 		}
 
 		recvbuf.resize(stream_sizes.cbHeader);
@@ -739,13 +738,12 @@ namespace ws {
 
 			for (const auto& b : secbuf) {
 				if (b.BufferType == SECBUFFER_DATA) {
-					auto to_copy = min((size_t)len, (size_t)b.cbBuffer);
+					auto to_copy = min(s.size(), (size_t)b.cbBuffer);
 
-					memcpy(buf, b.pvBuffer, to_copy);
+					memcpy(s.data(), b.pvBuffer, to_copy);
 
-					buf = (uint8_t*)buf + to_copy;
 					copied += to_copy;
-					len -= to_copy;
+					s = s.subspan(to_copy);
 
 					ssl_recv_buf += string_view((char*)b.pvBuffer + to_copy, b.cbBuffer - to_copy);
 
