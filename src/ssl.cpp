@@ -294,10 +294,10 @@ namespace ws {
 			return 0;
 
 		if (!ssl_recv_buf.empty()) {
-			auto to_copy = min(s.size(), ssl_recv_buf.length());
+			auto to_copy = min(s.size(), ssl_recv_buf.size());
 
 			memcpy(s.data(), ssl_recv_buf.data(), to_copy);
-			ssl_recv_buf = ssl_recv_buf.substr(to_copy);
+			ssl_recv_buf.erase(ssl_recv_buf.begin(), ssl_recv_buf.begin() + to_copy);
 
 			if (s.size() == to_copy)
 				return s.size();
@@ -694,10 +694,10 @@ namespace ws {
 			return 0;
 
 		if (!ssl_recv_buf.empty()) {
-			auto to_copy = min(s.size(), ssl_recv_buf.length());
+			auto to_copy = min(s.size(), ssl_recv_buf.size());
 
 			memcpy(s.data(), ssl_recv_buf.data(), to_copy);
-			ssl_recv_buf = ssl_recv_buf.substr(to_copy);
+			ssl_recv_buf.erase(ssl_recv_buf.begin(), ssl_recv_buf.begin() + to_copy);
 
 			copied += to_copy;
 
@@ -738,14 +738,16 @@ namespace ws {
 
 			for (const auto& b : secbuf) {
 				if (b.BufferType == SECBUFFER_DATA) {
-					auto to_copy = min(s.size(), (size_t)b.cbBuffer);
+					auto bsp = span((uint8_t*)b.pvBuffer, b.cbBuffer);
+					auto to_copy = min(s.size(), bsp.size());
 
-					memcpy(s.data(), b.pvBuffer, to_copy);
+					memcpy(s.data(), bsp.data(), to_copy);
 
 					copied += to_copy;
 					s = s.subspan(to_copy);
 
-					ssl_recv_buf += string_view((char*)b.pvBuffer + to_copy, b.cbBuffer - to_copy);
+					bsp = bsp.subspan(to_copy);
+					ssl_recv_buf.insert(ssl_recv_buf.end(), bsp.begin(), bsp.end());
 
 					found = true;
 					break;

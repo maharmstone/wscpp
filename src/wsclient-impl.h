@@ -122,7 +122,7 @@ namespace ws {
 
 	private:
 		client_pimpl& client;
-		std::string ssl_recv_buf;
+		std::vector<uint8_t> ssl_recv_buf;
 #ifdef WITH_OPENSSL
 		BIO* bio;
 		std::unique_ptr<SSL_CTX*, ssl_ctx_deleter> ctx;
