@@ -666,9 +666,9 @@ namespace ws {
 		client.send_raw(span((uint8_t*)payload.data(), payload.size()));
 	}
 
-	void client_ssl::recv_raw(void* buf, size_t length) {
-		while (length > 0) {
-			auto bytes = ::recv(client.sock, (char*)buf, length, 0);
+	void client_ssl::recv_raw(span<uint8_t> s) {
+		while (!s.empty()) {
+			auto bytes = ::recv(client.sock, (char*)s.data(), s.size(), 0);
 
 			if (bytes == SOCKET_ERROR)
 				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
@@ -678,8 +678,7 @@ namespace ws {
 				return;
 			}
 
-			buf = (uint8_t*)buf + bytes;
-			length -= bytes;
+			s = s.subspan(bytes);
 		}
 	}
 
@@ -687,7 +686,7 @@ namespace ws {
 		SECURITY_STATUS sec_status;
 		array<SecBuffer, 4> secbuf;
 		SecBufferDesc bufdesc;
-		string recvbuf;
+		vector<uint8_t> recvbuf;
 		unsigned int copied = 0;
 
 		if (s.empty())
@@ -708,7 +707,7 @@ namespace ws {
 		}
 
 		recvbuf.resize(stream_sizes.cbHeader);
-		recv_raw(recvbuf.data(), recvbuf.length());
+		recv_raw(recvbuf);
 
 		while (true) {
 			bool found = false;
@@ -716,7 +715,7 @@ namespace ws {
 			memset(secbuf.data(), 0, sizeof(SecBuffer) * secbuf.size());
 			secbuf[0].BufferType = SECBUFFER_DATA;
 			secbuf[0].pvBuffer = recvbuf.data();
-			secbuf[0].cbBuffer = (long)recvbuf.length();
+			secbuf[0].cbBuffer = (long)recvbuf.size();
 			secbuf[1].BufferType = SECBUFFER_EMPTY;
 			secbuf[2].BufferType = SECBUFFER_EMPTY;
 			secbuf[3].BufferType = SECBUFFER_EMPTY;
@@ -728,8 +727,8 @@ namespace ws {
 			sec_status = DecryptMessage(&ctx_handle, &bufdesc, 0, nullptr);
 
 			if (sec_status == SEC_E_INCOMPLETE_MESSAGE && secbuf[0].BufferType == SECBUFFER_MISSING) {
-				recvbuf.resize(recvbuf.length() + secbuf[0].cbBuffer);
-				recv_raw((uint8_t*)recvbuf.data() + recvbuf.length() - secbuf[0].cbBuffer, secbuf[0].cbBuffer);
+				recvbuf.resize(recvbuf.size() + secbuf[0].cbBuffer);
+				recv_raw(span(recvbuf).last(secbuf[0].cbBuffer));
 				continue;
 			}
 

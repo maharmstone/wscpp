@@ -113,7 +113,7 @@ namespace ws {
 		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
 #else
 		~client_ssl();
-		void recv_raw(void* buf, size_t length);
+		void recv_raw(std::span<uint8_t> s);
 #endif
 		void send(std::span<const uint8_t> sv);
 		unsigned int recv(std::span<uint8_t> s);
