@@ -108,14 +108,14 @@ namespace ws {
 		client_ssl(client_pimpl& client);
 #ifdef WITH_OPENSSL
 		int ssl_read_cb(char* data, int len);
-		int ssl_write_cb(std::string_view sv);
+		int ssl_write_cb(std::span<const uint8_t> sv);
 		long ssl_ctrl_cb(int cmd, long num, void* ptr);
 		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
 #else
 		~client_ssl();
 		void recv_raw(void* buf, size_t length);
 #endif
-		void send(std::string_view sv);
+		void send(std::span<const uint8_t> sv);
 		unsigned int recv(unsigned int len, void* buf);
 
 		std::exception_ptr exception;

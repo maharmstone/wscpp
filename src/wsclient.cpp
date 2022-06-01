@@ -368,7 +368,7 @@ namespace ws {
 
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl)
-				ssl->send(msg);
+				ssl->send(span((uint8_t*)msg.data(), msg.size()));
 			else
 #endif
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
@@ -426,7 +426,7 @@ namespace ws {
 			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
 			if (ssl)
-				ssl->send(msg);
+				ssl->send(span((uint8_t*)msg.data(), msg.size()));
 			else
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
@@ -445,15 +445,15 @@ namespace ws {
 					 "Sec-WebSocket-Key: "s + key + "\r\n"
 					 "Sec-WebSocket-Version: 13\r\n";
 
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-		if (ssl)
-			ssl->send(req + "\r\n"s);
-		else
-#endif
 		{
 			const auto& msg = req + "\r\n";
 
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+			if (ssl)
+				ssl->send(span((uint8_t*)msg.data(), msg.size()));
+			else
+#endif
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 		}
 
 		do {
@@ -541,7 +541,7 @@ namespace ws {
 		auto do_send = [&](span<const uint8_t> s) {
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (impl->ssl) // FIXME - timeout
-				impl->ssl->send(string_view((char*)s.data(), s.size()));
+				impl->ssl->send(s);
 			else
 #endif
 				impl->send_raw(s, timeout);

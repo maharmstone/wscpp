@@ -46,7 +46,7 @@ static int ssl_bio_write(BIO* bio, const char* data, int len) noexcept {
 	auto& c = *(ws::client_ssl*)BIO_get_data(bio);
 
 	try {
-		return c.ssl_write_cb(string_view{data, (size_t)len});
+		return c.ssl_write_cb(span((uint8_t*)data, (size_t)len));
 	} catch (...) {
 		c.exception = current_exception();
 		return -1;
@@ -341,10 +341,10 @@ namespace ws {
 		return copied;
 	}
 
-	int client_ssl::ssl_write_cb(string_view sv) {
-		client.send_raw(span((uint8_t*)sv.data(), sv.size()));
+	int client_ssl::ssl_write_cb(span<const uint8_t> sv) {
+		client.send_raw(sv);
 
-		return (int)sv.length();
+		return (int)sv.size();
 	}
 
 	long client_ssl::ssl_ctrl_cb(int cmd, long, void*) {
@@ -454,9 +454,9 @@ namespace ws {
 		}
 	}
 
-	void client_ssl::send(std::string_view sv) {
+	void client_ssl::send(std::span<const uint8_t> sv) {
 		while (!sv.empty()) {
-			auto ret = SSL_write(ssl.get(), sv.data(), (int)sv.length());
+			auto ret = SSL_write(ssl.get(), sv.data(), (int)sv.size());
 
 			if (ret <= 0) {
 				if (exception)
@@ -465,7 +465,7 @@ namespace ws {
 				throw formatted_error("SSL_write failed (error {})", SSL_get_error(ssl.get(), ret));
 			}
 
-			sv = sv.substr(ret);
+			sv = sv.subspan(ret);
 		}
 	}
 
@@ -627,7 +627,7 @@ namespace ws {
 		FreeCredentialsHandle(&cred_handle);
 	}
 
-	void client_ssl::send(std::string_view sv) {
+	void client_ssl::send(std::span<const uint8_t> sv) {
 		SECURITY_STATUS sec_status;
 		array<SecBuffer, 4> buf;
 		SecBufferDesc bufdesc;
@@ -635,23 +635,23 @@ namespace ws {
 
 		memset(buf.data(), 0, sizeof(SecBuffer) * buf.size());
 
-		payload.resize(stream_sizes.cbHeader + sv.length() + stream_sizes.cbTrailer);
+		payload.resize(stream_sizes.cbHeader + sv.size() + stream_sizes.cbTrailer);
 
 		buf[0].BufferType = SECBUFFER_STREAM_HEADER;
 		buf[0].pvBuffer = payload.data();
 		buf[0].cbBuffer = stream_sizes.cbHeader;
 
-		buf[1].cbBuffer = (long)sv.length();
+		buf[1].cbBuffer = (long)sv.size();
 		buf[1].BufferType = SECBUFFER_DATA;
 		buf[1].pvBuffer = payload.data() + stream_sizes.cbHeader;
 
 		buf[2].BufferType = SECBUFFER_STREAM_TRAILER;
-		buf[2].pvBuffer = payload.data() + stream_sizes.cbHeader + sv.length();
+		buf[2].pvBuffer = payload.data() + stream_sizes.cbHeader + sv.size();
 		buf[2].cbBuffer = stream_sizes.cbTrailer;
 
 		buf[3].BufferType = SECBUFFER_EMPTY;
 
-		memcpy(buf[1].pvBuffer, sv.data(), sv.length());
+		memcpy(buf[1].pvBuffer, sv.data(), sv.size());
 
 		bufdesc.ulVersion = SECBUFFER_VERSION;
 		bufdesc.cBuffers = buf.size();
