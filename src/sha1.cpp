@@ -158,7 +158,7 @@ static void SHA1Update(SHA1_CTX* context, uint8_t* data, uint32_t len)
 
 /* Add padding and return the message digest. */
 
-static void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
+static void SHA1Final(array<uint8_t, 20> digest, SHA1_CTX* context)
 {
 	unsigned i;
 	unsigned char finalcount[8];
@@ -202,13 +202,13 @@ static void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
 	memset(&finalcount, '\0', sizeof(finalcount));
 }
 
-string sha1(const string& s) {
-	unsigned char digest[20];
+array<uint8_t, 20> sha1(const string& s) {
+	array<uint8_t, 20> digest;
 	SHA1_CTX ctx;
 
 	SHA1Init(&ctx);
 	SHA1Update(&ctx, (uint8_t*)s.c_str(), (uint32_t)s.length());
 	SHA1Final(digest, &ctx);
 
-	return string((char*)digest, 20);
+	return digest;
 }

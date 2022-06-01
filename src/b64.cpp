@@ -11,6 +11,8 @@
 
 #include <string>
 
+#include "b64.h"
+
 static const unsigned char base64_table[65] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -22,9 +24,9 @@ static const unsigned char base64_table[65] =
 * Returns: Allocated buffer of out_len bytes of encoded data,
 * or empty string on failure
 */
-std::string b64encode(std::string_view sv) {
+std::string b64encode(std::span<const uint8_t> sv) {
 	const unsigned char* src = (const unsigned char*)sv.data();
-	size_t len = sv.length();
+	size_t len = sv.size();
 	unsigned char *out, *pos;
 	const unsigned char *end, *in;
 

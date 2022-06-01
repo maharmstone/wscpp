@@ -208,7 +208,7 @@ namespace ws {
 			rand[i] = dist(rng);
 		}
 
-		return b64encode(string((char*)rand, 16));
+		return b64encode(span((uint8_t*)rand, 16));
 	}
 
 	void client_pimpl::set_send_timeout(unsigned int timeout) const {
@@ -354,7 +354,12 @@ namespace ws {
 		if (FAILED(sec_status))
 			throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
 
-		auto sspi = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+		vector<uint8_t> sspi;
+
+		if (outbuf.cbBuffer > 0) {
+			auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
+			sspi.assign(sp.begin(), sp.end());
+		}
 
 		if (outbuf.pvBuffer)
 			FreeContextBuffer(outbuf.pvBuffer);
@@ -381,7 +386,6 @@ namespace ws {
 		OM_uint32 major_status, minor_status;
 		gss_buffer_desc recv_tok, send_tok, name_buf;
 		gss_name_t gss_name;
-		string outbuf;
 
 		if (auth_type == "Negotiate" && fqdn.empty())
 			throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
@@ -416,12 +420,13 @@ namespace ws {
 			throw gss_error("gss_init_sec_context", major_status, minor_status);
 
 		if (send_tok.length != 0) {
-			outbuf = string((char*)send_tok.value, send_tok.length);
+			vector<uint8_t> outbuf;
+
+			auto sp = span((uint8_t*)send_tok.value, send_tok.length);
+			outbuf.assign(sp.begin(), sp.end());
 
 			gss_release_buffer(&minor_status, &send_tok);
-		}
 
-		if (!outbuf.empty()) {
 			auto b64 = b64encode(outbuf);
 			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 

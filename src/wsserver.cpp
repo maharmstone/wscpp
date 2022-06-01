@@ -447,7 +447,13 @@ namespace ws {
 											   SECURITY_NATIVE_DREP, &ctx_handle, &out, &context_attr,
 											   &timestamp);
 
-			auto sspi = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+			vector<uint8_t> sspi;
+
+			if (outbuf.cbBuffer > 0) {
+				auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+				sspi.assign(sp.begin(), sp.end());
+			}
 
 			if (outbuf.pvBuffer)
 				FreeContextBuffer(outbuf.pvBuffer);
@@ -497,10 +503,11 @@ namespace ws {
 			if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
 				throw gss_error("gss_accept_sec_context", major_status, minor_status);
 
-			string outbuf;
+			vector<uint8_t> outbuf;
 
 			if (send_tok.length != 0) {
-				outbuf = string((char*)send_tok.value, send_tok.length);
+				auto sp = span((uint8_t*)send_tok.value, send_tok.length);
+				outbuf.assign(sp.begin(), sp.end());
 
 				gss_release_buffer(&minor_status, &send_tok);
 			}

@@ -7,5 +7,6 @@ By Steve Reid <steve@edmweb.com>
 #pragma once
 
 #include <string>
+#include <array>
 
-std::string sha1(const std::string& s);
+std::array<uint8_t, 20> sha1(const std::string& s);
