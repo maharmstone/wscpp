@@ -23,6 +23,12 @@ A million repetitions of "a"
 
 #include "sha1.h"
 
+struct SHA1_CTX {
+	uint32_t state[5];
+	uint32_t count[2];
+	unsigned char buffer[64];
+};
+
 using namespace std;
 
 //#include <endian.h>
@@ -52,7 +58,7 @@ using namespace std;
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1Transform(uint32_t state[5], uint8_t buffer[64])
+static void SHA1Transform(uint32_t state[5], uint8_t buffer[64])
 {
 	uint32_t a, b, c, d, e;
 	typedef union {
@@ -113,7 +119,7 @@ void SHA1Transform(uint32_t state[5], uint8_t buffer[64])
 
 /* SHA1Init - Initialize new context */
 
-void SHA1Init(SHA1_CTX* context)
+static void SHA1Init(SHA1_CTX* context)
 {
 	/* SHA1 initialization constants */
 	context->state[0] = 0x67452301;
@@ -127,7 +133,7 @@ void SHA1Init(SHA1_CTX* context)
 
 /* Run your data through this. */
 
-void SHA1Update(SHA1_CTX* context, uint8_t* data, uint32_t len)
+static void SHA1Update(SHA1_CTX* context, uint8_t* data, uint32_t len)
 {
 	uint32_t i;
 	uint32_t j;
@@ -152,7 +158,7 @@ void SHA1Update(SHA1_CTX* context, uint8_t* data, uint32_t len)
 
 /* Add padding and return the message digest. */
 
-void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
+static void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
 {
 	unsigned i;
 	unsigned char finalcount[8];
