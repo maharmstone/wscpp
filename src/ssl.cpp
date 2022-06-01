@@ -35,7 +35,7 @@ static int ssl_bio_read(BIO* bio, char* data, int len) noexcept {
 	auto& c = *(ws::client_ssl*)BIO_get_data(bio);
 
 	try {
-		return c.ssl_read_cb(data, len);
+		return c.ssl_read_cb(span((uint8_t*)data, len));
 	} catch (...) {
 		c.exception = current_exception();
 		return -1;
@@ -287,27 +287,26 @@ static void add_certs_to_store(X509_STORE* store) {
 #endif
 
 namespace ws {
-	int client_ssl::ssl_read_cb(char* data, int len) {
+	int client_ssl::ssl_read_cb(std::span<uint8_t> s) {
 		int copied = 0;
 
-		if (len == 0)
+		if (s.empty())
 			return 0;
 
 		if (!ssl_recv_buf.empty()) {
-			auto to_copy = min(len, (int)ssl_recv_buf.length());
+			auto to_copy = min(s.size(), ssl_recv_buf.length());
 
-			memcpy(data, ssl_recv_buf.data(), to_copy);
+			memcpy(s.data(), ssl_recv_buf.data(), to_copy);
 			ssl_recv_buf = ssl_recv_buf.substr(to_copy);
 
-			if (len == to_copy)
-				return len;
+			if (s.size() == to_copy)
+				return s.size();
 
-			len -= to_copy;
 			copied = to_copy;
-			data += to_copy;
+			s = s.subspan(to_copy);
 		}
 
-		auto ret = ::recv(client.sock, data, len, 0);
+		auto ret = ::recv(client.sock, s.data(), s.size(), 0);
 
 #ifdef _WIN32
 		if (ret == SOCKET_ERROR) {
