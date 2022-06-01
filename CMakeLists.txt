@@ -32,7 +32,6 @@ set(SRC_FILES src/wsclient.cpp
 	src/ssl.cpp)
 
 add_library(wscpp SHARED ${SRC_FILES})
-add_library(wscpp-static STATIC ${SRC_FILES})
 
 if(WIN32)
 	target_link_libraries(wscpp wsock32 ws2_32 secur32 ntdsapi crypt32)
@@ -41,11 +40,9 @@ else()
 endif()
 
 target_link_libraries(wscpp fmt::fmt-header-only)
-target_link_libraries(wscpp-static fmt::fmt-header-only)
 
 if(WITH_OPENSSL)
 	target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
-	target_link_libraries(wscpp-static OpenSSL::Crypto OpenSSL::SSL)
 endif()
 
 target_compile_options(wscpp PRIVATE
@@ -60,7 +57,7 @@ if(WIN32 AND NOT MSVC)
 	target_link_options(wscpp PUBLIC -static -static-libgcc)
 endif()
 
-install(TARGETS wscpp wscpp-static
+install(TARGETS wscpp
 	EXPORT wscpp-targets
 	RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -69,7 +66,7 @@ install(TARGETS wscpp wscpp-static
 	PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-export(TARGETS wscpp wscpp-static FILE ${PROJECT_BINARY_DIR}/wscpp-targets.cmake)
+export(TARGETS wscpp FILE ${PROJECT_BINARY_DIR}/wscpp-targets.cmake)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libwscpp.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 
@@ -92,8 +89,6 @@ if(BUILD_SAMPLE)
 	install(TARGETS wsclient-test2 DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test2.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 endif()
-
-install(TARGETS wscpp-static DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}")
 
 install(EXPORT wscpp-targets DESTINATION lib/cmake/wscpp)
 
