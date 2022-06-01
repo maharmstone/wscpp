@@ -227,12 +227,12 @@ namespace ws {
 #endif
 	}
 
-	void client_pimpl::send_raw(string_view s, unsigned int timeout) const {
+	void client_pimpl::send_raw(span<const uint8_t> s, unsigned int timeout) const {
 		if (timeout != 0)
 			set_send_timeout(timeout);
 
 		try {
-			auto ret = ::send(sock, s.data(), (int)s.length(), 0);
+			auto ret = ::send(sock, (char*)s.data(), (int)s.size(), 0);
 
 #ifdef _WIN32
 			if (ret == SOCKET_ERROR)
@@ -242,8 +242,8 @@ namespace ws {
 				throw formatted_error("send failed (error {})", errno_to_string(errno));
 #endif
 
-			if ((size_t)ret < s.length())
-				throw formatted_error("send sent {} bytes, expected {}", ret, s.length());
+			if ((size_t)ret < s.size())
+				throw formatted_error("send sent {} bytes, expected {}", ret, s.size());
 		} catch (...) {
 			if (timeout != 0)
 				set_send_timeout(0);
@@ -371,7 +371,7 @@ namespace ws {
 				ssl->send(msg);
 			else
 #endif
-				send_raw(msg);
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 		}
 
 		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
@@ -428,7 +428,7 @@ namespace ws {
 			if (ssl)
 				ssl->send(msg);
 			else
-				send_raw(msg);
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 			return;
 		}
@@ -450,7 +450,11 @@ namespace ws {
 			ssl->send(req + "\r\n"s);
 		else
 #endif
-			send_raw(req + "\r\n"s);
+		{
+			const auto& msg = req + "\r\n";
+
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
+		}
 
 		do {
 			string mess = recv_http();
@@ -532,23 +536,37 @@ namespace ws {
 	}
 
 	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
-		string header;
 		uint64_t len = payload.length();
 
-		header.resize(6);
-		header[0] = 0x80 | ((uint8_t)opcode & 0xf);
+		auto do_send = [&](span<const uint8_t> s) {
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+			if (impl->ssl) // FIXME - timeout
+				impl->ssl->send(string_view((char*)s.data(), s.size()));
+			else
+#endif
+				impl->send_raw(s, timeout);
+		};
 
 		if (len <= 125) {
+			uint8_t header[6];
+
+			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
 			header[1] = 0x80 | (uint8_t)len;
 			memset(&header[2], 0, 4);
+			do_send(header);
 		} else if (len < 0x10000) {
-			header.resize(8);
+			uint8_t header[8];
+
+			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
 			header[1] = (uint8_t)0xfe;
 			header[2] = (len & 0xff00) >> 8;
 			header[3] = len & 0xff;
 			memset(&header[4], 0, 4);
+			do_send(header);
 		} else {
-			header.resize(14);
+			uint8_t header[14];
+
+			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
 			header[1] = (uint8_t)0xff;
 			header[2] = (uint8_t)((len & 0xff00000000000000) >> 56);
 			header[3] = (uint8_t)((len & 0xff000000000000) >> 48);
@@ -559,19 +577,10 @@ namespace ws {
 			header[8] = (uint8_t)((len & 0xff00) >> 8);
 			header[9] = (uint8_t)(len & 0xff);
 			memset(&header[10], 0, 4);
+			do_send(header);
 		}
 
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-		if (impl->ssl) { // FIXME - timeout
-			impl->ssl->send(header);
-			impl->ssl->send(payload);
-		} else {
-#endif
-			impl->send_raw(header, timeout);
-			impl->send_raw(payload, timeout);
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-		}
-#endif
+		do_send(span((uint8_t*)payload.data(), payload.size()));
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
