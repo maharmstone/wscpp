@@ -151,7 +151,7 @@ namespace ws {
 		server& serv;
 		std::array<uint8_t, 16> ip_addr;
 		std::string username, domain_name;
-		std::string sendbuf;
+		std::vector<uint8_t> sendbuf;
 
 		enum class state_enum {
 			http,

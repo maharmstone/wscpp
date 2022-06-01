@@ -218,7 +218,7 @@ namespace ws {
 
 	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
 		if (!sendbuf.empty()) {
-			sendbuf.append(string_view((char*)sv.data(), sv.size()));
+			sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
 #ifdef _WIN32
 			serv.impl->ev.set();
 #endif
@@ -231,7 +231,7 @@ namespace ws {
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR) {
 				if (WSAGetLastError() == WSAEWOULDBLOCK) {
-					sendbuf.append(string_view((char*)sv.data(), sv.size()));
+					sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
 					serv.impl->ev.set();
 					return;
 				}
@@ -244,7 +244,7 @@ namespace ws {
 #else
 			if (bytes == -1) {
 				if (errno == EWOULDBLOCK) {
-					sendbuf.append(string_view((char*)sv.data(), sv.size()));
+					sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
 					return;
 				}
 
@@ -872,9 +872,9 @@ namespace ws {
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE))
 								ct.impl->read();
 							else if (netev.lNetworkEvents & FD_WRITE) {
-								string to_send = move(ct.impl->sendbuf);
+								vector<uint8_t> to_send = move(ct.impl->sendbuf);
 
-								ct.impl->send_raw(span((uint8_t*)to_send.data(), to_send.size()));
+								ct.impl->send_raw(to_send);
 							}
 
 							if (!ct.impl->open) {
@@ -901,9 +901,9 @@ namespace ws {
 									if (pf.revents & POLLIN)
 										ct.impl->read();
 									else if (pf.revents & POLLOUT) {
-										string to_send = move(ct.impl->sendbuf);
+										vector<uint8_t> to_send = move(ct.impl->sendbuf);
 
-										ct.impl->send_raw(span((uint8_t*)to_send.data(), to_send.size()));
+										ct.impl->send_raw(to_send);
 									}
 
 									if (pf.revents & (POLLHUP | POLLERR | POLLNVAL) || !ct.impl->open) {
