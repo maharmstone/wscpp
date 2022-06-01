@@ -178,47 +178,47 @@ namespace ws {
 			return;
 
 		if (len <= 125) {
-			char msg[2];
+			uint8_t msg[2];
 
 			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			msg[1] = (char)len;
+			msg[1] = (uint8_t)len;
 
-			impl->send_raw(string_view(msg, 2));
+			impl->send_raw(msg);
 		} else if (len < 0x10000) {
-			char msg[4];
+			uint8_t msg[4];
 
 			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
 			msg[1] = 126;
 			msg[2] = (len & 0xff00) >> 8;
 			msg[3] = len & 0xff;
 
-			impl->send_raw(string_view(msg, 4));
+			impl->send_raw(msg);
 		} else {
-			char msg[10];
+			uint8_t msg[10];
 
 			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
 			msg[1] = 127;
-			msg[2] = (char)((len & 0xff00000000000000) >> 56);
-			msg[3] = (char)((len & 0xff000000000000) >> 48);
-			msg[4] = (char)((len & 0xff0000000000) >> 40);
-			msg[5] = (char)((len & 0xff00000000) >> 32);
-			msg[6] = (char)((len & 0xff000000) >> 24);
-			msg[7] = (char)((len & 0xff0000) >> 16);
-			msg[8] = (char)((len & 0xff00) >> 8);
+			msg[2] = (uint8_t)((len & 0xff00000000000000) >> 56);
+			msg[3] = (uint8_t)((len & 0xff000000000000) >> 48);
+			msg[4] = (uint8_t)((len & 0xff0000000000) >> 40);
+			msg[5] = (uint8_t)((len & 0xff00000000) >> 32);
+			msg[6] = (uint8_t)((len & 0xff000000) >> 24);
+			msg[7] = (uint8_t)((len & 0xff0000) >> 16);
+			msg[8] = (uint8_t)((len & 0xff00) >> 8);
 			msg[9] = len & 0xff;
 
-			impl->send_raw(string_view(msg, 10));
+			impl->send_raw(msg);
 		}
 
 		if (!impl->open)
 			return;
 
-		impl->send_raw(payload);
+		impl->send_raw(span((uint8_t*)payload.data(), payload.size()));
 	}
 
-	void server_client_pimpl::send_raw(string_view sv) {
+	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
 		if (!sendbuf.empty()) {
-			sendbuf.append(sv);
+			sendbuf.append(string_view((char*)sv.data(), sv.size()));
 #ifdef _WIN32
 			serv.impl->ev.set();
 #endif
@@ -226,12 +226,12 @@ namespace ws {
 		}
 
 		do {
-			int bytes = send(fd, sv.data(), (int)sv.length(), 0);
+			int bytes = send(fd, (char*)sv.data(), (int)sv.size(), 0);
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR) {
 				if (WSAGetLastError() == WSAEWOULDBLOCK) {
-					sendbuf.append(sv);
+					sendbuf.append(string_view((char*)sv.data(), sv.size()));
 					serv.impl->ev.set();
 					return;
 				}
@@ -244,7 +244,7 @@ namespace ws {
 #else
 			if (bytes == -1) {
 				if (errno == EWOULDBLOCK) {
-					sendbuf.append(sv);
+					sendbuf.append(string_view((char*)sv.data(), sv.size()));
 					return;
 				}
 
@@ -255,10 +255,10 @@ namespace ws {
 			}
 #endif
 
-			if ((size_t)bytes == sv.length())
+			if ((size_t)bytes == sv.size())
 				break;
 
-			sv = sv.substr(bytes);
+			sv = sv.subspan(bytes);
 		} while (true);
 	}
 
@@ -383,7 +383,8 @@ namespace ws {
 			}
 
 			if (auth.empty()) {
-				send_raw("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 				return;
 			}
 
@@ -452,9 +453,10 @@ namespace ws {
 				FreeContextBuffer(outbuf.pvBuffer);
 
 			if (sec_status == SEC_E_LOGON_DENIED) {
-				static const string msg = "Logon denied.";
+				static const string error_msg = "Logon denied.";
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(error_msg.length()) + "\r\n\r\n" + error_msg;
 
-				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(msg.length()) + "\r\n\r\n" + msg);
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 				return;
 			} else if (FAILED(sec_status))
 				throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
@@ -464,7 +466,8 @@ namespace ws {
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(sspi);
 
-				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n");
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n";
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
 			}
@@ -505,7 +508,8 @@ namespace ws {
 			if (major_status == GSS_S_CONTINUE_NEEDED) {
 				auto b64 = b64encode(outbuf);
 
-				send_raw("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n");
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n";
+				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
 			}
@@ -531,7 +535,8 @@ namespace ws {
 		}
 
 		if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
-			send_raw("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+			const auto& msg = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"s;
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
 			return;
 		}
 
@@ -544,13 +549,15 @@ namespace ws {
 			throw runtime_error("Invalid Sec-WebSocket-Version value.");
 
 		if (version > 13) {
-			send_raw("HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n");
+			const auto& msg = "HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n"s;
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
 			return;
 		}
 
 		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
+		const auto& msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n";
 
-		send_raw("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n");
+		send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 		if (!open)
 			return;
@@ -563,7 +570,8 @@ namespace ws {
 
 	void server_client_pimpl::internal_server_error(string_view s) {
 		try {
-			send_raw("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s));
+			const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
 		} catch (...) {
 		}
 	}
@@ -636,11 +644,13 @@ namespace ws {
 		if (qm != string::npos)
 			path = path.substr(0, qm);
 
-		if (path != "/")
-			send_raw("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-		else if (verb != "GET")
-			send_raw("HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n");
-		else {
+		if (path != "/") {
+			const auto& msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"s;
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
+		} else if (verb != "GET") {
+			const auto& msg = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n"s;
+			send_raw(span((uint8_t*)msg.data(), msg.size()));
+		} else {
 			try {
 				handle_handshake(headers);
 			} catch (const exception& e) {
@@ -864,7 +874,7 @@ namespace ws {
 							else if (netev.lNetworkEvents & FD_WRITE) {
 								string to_send = move(ct.impl->sendbuf);
 
-								ct.impl->send_raw(to_send);
+								ct.impl->send_raw(span((uint8_t*)to_send.data(), to_send.size()));
 							}
 
 							if (!ct.impl->open) {
@@ -893,7 +903,7 @@ namespace ws {
 									else if (pf.revents & POLLOUT) {
 										string to_send = move(ct.impl->sendbuf);
 
-										ct.impl->send_raw(to_send);
+										ct.impl->send_raw(span((uint8_t*)to_send.data(), to_send.size()));
 									}
 
 									if (pf.revents & (POLLHUP | POLLERR | POLLNVAL) || !ct.impl->open) {
