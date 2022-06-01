@@ -99,7 +99,7 @@ namespace ws {
 
 	class WSCPP server_client {
 	public:
-		server_client(socket_t sock, server& serv, const std::span<uint8_t, 16>& ipv6_addr, const server_msg_handler& msg_handler,
+		server_client(socket_t sock, server& serv, std::span<const uint8_t, 16> ipv6_addr, const server_msg_handler& msg_handler,
 					  const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
 		~server_client();
 		void send(std::string_view payload, enum opcode opcode = opcode::text) const;

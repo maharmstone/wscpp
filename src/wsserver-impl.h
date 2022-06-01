@@ -101,7 +101,7 @@ namespace ws {
 
 	class server_client_pimpl {
 	public:
-		server_client_pimpl(server_client& parent, socket_t sock, server& serv, const std::span<uint8_t, 16>& ip_addr,
+		server_client_pimpl(server_client& parent, socket_t sock, server& serv, std::span<const uint8_t, 16> ip_addr,
 							const server_msg_handler& msg_handler, const server_conn_handler& conn_handler,
 							const server_disconn_handler& disconn_handler) :
 			parent(parent),
