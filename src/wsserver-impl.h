@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <map>
 #include <memory>
+#include <atomic>
 #include "wsexcept.h"
 
 #ifdef _WIN32
@@ -94,6 +95,7 @@ namespace ws {
 		socket_t sock = INVALID_SOCKET;
 		std::list<server_client> clients;
 		std::recursive_mutex vector_mutex;
+		std::atomic<uint64_t> last_client_id = 0;
 #ifdef _WIN32
 		wsa_event ev;
 #endif
@@ -111,6 +113,7 @@ namespace ws {
 			fd(sock),
 			serv(serv) {
 			std::copy(ip_addr.begin(), ip_addr.end(), this->ip_addr.begin());
+			client_id = serv.impl->last_client_id.fetch_add(1) + 1;
 		}
 
 		~server_client_pimpl();
@@ -152,6 +155,7 @@ namespace ws {
 		std::array<uint8_t, 16> ip_addr;
 		std::string username, domain_name;
 		std::vector<uint8_t> sendbuf;
+		uint64_t client_id;
 
 		enum class state_enum {
 			http,
