@@ -574,8 +574,14 @@ namespace ws {
 
 		state = state_enum::websocket;
 
-		if (conn_handler)
-			conn_handler(parent);
+		if (conn_handler) {
+			try {
+				conn_handler(parent);
+			} catch (...) {
+				// disconnect client if handler throws exception
+				open = false;
+			}
+		}
 	}
 
 	void server_client_pimpl::internal_server_error(string_view s) {
