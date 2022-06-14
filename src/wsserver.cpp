@@ -987,6 +987,22 @@ namespace ws {
 		}
 	}
 
+	bool server::find_client(uint64_t client_id, const std::function<void(server_client&)>& func) const {
+		bool found = false;
+
+		unique_lock guard(impl->vector_mutex);
+
+		for (auto& ct : impl->clients) {
+			if (ct.impl->state == server_client_pimpl::state_enum::websocket && ct.impl->client_id == client_id) {
+				func(ct);
+				found = true;
+				break;
+			}
+		}
+
+		return found;
+	}
+
 	void server::close() {
 		if (impl->sock != INVALID_SOCKET) {
 #ifdef _WIN32
