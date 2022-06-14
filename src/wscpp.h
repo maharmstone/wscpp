@@ -136,6 +136,7 @@ namespace ws {
 		void start();
 		void for_each(std::function<bool(server_client&)> func);
 		bool find_client(uint64_t client_id, const std::function<void(server_client&)>& func) const;
+		bool send_to_client(uint64_t client_id, std::string_view payload, enum opcode opcode = opcode::text) const;
 		void close();
 
 		friend server_client;

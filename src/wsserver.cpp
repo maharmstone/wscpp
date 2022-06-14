@@ -1003,6 +1003,22 @@ namespace ws {
 		return found;
 	}
 
+	bool server::send_to_client(uint64_t client_id, std::string_view payload, enum opcode opcode) const {
+		bool found = false;
+
+		unique_lock guard(impl->vector_mutex);
+
+		for (const auto& ct : impl->clients) {
+			if (ct.impl->state == server_client_pimpl::state_enum::websocket && ct.impl->client_id == client_id) {
+				ct.send(payload, opcode);
+				found = true;
+				break;
+			}
+		}
+
+		return found;
+	}
+
 	void server::close() {
 		if (impl->sock != INVALID_SOCKET) {
 #ifdef _WIN32
