@@ -71,6 +71,9 @@ export(TARGETS wscpp FILE ${PROJECT_BINARY_DIR}/wscpp-targets.cmake)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libwscpp.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 
 if(BUILD_SAMPLE)
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(READLINE REQUIRED readline)
+
 	add_executable(wsserver-test src/wsserver-test.cpp)
 	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
@@ -79,7 +82,9 @@ if(BUILD_SAMPLE)
 
 	add_executable(wsclient-test src/wsclient-test.cpp)
 	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+	target_include_directories(wsclient-test PUBLIC ${READLINE_INCLUDE_DIRS})
 	target_link_libraries(wsclient-test wscpp)
+	target_link_libraries(wsclient-test ${READLINE_LINK_LIBRARIES})
 	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 

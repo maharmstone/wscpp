@@ -2,6 +2,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <readline/readline.h>
 
 #if __has_include(<syncstream>)
 #include <syncstream>
@@ -38,7 +39,16 @@ static void main2(const string& hostname, uint16_t port) {
 	printf("Connected.\n");
 
 	while (true) {
-		this_thread::sleep_for(chrono::seconds(1));
+		auto msg = readline("> ");
+
+		if (!msg)
+			break;
+
+		string s = msg;
+
+		free(msg);
+
+		client.send(s);
 	}
 }
 
