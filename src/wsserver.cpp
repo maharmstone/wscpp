@@ -166,6 +166,9 @@ namespace ws {
 			} else
 				parse_ws_message(opcode, sv.substr(0, len));
 
+			if (!open)
+				return;
+
 			sv = sv.substr(len);
 			recvbuf = recvbuf.substr(sv.data() - recvbuf.data());
 		}
@@ -695,8 +698,15 @@ namespace ws {
 				break;
 
 			case opcode::text: {
-				if (msg_handler)
-					msg_handler(parent, payload);
+				if (msg_handler) {
+					try {
+						msg_handler(parent, payload);
+					} catch (...) {
+						// disconnect client if handler throws exception
+						open = false;
+						return;
+					}
+				}
 
 				break;
 			}
