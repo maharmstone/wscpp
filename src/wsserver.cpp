@@ -1083,4 +1083,8 @@ namespace ws {
 	string server_client::ip_addr_string() const {
 		return impl->ip_addr_string();
 	}
+
+	uint64_t server_client::client_id() const {
+		return impl->client_id;
+	}
 }

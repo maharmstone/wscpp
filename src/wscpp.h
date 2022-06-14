@@ -107,6 +107,7 @@ namespace ws {
 		std::string_view domain_name() const;
 		std::span<uint8_t, 16> ip_addr() const;
 		std::string ip_addr_string() const;
+		uint64_t client_id() const;
 #ifdef _WIN32
 		void impersonate() const;
 		void revert() const;

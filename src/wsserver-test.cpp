@@ -19,9 +19,9 @@ static void msg_handler(ws::server_client& c, string_view sv) {
 	const auto& domain_name = c.domain_name();
 
 	if (!username.empty())
-		syncout << "Message from client " << &c << " (" << domain_name << "\\" << username << "): " << sv << endl;
+		syncout << "Message from client " << c.client_id() << " (" << domain_name << "\\" << username << "): " << sv << endl;
 	else
-		syncout << "Message from client " << &c << ": " << sv << endl;
+		syncout << "Message from client " << c.client_id() << ": " << sv << endl;
 
 	try {
 		c.send("Cool story bro");
@@ -35,9 +35,9 @@ static void conn_handler(ws::server& serv, ws::server_client& c) {
 	const auto& domain_name = c.domain_name();
 
 	if (!username.empty())
-		syncout << "Client " << &c << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
+		syncout << "Client " << c.client_id() << " (" << domain_name << "\\" << username << ") connected (" << c.ip_addr_string() << ")." << endl;
 	else
-		syncout << "Client " << &c << " connected (" << c.ip_addr_string() << ")." << endl;
+		syncout << "Client " << c.client_id() << " connected (" << c.ip_addr_string() << ")." << endl;
 
 	serv.for_each([&](ws::server_client& ct) {
 		ct.send("new client");
@@ -57,9 +57,9 @@ static void disconn_handler(ws::server_client& c, const exception_ptr& except) {
 	const auto& domain_name = c.domain_name();
 
 	if (!username.empty())
-		syncout << "Client " << &c << " (" << domain_name << "\\" << username << ") disconnected." << endl;
+		syncout << "Client " << c.client_id() << " (" << domain_name << "\\" << username << ") disconnected." << endl;
 	else
-		syncout << "Client " << &c << " disconnected." << endl;
+		syncout << "Client " << c.client_id() << " disconnected." << endl;
 
 	if (except) {
 		try {
