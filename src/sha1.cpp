@@ -158,7 +158,7 @@ static void SHA1Update(SHA1_CTX* context, uint8_t* data, uint32_t len)
 
 /* Add padding and return the message digest. */
 
-static void SHA1Final(array<uint8_t, 20> digest, SHA1_CTX* context)
+static void SHA1Final(array<uint8_t, 20>& digest, SHA1_CTX* context)
 {
 	unsigned i;
 	unsigned char finalcount[8];
