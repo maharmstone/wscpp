@@ -306,7 +306,7 @@ namespace ws {
 			s = s.subspan(to_copy);
 		}
 
-		auto ret = ::recv(client.sock, s.data(), s.size(), 0);
+		auto ret = ::recv(client.sock, (char*)s.data(), s.size(), 0);
 
 #ifdef _WIN32
 		if (ret == SOCKET_ERROR) {
