@@ -827,8 +827,17 @@ namespace ws {
 
 					// FIXME - what if send buffer fills up between lock release and poll?
 
-					if (poll(&pollfds[0], pollfds.size(), -1) < 0)
+					while (true) {
+						auto ret = poll(&pollfds[0], pollfds.size(), -1);
+
+						if (ret >= 0)
+							break;
+
+						if (errno == EINTR)
+							continue;
+
 						throw sockets_error("poll");
+					}
 #endif
 
 #ifdef _WIN32
