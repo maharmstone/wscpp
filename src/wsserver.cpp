@@ -564,6 +564,46 @@ namespace ws {
 			return;
 		}
 
+		// FIXME - specs say we can have multiple Sec-WebSocket-Extensions headers
+
+		vector<string_view> exts;
+
+		if (headers.count("Sec-WebSocket-Extensions") != 0) {
+			const auto& ext = headers.at("Sec-WebSocket-Extensions");
+			string_view sv = ext;
+
+			do {
+				auto comma = sv.find(",");
+
+				if (comma == string::npos)
+					break;
+
+				auto sv2 = sv.substr(0, comma);
+
+				while (!sv2.empty() && sv2.back() == ' ') {
+					sv2.remove_suffix(1);
+				}
+
+				exts.emplace_back(sv2);
+
+				sv = sv.substr(comma + 1);
+
+				while (!sv.empty() && sv.front() == ' ') {
+					sv.remove_prefix(1);
+				}
+
+				if (sv.empty())
+					break;
+			} while (true);
+
+			while (!sv.empty() && sv.front() == ' ') {
+				sv.remove_prefix(1);
+			}
+
+			if (!sv.empty())
+				exts.emplace_back(sv);
+		}
+
 		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
 		const auto& msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n";
 
