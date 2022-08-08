@@ -96,10 +96,8 @@ namespace ws {
 			if (recvbuf.length() < 2)
 				return;
 
-			bool fin = (recvbuf[0] & 0x80) != 0;
-			auto opcode = (enum opcode)(uint8_t)(recvbuf[0] & 0xf);
-			bool mask = (recvbuf[1] & 0x80) != 0;
-			uint64_t len = recvbuf[1] & 0x7f;
+			auto& h = *(header*)recvbuf.data();
+			uint64_t len = h.len;
 
 			auto sv = string_view(recvbuf).substr(2);
 
@@ -134,7 +132,7 @@ namespace ws {
 
 			string_view mask_key;
 
-			if (mask) {
+			if (h.mask) {
 				if (sv.length() < 4)
 					return;
 
@@ -145,7 +143,7 @@ namespace ws {
 			if (sv.length() < len)
 				return;
 
-			if (mask && len != 0) {
+			if (h.mask && len != 0) {
 				span<char> payload((char*)&sv[0], len);
 
 				for (unsigned int i = 0; i < payload.size(); i++) {
@@ -153,9 +151,9 @@ namespace ws {
 				}
 			}
 
-			if (!fin) {
-				if (opcode != opcode::invalid)
-					last_opcode = opcode;
+			if (!h.fin) {
+				if (h.opcode != opcode::invalid)
+					last_opcode = h.opcode;
 
 				payloadbuf += sv.substr(0, len);
 			} else if (!payloadbuf.empty()) {
@@ -164,7 +162,7 @@ namespace ws {
 				parse_ws_message(last_opcode, payloadbuf);
 				payloadbuf.clear();
 			} else
-				parse_ws_message(opcode, sv.substr(0, len));
+				parse_ws_message(h.opcode, sv.substr(0, len));
 
 			if (!open)
 				return;
