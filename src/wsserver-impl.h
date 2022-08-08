@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <atomic>
+#include <optional>
 #include "wsexcept.h"
 
 #ifdef _WIN32
@@ -124,7 +125,7 @@ namespace ws {
 		std::string recv();
 		void process_http_message(std::string_view mess);
 		void process_http_messages();
-		void parse_ws_message(enum opcode opcode, std::string_view payload);
+		void parse_ws_message(enum opcode opcode, bool rsv1, std::string_view payload);
 		void read();
 		std::string ip_addr_string() const;
 #ifdef _WIN32
@@ -156,6 +157,8 @@ namespace ws {
 		std::string username, domain_name;
 		std::vector<uint8_t> sendbuf;
 		uint64_t client_id;
+		bool deflate = false;
+		std::optional<bool> last_rsv1;
 
 		enum class state_enum {
 			http,

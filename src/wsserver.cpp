@@ -155,14 +155,20 @@ namespace ws {
 				if (h.opcode != opcode::invalid)
 					last_opcode = h.opcode;
 
+				if (!last_rsv1.has_value())
+					last_rsv1 = (bool)h.rsv1;
+
 				payloadbuf += sv.substr(0, len);
 			} else if (!payloadbuf.empty()) {
 				payloadbuf += sv.substr(0, len);
 
-				parse_ws_message(last_opcode, payloadbuf);
+				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
 				payloadbuf.clear();
-			} else
-				parse_ws_message(h.opcode, sv.substr(0, len));
+				last_rsv1.reset();
+			} else {
+				parse_ws_message(h.opcode, h.rsv1, sv.substr(0, len));
+				last_rsv1.reset();
+			}
 
 			if (!open)
 				return;
@@ -602,8 +608,20 @@ namespace ws {
 				exts.emplace_back(sv);
 		}
 
+		// FIXME - permessage-deflate parameters
+
+		for (const auto& ext : exts) {
+			if (ext == "permessage-deflate")
+				deflate = true;
+		}
+
 		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
-		const auto& msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n\r\n";
+		auto msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n";
+
+		if (deflate)
+			msg += "Sec-WebSocket-Extensions: permessage-deflate\r\n";
+
+		msg += "\r\n";
 
 		send_raw(span((uint8_t*)msg.data(), msg.size()));
 
@@ -731,7 +749,14 @@ namespace ws {
 		} while (true);
 	}
 
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, string_view payload) {
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload) {
+		if (rsv1) {
+			if (!deflate)
+				throw runtime_error("RSV1 set unexpectedly.");
+
+			throw runtime_error("FIXME - decompress message");
+		}
+
 		switch (opcode) {
 			case opcode::close:
 				open = false;
