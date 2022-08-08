@@ -80,25 +80,29 @@ namespace ws {
 	struct header {
 		header() = default;
 
-		constexpr header(bool fin, enum opcode opcode, bool mask, uint8_t len) :
-			opcode(opcode), fin(fin), len(len), mask(mask) { }
+		constexpr header(bool fin, bool rsv1, bool rsv2, bool rsv3, enum opcode opcode, bool mask, uint8_t len) :
+			opcode(opcode), rsv3(rsv3), rsv2(rsv2), rsv1(rsv1), fin(fin), len(len), mask(mask) { }
 
-		enum opcode opcode : 7;
+		enum opcode opcode : 4;
+		bool rsv3 : 1;
+		bool rsv2 : 1;
+		bool rsv1 : 1;
 		bool fin : 1;
 		uint8_t len : 7;
 		bool mask : 1;
 	};
 
 	static_assert(sizeof(header) == 2);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, false, 0)) == 0x0000);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, false, 0)) == 0x0001);
-	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, false, 0)) == 0x0081);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, false, 0x7f)) == 0x7f00);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, false, 0x7f)) == 0x7f01);
-	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, false, 0x7f)) == 0x7f81);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::invalid, true, 0x7f)) == 0xff00);
-	static_assert(std::bit_cast<uint16_t, header>(header(false, opcode::text, true, 0x7f)) == 0xff01);
-	static_assert(std::bit_cast<uint16_t, header>(header(true, opcode::text, true, 0x7f)) == 0xff81);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::invalid, false, 0)) == 0x0000);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::text, false, 0)) == 0x0001);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, false, false, false, opcode::text, false, 0)) == 0x0081);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::invalid, false, 0x7f)) == 0x7f00);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::text, false, 0x7f)) == 0x7f01);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, false, false, false, opcode::text, false, 0x7f)) == 0x7f81);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::invalid, true, 0x7f)) == 0xff00);
+	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::text, true, 0x7f)) == 0xff01);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, false, false, false, opcode::text, true, 0x7f)) == 0xff81);
+	static_assert(std::bit_cast<uint16_t, header>(header(true, true, false, false, opcode::text, false, 0x7)) == 0x7c1);
 
 	class client_pimpl;
 
