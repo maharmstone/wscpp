@@ -37,7 +37,6 @@
 #include "wscpp.h"
 #include <fcntl.h>
 #include <string.h>
-#include <zlib.h>
 #include "wsserver-impl.h"
 #include "wsclient-impl.h"
 #include "b64.h"
@@ -73,6 +72,9 @@ namespace ws {
 		if (ctx_handle_set)
 			DeleteSecurityContext(&ctx_handle);
 #endif
+
+		if (zstrm)
+			inflateEnd(&zstrm.value());
 	}
 
 	server_client::~server_client() {
@@ -751,21 +753,28 @@ namespace ws {
 	}
 
 	string server_client_pimpl::inflate_payload(span<const uint8_t> comp) {
-		z_stream strm;
 		int err;
 		string ret;
 
 		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
 
-		strm.zalloc = Z_NULL;
-		strm.zfree = Z_NULL;
-		strm.opaque = Z_NULL;
-		strm.avail_in = 0;
-		strm.next_in = Z_NULL;
+		if (!zstrm) {
+			zstrm.emplace();
 
-		err = inflateInit2(&strm, -MAX_WBITS);
-		if (err != Z_OK)
-			throw formatted_error("inflateInit2 returned {}", err);
+			auto& strm = zstrm.value();
+
+			strm.zalloc = Z_NULL;
+			strm.zfree = Z_NULL;
+			strm.opaque = Z_NULL;
+			strm.avail_in = 0;
+			strm.next_in = Z_NULL;
+
+			err = inflateInit2(&strm, -MAX_WBITS);
+			if (err != Z_OK)
+				throw formatted_error("inflateInit2 returned {}", err);
+		}
+
+		auto& strm = zstrm.value();
 
 		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
 			uint8_t buf[4096];
@@ -784,10 +793,8 @@ namespace ws {
 					strm.next_out = buf;
 					err = inflate(&strm, Z_NO_FLUSH);
 
-					if (err != Z_OK && err != Z_STREAM_END) {
-						inflateEnd(&strm);
+					if (err != Z_OK && err != Z_STREAM_END)
 						throw formatted_error("inflate returned {}", err);
-					}
 
 					ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
 				} while (strm.avail_out == 0);
@@ -798,8 +805,6 @@ namespace ws {
 
 		do_deflate(strm, ret, comp);
 		do_deflate(strm, ret, last_bit);
-
-		inflateEnd(&strm);
 
 		return ret;
 	}

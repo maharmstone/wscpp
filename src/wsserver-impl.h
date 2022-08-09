@@ -6,6 +6,7 @@
 #endif
 #include "wscpp.h"
 #include <stdint.h>
+#include <zlib.h>
 #include <map>
 #include <memory>
 #include <atomic>
@@ -160,6 +161,7 @@ namespace ws {
 		uint64_t client_id;
 		bool deflate = false;
 		std::optional<bool> last_rsv1;
+		std::optional<z_stream> zstrm;
 
 		enum class state_enum {
 			http,
