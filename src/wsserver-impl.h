@@ -134,6 +134,7 @@ namespace ws {
 		void revert() const;
 		HANDLE impersonation_token() const;
 #endif
+		std::string inflate_payload(std::span<const uint8_t> comp);
 
 		server_client& parent;
 		bool open = true;

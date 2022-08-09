@@ -56,60 +56,6 @@ static string lower(string s) {
 	return s;
 }
 
-static string inflate_payload(span<const uint8_t> comp) {
-	z_stream strm;
-	int err;
-	string ret;
-
-	static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
-
-	strm.zalloc = Z_NULL;
-	strm.zfree = Z_NULL;
-	strm.opaque = Z_NULL;
-	strm.avail_in = 0;
-	strm.next_in = Z_NULL;
-
-	err = inflateInit2(&strm, -MAX_WBITS);
-	if (err != Z_OK)
-		throw formatted_error("inflateInit2 returned {}", err);
-
-	auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
-		uint8_t buf[4096];
-		int err;
-
-		do {
-			strm.avail_in = comp.size();
-
-			if (strm.avail_in == 0)
-				break;
-
-			strm.next_in = (uint8_t*)comp.data();
-
-			do {
-				strm.avail_out = sizeof(buf);
-				strm.next_out = buf;
-				err = inflate(&strm, Z_NO_FLUSH);
-
-				if (err != Z_OK && err != Z_STREAM_END) {
-					inflateEnd(&strm);
-					throw formatted_error("inflate returned {}", err);
-				}
-
-				ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
-			} while (strm.avail_out == 0);
-
-			comp = comp.subspan(comp.size() - strm.avail_in);
-		} while (err != Z_STREAM_END);
-	};
-
-	do_deflate(strm, ret, comp);
-	do_deflate(strm, ret, last_bit);
-
-	inflateEnd(&strm);
-
-	return ret;
-}
-
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -802,6 +748,60 @@ namespace ws {
 			if (state != state_enum::http)
 				break;
 		} while (true);
+	}
+
+	string server_client_pimpl::inflate_payload(span<const uint8_t> comp) {
+		z_stream strm;
+		int err;
+		string ret;
+
+		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
+
+		strm.zalloc = Z_NULL;
+		strm.zfree = Z_NULL;
+		strm.opaque = Z_NULL;
+		strm.avail_in = 0;
+		strm.next_in = Z_NULL;
+
+		err = inflateInit2(&strm, -MAX_WBITS);
+		if (err != Z_OK)
+			throw formatted_error("inflateInit2 returned {}", err);
+
+		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
+			uint8_t buf[4096];
+			int err;
+
+			do {
+				strm.avail_in = comp.size();
+
+				if (strm.avail_in == 0)
+					break;
+
+				strm.next_in = (uint8_t*)comp.data();
+
+				do {
+					strm.avail_out = sizeof(buf);
+					strm.next_out = buf;
+					err = inflate(&strm, Z_NO_FLUSH);
+
+					if (err != Z_OK && err != Z_STREAM_END) {
+						inflateEnd(&strm);
+						throw formatted_error("inflate returned {}", err);
+					}
+
+					ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+				} while (strm.avail_out == 0);
+
+				comp = comp.subspan(comp.size() - strm.avail_in);
+			} while (err != Z_STREAM_END);
+		};
+
+		do_deflate(strm, ret, comp);
+		do_deflate(strm, ret, last_bit);
+
+		inflateEnd(&strm);
+
+		return ret;
 	}
 
 	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload) {
