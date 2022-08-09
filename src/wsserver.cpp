@@ -59,8 +59,9 @@ static string lower(string s) {
 static string inflate_payload(span<const uint8_t> comp) {
 	z_stream strm;
 	int err;
-	uint8_t buf[4096];
 	string ret;
+
+	static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
 
 	strm.zalloc = Z_NULL;
 	strm.zfree = Z_NULL;
@@ -72,29 +73,37 @@ static string inflate_payload(span<const uint8_t> comp) {
 	if (err != Z_OK)
 		throw formatted_error("inflateInit2 returned {}", err);
 
-	do {
-		strm.avail_in = comp.size();
-
-		if (strm.avail_in == 0)
-			break;
-
-		strm.next_in = (uint8_t*)comp.data();
+	auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
+		uint8_t buf[4096];
+		int err;
 
 		do {
-			strm.avail_out = sizeof(buf);
-			strm.next_out = buf;
-			err = inflate(&strm, Z_NO_FLUSH);
+			strm.avail_in = comp.size();
 
-			if (err != Z_OK && err != Z_STREAM_END) {
-				inflateEnd(&strm);
-				throw formatted_error("inflate returned {}", err);
-			}
+			if (strm.avail_in == 0)
+				break;
 
-			ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
-		} while (strm.avail_out == 0);
+			strm.next_in = (uint8_t*)comp.data();
 
-		comp = comp.subspan(comp.size() - strm.avail_in);
-	} while (err != Z_STREAM_END);
+			do {
+				strm.avail_out = sizeof(buf);
+				strm.next_out = buf;
+				err = inflate(&strm, Z_NO_FLUSH);
+
+				if (err != Z_OK && err != Z_STREAM_END) {
+					inflateEnd(&strm);
+					throw formatted_error("inflate returned {}", err);
+				}
+
+				ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+			} while (strm.avail_out == 0);
+
+			comp = comp.subspan(comp.size() - strm.avail_in);
+		} while (err != Z_STREAM_END);
+	};
+
+	do_deflate(strm, ret, comp);
+	do_deflate(strm, ret, last_bit);
 
 	inflateEnd(&strm);
 
