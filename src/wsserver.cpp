@@ -37,6 +37,7 @@
 #include "wscpp.h"
 #include <fcntl.h>
 #include <string.h>
+#include <zlib.h>
 #include "wsserver-impl.h"
 #include "wsclient-impl.h"
 #include "b64.h"
@@ -53,6 +54,51 @@ static string lower(string s) {
 	}
 
 	return s;
+}
+
+static string inflate_payload(span<const uint8_t> comp) {
+	z_stream strm;
+	int err;
+	uint8_t buf[4096];
+	string ret;
+
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+	strm.avail_in = 0;
+	strm.next_in = Z_NULL;
+
+	err = inflateInit2(&strm, -MAX_WBITS);
+	if (err != Z_OK)
+		throw formatted_error("inflateInit2 returned {}", err);
+
+	do {
+		strm.avail_in = comp.size();
+
+		if (strm.avail_in == 0)
+			break;
+
+		strm.next_in = (uint8_t*)comp.data();
+
+		do {
+			strm.avail_out = sizeof(buf);
+			strm.next_out = buf;
+			err = inflate(&strm, Z_NO_FLUSH);
+
+			if (err != Z_OK && err != Z_STREAM_END) {
+				inflateEnd(&strm);
+				throw formatted_error("inflate returned {}", err);
+			}
+
+			ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+		} while (strm.avail_out == 0);
+
+		comp = comp.subspan(comp.size() - strm.avail_in);
+	} while (err != Z_STREAM_END);
+
+	inflateEnd(&strm);
+
+	return ret;
 }
 
 namespace ws {
@@ -750,11 +796,13 @@ namespace ws {
 	}
 
 	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload) {
+		string decomp;
+
 		if (rsv1) {
 			if (!deflate)
 				throw runtime_error("RSV1 set unexpectedly.");
 
-			throw runtime_error("FIXME - decompress message");
+			decomp = inflate_payload(span((uint8_t*)payload.data(), payload.size()));
 		}
 
 		switch (opcode) {
@@ -763,13 +811,19 @@ namespace ws {
 				return;
 
 			case opcode::ping:
-				parent.send(payload, opcode::pong);
+				if (rsv1)
+					parent.send(decomp, opcode::pong);
+				else
+					parent.send(payload, opcode::pong);
 				break;
 
 			case opcode::text: {
 				if (msg_handler) {
 					try {
-						msg_handler(parent, payload);
+						if (rsv1)
+							msg_handler(parent, decomp);
+						else
+							msg_handler(parent, payload);
 					} catch (...) {
 						// disconnect client if handler throws exception
 						open = false;

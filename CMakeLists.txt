@@ -9,6 +9,7 @@ option(BUILD_SAMPLE "Build sample programs" ON)
 option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
 
 find_package(fmt REQUIRED)
+find_package(ZLIB REQUIRED) # FIXME - make optional?
 
 if(WITH_OPENSSL)
 	find_package(OpenSSL REQUIRED)
@@ -40,6 +41,7 @@ else()
 endif()
 
 target_link_libraries(wscpp fmt::fmt-header-only)
+target_link_libraries(wscpp ZLIB::ZLIB)
 
 if(WITH_OPENSSL)
 	target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
