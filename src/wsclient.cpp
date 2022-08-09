@@ -430,9 +430,11 @@ namespace ws {
 			auto b64 = b64encode(outbuf);
 			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
 
+#ifdef WITH_OPENSSL
 			if (ssl)
 				ssl->send(span((uint8_t*)msg.data(), msg.size()));
 			else
+#endif
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 			return;
