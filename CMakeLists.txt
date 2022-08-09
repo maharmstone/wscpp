@@ -7,9 +7,13 @@ project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
 option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
+option(WITH_ZLIB "Use zlib for compression" ON)
 
 find_package(fmt REQUIRED)
-find_package(ZLIB REQUIRED) # FIXME - make optional?
+
+if(WITH_ZLIB)
+	find_package(ZLIB REQUIRED)
+endif()
 
 if(WITH_OPENSSL)
 	find_package(OpenSSL REQUIRED)
@@ -41,7 +45,10 @@ else()
 endif()
 
 target_link_libraries(wscpp fmt::fmt-header-only)
-target_link_libraries(wscpp ZLIB::ZLIB)
+
+if(WITH_ZLIB)
+	target_link_libraries(wscpp ZLIB::ZLIB)
+endif()
 
 if(WITH_OPENSSL)
 	target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)

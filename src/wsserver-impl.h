@@ -5,13 +5,17 @@
 #include <ws2ipdef.h>
 #endif
 #include "wscpp.h"
+#include "config.h"
 #include <stdint.h>
-#include <zlib.h>
 #include <map>
 #include <memory>
 #include <atomic>
 #include <optional>
 #include "wsexcept.h"
+
+#ifdef WITH_ZLIB
+#include <zlib.h>
+#endif
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -126,7 +130,11 @@ namespace ws {
 		std::string recv();
 		void process_http_message(std::string_view mess);
 		void process_http_messages();
+#ifdef WITH_ZLIB
 		void parse_ws_message(enum opcode opcode, bool rsv1, std::string_view payload);
+#else
+		void parse_ws_message(enum opcode opcode, std::string_view payload);
+#endif
 		void read();
 		std::string ip_addr_string() const;
 #ifdef _WIN32
@@ -135,7 +143,9 @@ namespace ws {
 		void revert() const;
 		HANDLE impersonation_token() const;
 #endif
+#ifdef WITH_ZLIB
 		std::string inflate_payload(std::span<const uint8_t> comp);
+#endif
 
 		server_client& parent;
 		bool open = true;
@@ -159,9 +169,11 @@ namespace ws {
 		std::string username, domain_name;
 		std::vector<uint8_t> sendbuf;
 		uint64_t client_id;
+#ifdef WITH_ZLIB
 		bool deflate = false;
 		std::optional<bool> last_rsv1;
 		std::optional<z_stream> zstrm;
+#endif
 
 		enum class state_enum {
 			http,

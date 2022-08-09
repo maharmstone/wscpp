@@ -73,8 +73,10 @@ namespace ws {
 			DeleteSecurityContext(&ctx_handle);
 #endif
 
+#ifdef WITH_ZLIB
 		if (zstrm)
 			inflateEnd(&zstrm.value());
+#endif
 	}
 
 	server_client::~server_client() {
@@ -158,19 +160,29 @@ namespace ws {
 				if (h.opcode != opcode::invalid)
 					last_opcode = h.opcode;
 
+#ifdef WITH_ZLIB
 				if (!last_rsv1.has_value())
 					last_rsv1 = (bool)h.rsv1;
+#endif
 
 				payloadbuf += sv.substr(0, len);
 			} else if (!payloadbuf.empty()) {
 				payloadbuf += sv.substr(0, len);
 
+#ifdef WITH_ZLIB
 				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
-				payloadbuf.clear();
 				last_rsv1.reset();
+#else
+				parse_ws_message(last_opcode, payloadbuf);
+#endif
+				payloadbuf.clear();
 			} else {
+#ifdef WITH_ZLIB
 				parse_ws_message(h.opcode, h.rsv1, sv.substr(0, len));
 				last_rsv1.reset();
+#else
+				parse_ws_message(h.opcode, sv.substr(0, len));
+#endif
 			}
 
 			if (!open)
@@ -571,6 +583,7 @@ namespace ws {
 			return;
 		}
 
+#ifdef WITH_ZLIB
 		// FIXME - specs say we can have multiple Sec-WebSocket-Extensions headers
 
 		vector<string_view> exts;
@@ -617,12 +630,15 @@ namespace ws {
 			if (ext == "permessage-deflate")
 				deflate = true;
 		}
+#endif
 
 		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
 		auto msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n";
 
+#ifdef WITH_ZLIB
 		if (deflate)
 			msg += "Sec-WebSocket-Extensions: permessage-deflate\r\n";
+#endif
 
 		msg += "\r\n";
 
@@ -752,6 +768,7 @@ namespace ws {
 		} while (true);
 	}
 
+#ifdef WITH_ZLIB
 	string server_client_pimpl::inflate_payload(span<const uint8_t> comp) {
 		int err;
 		string ret;
@@ -808,8 +825,15 @@ namespace ws {
 
 		return ret;
 	}
+#endif
 
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload) {
+#ifdef WITH_ZLIB
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload)
+#else
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, string_view payload)
+#endif
+	{
+#ifdef WITH_ZLIB
 		string decomp;
 
 		if (rsv1) {
@@ -818,6 +842,7 @@ namespace ws {
 
 			decomp = inflate_payload(span((uint8_t*)payload.data(), payload.size()));
 		}
+#endif
 
 		switch (opcode) {
 			case opcode::close:
@@ -825,18 +850,22 @@ namespace ws {
 				return;
 
 			case opcode::ping:
+#ifdef WITH_ZLIB
 				if (rsv1)
 					parent.send(decomp, opcode::pong);
 				else
+#endif
 					parent.send(payload, opcode::pong);
 				break;
 
 			case opcode::text: {
 				if (msg_handler) {
 					try {
+#ifdef WITH_ZLIB
 						if (rsv1)
 							msg_handler(parent, decomp);
 						else
+#endif
 							msg_handler(parent, payload);
 					} catch (...) {
 						// disconnect client if handler throws exception
