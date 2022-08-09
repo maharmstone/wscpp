@@ -74,8 +74,11 @@ namespace ws {
 #endif
 
 #ifdef WITH_ZLIB
-		if (zstrm)
-			inflateEnd(&zstrm.value());
+		if (zstrm_in)
+			inflateEnd(&zstrm_in.value());
+
+		if (zstrm_out)
+			deflateEnd(&zstrm_out.value());
 #endif
 	}
 
@@ -193,14 +196,14 @@ namespace ws {
 		}
 	}
 
-	void server_client_pimpl::send(span<const uint8_t> payload, enum opcode opcode) {
+	void server_client_pimpl::send(span<const uint8_t> payload, bool rsv1, enum opcode opcode) {
 		size_t len = payload.size();
 
 		if (!open)
 			return;
 
 		if (len <= 125) {
-			header h(true, false, false, false, opcode, false, len);
+			header h(true, rsv1, false, false, opcode, false, len);
 
 			send_raw(span((const uint8_t*)&h, sizeof(h)));
 		} else if (len < 0x10000) {
@@ -211,7 +214,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 4);
 
-			msg.h = header(true, false, false, false, opcode, false, 126);
+			msg.h = header(true, rsv1, false, false, opcode, false, 126);
 			msg.len[0] = (len & 0xff00) >> 8;
 			msg.len[1] = len & 0xff;
 
@@ -224,7 +227,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 10);
 
-			msg.h = header(true, false, false, false, opcode, false, 127);
+			msg.h = header(true, rsv1, false, false, opcode, false, 127);
 			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
 			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
 			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
@@ -244,7 +247,56 @@ namespace ws {
 	}
 
 	void server_client::send(string_view payload, enum opcode opcode) const {
-		impl->send(span((uint8_t*)payload.data(), payload.size()), opcode);
+#ifdef WITH_ZLIB
+		if (impl->deflate) {
+			int err;
+			uint8_t buf[4096];
+			string comp;
+
+			if (!impl->zstrm_out) {
+				impl->zstrm_out.emplace();
+
+				auto& strm = impl->zstrm_out.value();
+
+				strm.zalloc = Z_NULL;
+				strm.zfree = Z_NULL;
+				strm.opaque = Z_NULL;
+
+				err = deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -MAX_WBITS, MAX_MEM_LEVEL,
+								   Z_DEFAULT_STRATEGY);
+				if (err != Z_OK)
+					throw formatted_error("deflateInit2 returned {}", err);
+			}
+
+			auto& strm = impl->zstrm_out.value();
+
+			strm.avail_in = payload.size();
+			strm.next_in = (uint8_t*)payload.data();
+
+			do {
+				strm.avail_out = sizeof(buf);
+				strm.next_out = buf;
+
+				err = deflate(&strm, Z_NO_FLUSH);
+				if (err != Z_OK && err != Z_STREAM_END)
+					throw formatted_error("deflate returned {}", err);
+
+				comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+			} while (strm.avail_out == 0);
+
+			err = deflate(&strm, Z_SYNC_FLUSH);
+			if (err != Z_OK && err != Z_STREAM_END)
+				throw formatted_error("deflate returned {}", err);
+
+			comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+
+			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
+				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
+
+			impl->send(span((uint8_t*)comp.data(), comp.size() - 4), true, opcode);
+		} else
+#endif
+			impl->send(span((uint8_t*)payload.data(), payload.size()), false, opcode);
 	}
 
 	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
@@ -784,10 +836,10 @@ namespace ws {
 
 		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
 
-		if (!zstrm) {
-			zstrm.emplace();
+		if (!zstrm_in) {
+			zstrm_in.emplace();
 
-			auto& strm = zstrm.value();
+			auto& strm = zstrm_in.value();
 
 			strm.zalloc = Z_NULL;
 			strm.zfree = Z_NULL;
@@ -800,7 +852,7 @@ namespace ws {
 				throw formatted_error("inflateInit2 returned {}", err);
 		}
 
-		auto& strm = zstrm.value();
+		auto& strm = zstrm_in.value();
 
 		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
 			uint8_t buf[4096];

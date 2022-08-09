@@ -146,7 +146,7 @@ namespace ws {
 #ifdef WITH_ZLIB
 		std::string inflate_payload(std::span<const uint8_t> comp);
 #endif
-		void send(std::span<const uint8_t> payload, enum opcode opcode);
+		void send(std::span<const uint8_t> payload, bool rsv1, enum opcode opcode);
 
 		server_client& parent;
 		bool open = true;
@@ -173,7 +173,7 @@ namespace ws {
 #ifdef WITH_ZLIB
 		bool deflate = false;
 		std::optional<bool> last_rsv1;
-		std::optional<z_stream> zstrm;
+		std::optional<z_stream> zstrm_in, zstrm_out;
 #endif
 
 		enum class state_enum {
