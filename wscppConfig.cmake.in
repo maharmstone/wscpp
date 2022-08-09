@@ -2,4 +2,15 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/wscpp-targets.cmake")
 
-find_package(OpenSSL REQUIRED)
+set(WSCPP_WITH_OPENSSL "@WITH_OPENSSL@")
+set(WSCPP_WITH_ZLIB "@WITH_ZLIB@")
+
+if(WSCPP_WITH_OPENSSL)
+	find_package(OpenSSL REQUIRED)
+endif()
+
+if(WSCPP_WITH_ZLIB)
+	find_package(ZLIB REQUIRED)
+endif()
+
+check_required_components(wscpp)
