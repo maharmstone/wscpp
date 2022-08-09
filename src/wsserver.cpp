@@ -193,49 +193,58 @@ namespace ws {
 		}
 	}
 
-	void server_client::send(string_view payload, enum opcode opcode) const {
-		size_t len = payload.length();
+	void server_client_pimpl::send(span<const uint8_t> payload, enum opcode opcode) {
+		size_t len = payload.size();
 
-		if (!impl->open)
+		if (!open)
 			return;
 
 		if (len <= 125) {
-			uint8_t msg[2];
+			header h(true, false, false, false, opcode, false, len);
 
-			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			msg[1] = (uint8_t)len;
-
-			impl->send_raw(msg);
+			send_raw(span((const uint8_t*)&h, sizeof(h)));
 		} else if (len < 0x10000) {
-			uint8_t msg[4];
+			struct {
+				header h;
+				uint8_t len[2];
+			} msg;
 
-			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			msg[1] = 126;
-			msg[2] = (len & 0xff00) >> 8;
-			msg[3] = len & 0xff;
+			static_assert(sizeof(msg) == 4);
 
-			impl->send_raw(msg);
+			msg.h = header(true, false, false, false, opcode, false, 126);
+			msg.len[0] = (len & 0xff00) >> 8;
+			msg.len[1] = len & 0xff;
+
+			send_raw(span((const uint8_t*)&msg, sizeof(msg)));
 		} else {
-			uint8_t msg[10];
+			struct {
+				header h;
+				uint8_t len[8];
+			} msg;
 
-			msg[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			msg[1] = 127;
-			msg[2] = (uint8_t)((len & 0xff00000000000000) >> 56);
-			msg[3] = (uint8_t)((len & 0xff000000000000) >> 48);
-			msg[4] = (uint8_t)((len & 0xff0000000000) >> 40);
-			msg[5] = (uint8_t)((len & 0xff00000000) >> 32);
-			msg[6] = (uint8_t)((len & 0xff000000) >> 24);
-			msg[7] = (uint8_t)((len & 0xff0000) >> 16);
-			msg[8] = (uint8_t)((len & 0xff00) >> 8);
-			msg[9] = len & 0xff;
+			static_assert(sizeof(msg) == 10);
 
-			impl->send_raw(msg);
+			msg.h = header(true, false, false, false, opcode, false, 127);
+			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
+			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
+			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
+			msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
+			msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
+			msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
+			msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
+			msg.len[7] = len & 0xff;
+
+			send_raw(span((const uint8_t*)&msg, sizeof(msg)));
 		}
 
-		if (!impl->open)
+		if (!open)
 			return;
 
-		impl->send_raw(span((uint8_t*)payload.data(), payload.size()));
+		send_raw(payload);
+	}
+
+	void server_client::send(string_view payload, enum opcode opcode) const {
+		impl->send(span((uint8_t*)payload.data(), payload.size()), opcode);
 	}
 
 	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
@@ -248,7 +257,7 @@ namespace ws {
 		}
 
 		do {
-			int bytes = send(fd, (char*)sv.data(), (int)sv.size(), 0);
+			int bytes = ::send(fd, (char*)sv.data(), (int)sv.size(), 0);
 
 #ifdef _WIN32
 			if (bytes == SOCKET_ERROR) {

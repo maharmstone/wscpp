@@ -146,6 +146,7 @@ namespace ws {
 #ifdef WITH_ZLIB
 		std::string inflate_payload(std::span<const uint8_t> comp);
 #endif
+		void send(std::span<const uint8_t> payload, enum opcode opcode);
 
 		server_client& parent;
 		bool open = true;
