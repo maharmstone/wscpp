@@ -196,7 +196,7 @@ namespace ws {
 #ifdef WITH_ZLIB
 		bool deflate = false;
 		std::optional<bool> last_rsv1;
-		std::optional<z_stream> zstrm_in;
+		std::optional<z_stream> zstrm_in, zstrm_out;
 #endif
     };
 }

@@ -200,6 +200,9 @@ namespace ws {
 #ifdef WITH_ZLIB
 		if (zstrm_in)
 			inflateEnd(&zstrm_in.value());
+
+		if (zstrm_out)
+			deflateEnd(&zstrm_out.value());
 #endif
 	}
 
@@ -671,7 +674,56 @@ namespace ws {
 	}
 
 	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
-		impl->send(span((uint8_t*)payload.data(), payload.size()), opcode, false, timeout);
+#ifdef WITH_ZLIB
+		if (impl->deflate) {
+			int err;
+			uint8_t buf[4096];
+			string comp;
+
+			if (!impl->zstrm_out) {
+				impl->zstrm_out.emplace();
+
+				auto& strm = impl->zstrm_out.value();
+
+				strm.zalloc = Z_NULL;
+				strm.zfree = Z_NULL;
+				strm.opaque = Z_NULL;
+
+				err = deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -MAX_WBITS, MAX_MEM_LEVEL,
+								   Z_DEFAULT_STRATEGY);
+				if (err != Z_OK)
+					throw formatted_error("deflateInit2 returned {}", err);
+			}
+
+			auto& strm = impl->zstrm_out.value();
+
+			strm.avail_in = payload.size();
+			strm.next_in = (uint8_t*)payload.data();
+
+			do {
+				strm.avail_out = sizeof(buf);
+				strm.next_out = buf;
+
+				err = deflate(&strm, Z_NO_FLUSH);
+				if (err != Z_OK && err != Z_STREAM_END)
+					throw formatted_error("deflate returned {}", err);
+
+				comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+			} while (strm.avail_out == 0);
+
+			err = deflate(&strm, Z_SYNC_FLUSH);
+			if (err != Z_OK && err != Z_STREAM_END)
+				throw formatted_error("deflate returned {}", err);
+
+			comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+
+			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
+				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
+
+			impl->send(span((uint8_t*)comp.data(), comp.size() - 4), opcode, true, timeout);
+		} else
+#endif
+			impl->send(span((uint8_t*)payload.data(), payload.size()), opcode, false, timeout);
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
