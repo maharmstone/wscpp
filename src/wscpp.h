@@ -157,9 +157,13 @@ namespace ws {
 		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr,
 			   const client_disconn_handler& disconn_handler = nullptr, bool enc = false);
 		~client();
-		void send(std::string_view payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
+		void send(std::span<const uint8_t> payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
 		void join() const;
 		bool is_open() const;
+
+		void send(std::string_view payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const {
+			send(std::span((const uint8_t*)payload.data(), payload.size()), opcode, timeout);
+		}
 
 	private:
 		std::unique_ptr<client_pimpl> impl;

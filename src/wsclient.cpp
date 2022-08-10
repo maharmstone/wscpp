@@ -673,7 +673,7 @@ namespace ws {
 		do_send(span((uint8_t*)payload.data(), payload.size()));
 	}
 
-	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
+	void client::send(span<const uint8_t> payload, enum opcode opcode, unsigned int timeout) const {
 #ifdef WITH_ZLIB
 		if (impl->deflate) {
 			int err;
@@ -723,7 +723,7 @@ namespace ws {
 			impl->send(span((uint8_t*)comp.data(), comp.size() - 4), opcode, true, timeout);
 		} else
 #endif
-			impl->send(span((uint8_t*)payload.data(), payload.size()), opcode, false, timeout);
+			impl->send(payload, opcode, false, timeout);
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
