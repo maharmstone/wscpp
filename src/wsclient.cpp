@@ -806,9 +806,9 @@ namespace ws {
 	}
 
 #ifdef WITH_ZLIB
-	string client_pimpl::inflate_payload(span<const uint8_t> comp) {
+	vector<uint8_t> client_pimpl::inflate_payload(span<const uint8_t> comp) {
 		int err;
-		string ret;
+		vector<uint8_t> ret;
 
 		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
 
@@ -830,7 +830,7 @@ namespace ws {
 
 		auto& strm = zstrm_in.value();
 
-		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
+		auto do_deflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
 			uint8_t buf[4096];
 			int err;
 
@@ -850,7 +850,7 @@ namespace ws {
 					if (err != Z_OK && err != Z_STREAM_END)
 						throw formatted_error("inflate returned {}", err);
 
-					ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+					ret.insert(ret.end(), buf, buf + sizeof(buf) - strm.avail_out);
 				} while (strm.avail_out == 0);
 
 				comp = comp.subspan(comp.size() - strm.avail_in);
@@ -865,13 +865,13 @@ namespace ws {
 #endif
 
 #ifdef WITH_ZLIB
-	void client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, const string& payload)
+	void client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, span<const uint8_t> payload)
 #else
-	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload)
+	void client_pimpl::parse_ws_message(enum opcode opcode, span<const uint8_t> payload)
 #endif
 	{
 #ifdef WITH_ZLIB
-		string decomp;
+		vector<uint8_t> decomp;
 
 		if (rsv1) {
 			if (!deflate)
@@ -902,10 +902,10 @@ namespace ws {
 		if (msg_handler) {
 #ifdef WITH_ZLIB
 			if (rsv1)
-				msg_handler(parent, decomp, opcode);
+				msg_handler(parent, string_view((char*)decomp.data(), decomp.size()), opcode);
 			else
 #endif
-				msg_handler(parent, payload, opcode);
+				msg_handler(parent, string_view((char*)payload.data(), payload.size()), opcode);
 		}
 	}
 
@@ -987,18 +987,19 @@ namespace ws {
 					last_rsv1 = (bool)h.rsv1;
 #endif
 			} else if (!payloadbuf.empty()) {
+				payloadbuf += payload;
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf + payload);
+				parse_ws_message(last_opcode, last_rsv1.value(), span((uint8_t*)payload.data(), payload.size()));
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, payloadbuf + payload);
+				parse_ws_message(last_opcode, span((uint8_t*)payload.data(), payload.size()));
 #endif
 				payloadbuf.clear();
 			} else {
 #ifdef WITH_ZLIB
-				parse_ws_message(h.opcode, h.rsv1, payload);
+				parse_ws_message(h.opcode, h.rsv1, span((uint8_t*)payload.data(), payload.size()));
 #else
-				parse_ws_message(h.opcode, payload);
+				parse_ws_message(h.opcode, span((uint8_t*)payload.data(), payload.size()));
 #endif
 			}
 		}

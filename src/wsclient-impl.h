@@ -164,10 +164,10 @@ namespace ws {
 		void recv(unsigned int len, void* buf);
 		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
 #ifdef WITH_ZLIB
-		void parse_ws_message(enum opcode opcode, bool rsv1, const std::string& payload);
-		std::string inflate_payload(std::span<const uint8_t> comp);
+		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);
+		std::vector<uint8_t> inflate_payload(std::span<const uint8_t> comp);
 #else
-		void parse_ws_message(enum opcode opcode, const std::string& payload);
+		void parse_ws_message(enum opcode opcode, std::span<const uint8_t> payload);
 #endif
 
 		client& parent;
