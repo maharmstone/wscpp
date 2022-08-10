@@ -92,7 +92,7 @@ namespace ws {
 		if (!open)
 			return;
 
-		recvbuf += move(msg);
+		recvbuf.insert(recvbuf.end(), msg.data(), msg.data() + msg.size());
 
 		if (state == state_enum::http)
 			process_http_messages();
@@ -101,7 +101,7 @@ namespace ws {
 			return;
 
 		while (true) {
-			if (recvbuf.length() < 2)
+			if (recvbuf.size() < 2)
 				return;
 
 			auto& h = *(header*)recvbuf.data();
@@ -175,10 +175,10 @@ namespace ws {
 				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
 
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), span((uint8_t*)payloadbuf.data(), payloadbuf.size()));
+				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, span((uint8_t*)payloadbuf.data(), payloadbuf.size()));
+				parse_ws_message(last_opcode, payloadbuf);
 #endif
 				payloadbuf.clear();
 			} else {
@@ -194,7 +194,9 @@ namespace ws {
 				return;
 
 			sp = sp.subspan(len);
-			recvbuf = recvbuf.substr((char*)sp.data() - recvbuf.data());
+
+			vector<uint8_t> tmp{sp.data(), recvbuf.data() + recvbuf.size()};
+			recvbuf.swap(tmp);
 		}
 	}
 
@@ -817,14 +819,15 @@ namespace ws {
 
 	void server_client_pimpl::process_http_messages() {
 		do {
-			size_t dnl = recvbuf.find("\r\n\r\n");
+			size_t dnl = string_view((char*)recvbuf.data(), recvbuf.size()).find("\r\n\r\n");
 
 			if (dnl == string::npos)
 				return;
 
-			process_http_message(recvbuf.substr(0, dnl + 2));
+			process_http_message(string_view((char*)recvbuf.data(), dnl + 2));
 
-			recvbuf = recvbuf.substr(dnl + 4);
+			vector<uint8_t> tmp{recvbuf.data() + dnl + 4, recvbuf.data() + recvbuf.size()};
+			recvbuf.swap(tmp);
 
 			if (state != state_enum::http)
 				break;

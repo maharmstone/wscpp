@@ -153,7 +153,7 @@ namespace ws {
 		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
-		std::string recvbuf, payloadbuf;
+		std::vector<uint8_t> recvbuf, payloadbuf;
 		enum opcode last_opcode;
 		socket_t fd;
 #ifdef _WIN32
