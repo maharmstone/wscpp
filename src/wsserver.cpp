@@ -689,11 +689,14 @@ namespace ws {
 				exts.emplace_back(sv);
 		}
 
-		// FIXME - permessage-deflate parameters
-
 		for (const auto& ext : exts) {
-			if (ext == "permessage-deflate")
+			if (ext == "permessage-deflate") {
 				deflate = true;
+				break;
+			} else if (ext.starts_with("permessage-deflate;")) { // ignore any parameters
+				deflate = true;
+				break;
+			}
 		}
 #endif
 
