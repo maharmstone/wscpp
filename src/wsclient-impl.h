@@ -162,6 +162,7 @@ namespace ws {
 		std::string recv_http();
 		void recv_thread();
 		void recv(unsigned int len, void* buf);
+		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
 #ifdef WITH_ZLIB
 		void parse_ws_message(enum opcode opcode, bool rsv1, const std::string& payload);
 		std::string inflate_payload(std::span<const uint8_t> comp);

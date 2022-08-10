@@ -599,16 +599,16 @@ namespace ws {
 		} while (again);
 	}
 
-	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
-		uint64_t len = payload.length();
+	void client_pimpl::send(span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const {
+		uint64_t len = payload.size();
 
 		auto do_send = [&](span<const uint8_t> s) {
 #if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (impl->ssl) // FIXME - timeout
-				impl->ssl->send(s);
+			if (ssl) // FIXME - timeout
+				ssl->send(s);
 			else
 #endif
-				impl->send_raw(s, timeout);
+				send_raw(s, timeout);
 		};
 
 		if (len <= 125) {
@@ -621,7 +621,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 6);
 
-			msg.h = header(true, false, false, false, opcode, true, len);
+			msg.h = header(true, rsv1, false, false, opcode, true, len);
 			msg.mask = 0; // FIXME
 
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
@@ -636,7 +636,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 8);
 
-			msg.h = header(true, false, false, false, opcode, true, 126);
+			msg.h = header(true, rsv1, false, false, opcode, true, 126);
 			msg.len[0] = (len & 0xff00) >> 8;
 			msg.len[1] = len & 0xff;
 			msg.mask = 0; // FIXME
@@ -653,7 +653,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 14);
 
-			msg.h = header(true, false, false, false, opcode, true, 127);
+			msg.h = header(true, rsv1, false, false, opcode, true, 127);
 			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
 			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
 			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
@@ -668,6 +668,10 @@ namespace ws {
 		}
 
 		do_send(span((uint8_t*)payload.data(), payload.size()));
+	}
+
+	void client::send(string_view payload, enum opcode opcode, unsigned int timeout) const {
+		impl->send(span((uint8_t*)payload.data(), payload.size()), opcode, false, timeout);
 	}
 
 	void client_pimpl::recv(unsigned int len, void* data) {
