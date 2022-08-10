@@ -612,36 +612,59 @@ namespace ws {
 		};
 
 		if (len <= 125) {
-			uint8_t header[6];
+#pragma pack(push, 1)
+			struct {
+				header h;
+				uint32_t mask;
+			} msg;
+#pragma pack(pop)
 
-			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			header[1] = 0x80 | (uint8_t)len;
-			memset(&header[2], 0, 4);
-			do_send(header);
+			static_assert(sizeof(msg) == 6);
+
+			msg.h = header(true, false, false, false, opcode, true, len);
+			msg.mask = 0; // FIXME
+
+			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		} else if (len < 0x10000) {
-			uint8_t header[8];
+#pragma pack(push, 1)
+			struct {
+				header h;
+				uint8_t len[2];
+				uint32_t mask;
+			} msg;
+#pragma pack(pop)
 
-			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			header[1] = (uint8_t)0xfe;
-			header[2] = (len & 0xff00) >> 8;
-			header[3] = len & 0xff;
-			memset(&header[4], 0, 4);
-			do_send(header);
+			static_assert(sizeof(msg) == 8);
+
+			msg.h = header(true, false, false, false, opcode, true, 126);
+			msg.len[0] = (len & 0xff00) >> 8;
+			msg.len[1] = len & 0xff;
+			msg.mask = 0; // FIXME
+
+			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		} else {
-			uint8_t header[14];
+#pragma pack(push, 1)
+			struct {
+				header h;
+				uint8_t len[8];
+				uint32_t mask;
+			} msg;
+#pragma pack(pop)
 
-			header[0] = 0x80 | ((uint8_t)opcode & 0xf);
-			header[1] = (uint8_t)0xff;
-			header[2] = (uint8_t)((len & 0xff00000000000000) >> 56);
-			header[3] = (uint8_t)((len & 0xff000000000000) >> 48);
-			header[4] = (uint8_t)((len & 0xff0000000000) >> 40);
-			header[5] = (uint8_t)((len & 0xff00000000) >> 32);
-			header[6] = (uint8_t)((len & 0xff000000) >> 24);
-			header[7] = (uint8_t)((len & 0xff0000) >> 16);
-			header[8] = (uint8_t)((len & 0xff00) >> 8);
-			header[9] = (uint8_t)(len & 0xff);
-			memset(&header[10], 0, 4);
-			do_send(header);
+			static_assert(sizeof(msg) == 14);
+
+			msg.h = header(true, false, false, false, opcode, true, 127);
+			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
+			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
+			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
+			msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
+			msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
+			msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
+			msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
+			msg.len[7] = (uint8_t)(len & 0xff);
+			msg.mask = 0; // FIXME
+
+			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		}
 
 		do_send(span((uint8_t*)payload.data(), payload.size()));
