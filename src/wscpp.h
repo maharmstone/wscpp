@@ -140,8 +140,12 @@ namespace ws {
 		void start();
 		void for_each(std::function<bool(server_client&)> func);
 		bool find_client(uint64_t client_id, const std::function<void(server_client&)>& func) const;
-		bool send_to_client(uint64_t client_id, std::string_view payload, enum opcode opcode = opcode::text) const noexcept;
+		bool send_to_client(uint64_t client_id, std::span<const uint8_t> payload, enum opcode opcode = opcode::text) const noexcept;
 		void close();
+
+		bool send_to_client(uint64_t client_id, std::string_view payload, enum opcode opcode = opcode::text) const noexcept {
+			return send_to_client(client_id, std::span((const uint8_t*)payload.data(), payload.size()), opcode);
+		}
 
 		friend server_client;
 		friend server_client_pimpl;

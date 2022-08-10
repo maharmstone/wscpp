@@ -1233,7 +1233,7 @@ namespace ws {
 		return found;
 	}
 
-	bool server::send_to_client(uint64_t client_id, std::string_view payload, enum opcode opcode) const noexcept {
+	bool server::send_to_client(uint64_t client_id, span<const uint8_t> payload, enum opcode opcode) const noexcept {
 		bool found = false;
 
 		unique_lock guard(impl->vector_mutex);
