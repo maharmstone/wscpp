@@ -161,7 +161,7 @@ namespace ws {
 		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();
 		void recv_thread();
-		void recv(unsigned int len, void* buf);
+		void recv(std::span<uint8_t> sp);
 		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
 #ifdef WITH_ZLIB
 		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);

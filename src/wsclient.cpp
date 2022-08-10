@@ -726,40 +726,34 @@ namespace ws {
 			impl->send(payload, opcode, false, timeout);
 	}
 
-	void client_pimpl::recv(unsigned int len, void* data) {
+	void client_pimpl::recv(span<uint8_t> sp) {
 		int bytes, err = 0;
-		unsigned int left;
-		char* buf;
 
-		if (len == 0)
+		if (sp.empty())
 			return;
 
-		left = len;
-		buf = (char*)data;
-
 		if (!recvbuf.empty()) {
-			auto to_copy = min(left, (unsigned int)recvbuf.length());
+			auto to_copy = min(sp.size(), recvbuf.length());
 
-			memcpy(buf, recvbuf.data(), to_copy);
+			memcpy(sp.data(), recvbuf.data(), to_copy);
 			recvbuf = recvbuf.substr(to_copy);
 
-			if (left == to_copy)
+			if (sp.size() == to_copy)
 				return;
 
-			left -= to_copy;
-			buf += to_copy;
+			sp = sp.subspan(to_copy);
 		}
 
 		do {
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (ssl) {
-				bytes = ssl->recv(span((uint8_t*)buf, left));
+				bytes = ssl->recv(sp);
 
 				if (open)
 					return;
 			} else {
 #endif
-				bytes = ::recv(sock, buf, left, 0);
+				bytes = ::recv(sock, sp.data(), sp.size(), 0);
 #ifdef _WIN32
 				if (bytes == SOCKET_ERROR) {
 					err = WSAGetLastError();
@@ -777,12 +771,11 @@ namespace ws {
 					return;
 				}
 
-				buf += bytes;
-				left -= bytes;
+				sp = sp.subspan(bytes);
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			}
 #endif
-		} while (left > 0);
+		} while (!sp.empty());
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR) {
@@ -915,7 +908,7 @@ namespace ws {
 		while (open) {
 			header h;
 
-			recv(sizeof(header), &h);
+			recv(span((uint8_t*)&h, sizeof(header)));
 
 			if (!open)
 				break;
@@ -925,7 +918,7 @@ namespace ws {
 			if (len == 126) {
 				uint16_t extlen;
 
-				recv(sizeof(extlen), &extlen);
+				recv(span((uint8_t*)&extlen, sizeof(extlen)));
 
 				if (!open)
 					break;
@@ -938,7 +931,7 @@ namespace ws {
 			} else if (len == 127) {
 				uint64_t extlen;
 
-				recv(sizeof(extlen), &extlen);
+				recv(span((uint8_t*)&extlen, sizeof(extlen)));
 
 				if (!open)
 					break;
@@ -953,7 +946,7 @@ namespace ws {
 			char mask_key[4];
 
 			if (h.mask) {
-				recv(sizeof(mask_key), mask_key);
+				recv(span((uint8_t*)&mask_key, sizeof(mask_key)));
 
 				if (!open)
 					break;
@@ -963,7 +956,7 @@ namespace ws {
 
 			if (len > 0) {
 				payload.resize(len);
-				recv(payload.size(), payload.data());
+				recv(payload);
 			}
 
 			if (!open)
