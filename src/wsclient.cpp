@@ -602,6 +602,32 @@ namespace ws {
 		} while (again);
 	}
 
+	static uint32_t random_mask() {
+		mt19937 rng;
+		rng.seed(random_device()());
+		uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
+
+		return dist(rng);
+	}
+
+	static void apply_mask(uint32_t mask, span<const uint8_t> pt, span<uint8_t> buf) {
+		while (pt.size() >= sizeof(uint32_t)) {
+			*(uint32_t*)buf.data() = *(uint32_t*)pt.data() ^ mask;
+
+			pt = pt.subspan(sizeof(uint32_t));
+			buf = buf.subspan(sizeof(uint32_t));
+		}
+
+		if (pt.empty())
+			return;
+
+		auto mask_key = span((uint8_t*)&mask, sizeof(mask));
+
+		for (unsigned int i = 0; i < pt.size(); i++) {
+			buf[i] = pt[i] ^ mask_key[i % 4];
+		}
+	}
+
 	void client_pimpl::send(span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const {
 		uint64_t len = payload.size();
 
@@ -614,6 +640,8 @@ namespace ws {
 				send_raw(s, timeout);
 		};
 
+		auto mask = random_mask();
+
 		if (len <= 125) {
 #pragma pack(push, 1)
 			struct {
@@ -625,7 +653,7 @@ namespace ws {
 			static_assert(sizeof(msg) == 6);
 
 			msg.h = header(true, rsv1, false, false, opcode, true, len);
-			msg.mask = 0; // FIXME
+			msg.mask = mask;
 
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		} else if (len < 0x10000) {
@@ -642,7 +670,7 @@ namespace ws {
 			msg.h = header(true, rsv1, false, false, opcode, true, 126);
 			msg.len[0] = (len & 0xff00) >> 8;
 			msg.len[1] = len & 0xff;
-			msg.mask = 0; // FIXME
+			msg.mask = mask;
 
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		} else {
@@ -665,12 +693,18 @@ namespace ws {
 			msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
 			msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
 			msg.len[7] = (uint8_t)(len & 0xff);
-			msg.mask = 0; // FIXME
+			msg.mask = mask;
 
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		}
 
-		do_send(payload);
+		vector<uint8_t> masked;
+
+		masked.resize(payload.size());
+
+		apply_mask(mask, payload, masked);
+
+		do_send(masked);
 	}
 
 	void client::send(span<const uint8_t> payload, enum opcode opcode, unsigned int timeout) const {
