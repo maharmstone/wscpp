@@ -131,9 +131,9 @@ namespace ws {
 		void process_http_message(std::string_view mess);
 		void process_http_messages();
 #ifdef WITH_ZLIB
-		void parse_ws_message(enum opcode opcode, bool rsv1, std::string_view payload);
+		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);
 #else
-		void parse_ws_message(enum opcode opcode, std::string_view payload);
+		void parse_ws_message(enum opcode opcode, std::span<const uint8_t> payload);
 #endif
 		void read();
 		std::string ip_addr_string() const;

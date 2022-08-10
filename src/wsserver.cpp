@@ -107,52 +107,54 @@ namespace ws {
 			auto& h = *(header*)recvbuf.data();
 			uint64_t len = h.len;
 
-			auto sv = string_view(recvbuf).substr(2);
+			auto sp = span((uint8_t*)recvbuf.data(), recvbuf.size());
+
+			sp = sp.subspan(2);
 
 			if (len == 126) {
-				if (sv.length() < 2)
+				if (sp.size() < 2)
 					return;
 
-				len = ((uint8_t)sv[0] << 8) | (uint8_t)sv[1];
-				sv = sv.substr(2);
+				len = (sp[0] << 8) | sp[1];
+				sp = sp.subspan(2);
 			} else if (len == 127) {
-				if (sv.length() < 8)
+				if (sp.size() < 8)
 					return;
 
-				len = (uint8_t)sv[0];
+				len = sp[0];
 				len <<= 8;
-				len |= (uint8_t)sv[1];
+				len |= sp[1];
 				len <<= 8;
-				len |= (uint8_t)sv[2];
+				len |= sp[2];
 				len <<= 8;
-				len |= (uint8_t)sv[3];
+				len |= sp[3];
 				len <<= 8;
-				len |= (uint8_t)sv[4];
+				len |= sp[4];
 				len <<= 8;
-				len |= (uint8_t)sv[5];
+				len |= sp[5];
 				len <<= 8;
-				len |= (uint8_t)sv[6];
+				len |= sp[6];
 				len <<= 8;
-				len |= (uint8_t)sv[7];
+				len |= sp[7];
 
-				sv = sv.substr(8);
+				sp = sp.subspan(8);
 			}
 
-			string_view mask_key;
+			span<const uint8_t> mask_key;
 
 			if (h.mask) {
-				if (sv.length() < 4)
+				if (sp.size() < 4)
 					return;
 
-				mask_key = sv.substr(0, 4);
-				sv = sv.substr(4);
+				mask_key = sp.subspan(0, 4);
+				sp = sp.subspan(4);
 			}
 
-			if (sv.length() < len)
+			if (sp.size() < len)
 				return;
 
 			if (h.mask && len != 0) {
-				span<char> payload((char*)&sv[0], len);
+				auto payload = sp.subspan(0, len);
 
 				for (unsigned int i = 0; i < payload.size(); i++) {
 					payload[i] ^= mask_key[i % 4];
@@ -168,31 +170,31 @@ namespace ws {
 					last_rsv1 = (bool)h.rsv1;
 #endif
 
-				payloadbuf += sv.substr(0, len);
+				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
 			} else if (!payloadbuf.empty()) {
-				payloadbuf += sv.substr(0, len);
+				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
 
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
+				parse_ws_message(last_opcode, last_rsv1.value(), span((uint8_t*)payloadbuf.data(), payloadbuf.size()));
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, payloadbuf);
+				parse_ws_message(last_opcode, span((uint8_t*)payloadbuf.data(), payloadbuf.size()));
 #endif
 				payloadbuf.clear();
 			} else {
 #ifdef WITH_ZLIB
-				parse_ws_message(h.opcode, h.rsv1, sv.substr(0, len));
+				parse_ws_message(h.opcode, h.rsv1, sp.subspan(0, len));
 				last_rsv1.reset();
 #else
-				parse_ws_message(h.opcode, sv.substr(0, len));
+				parse_ws_message(h.opcode, sp.subspan(0, len));
 #endif
 			}
 
 			if (!open)
 				return;
 
-			sv = sv.substr(len);
-			recvbuf = recvbuf.substr(sv.data() - recvbuf.data());
+			sp = sp.subspan(len);
+			recvbuf = recvbuf.substr((char*)sp.data() - recvbuf.data());
 		}
 	}
 
@@ -889,9 +891,9 @@ namespace ws {
 #endif
 
 #ifdef WITH_ZLIB
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, string_view payload)
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, span<const uint8_t> payload)
 #else
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, string_view payload)
+	void server_client_pimpl::parse_ws_message(enum opcode opcode, span<const uint8_t> payload)
 #endif
 	{
 #ifdef WITH_ZLIB
@@ -901,7 +903,7 @@ namespace ws {
 			if (!deflate)
 				throw runtime_error("RSV1 set unexpectedly.");
 
-			decomp = inflate_payload(span((uint8_t*)payload.data(), payload.size()));
+			decomp = inflate_payload(payload);
 		}
 #endif
 
@@ -924,10 +926,10 @@ namespace ws {
 					try {
 #ifdef WITH_ZLIB
 						if (rsv1)
-							msg_handler(parent, decomp);
+							msg_handler(parent, string_view((char*)decomp.data(), decomp.size()));
 						else
 #endif
-							msg_handler(parent, payload);
+							msg_handler(parent, string_view((char*)payload.data(), payload.size()));
 					} catch (...) {
 						// disconnect client if handler throws exception
 						open = false;
