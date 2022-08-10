@@ -870,7 +870,7 @@ namespace ws {
 			if (!deflate)
 				throw runtime_error("RSV1 set unexpectedly.");
 
-			decomp = inflate_payload(span((uint8_t*)payload.data(), payload.size()));
+			decomp = inflate_payload(payload);
 		}
 #endif
 
