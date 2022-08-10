@@ -910,7 +910,7 @@ namespace ws {
 	}
 
 	void client_pimpl::recv_thread() {
-		string payloadbuf;
+		vector<uint8_t> payloadbuf;
 
 		while (open) {
 			header h;
@@ -959,11 +959,11 @@ namespace ws {
 					break;
 			}
 
-			string payload;
+			vector<uint8_t> payload;
 
 			if (len > 0) {
 				payload.resize(len);
-				recv(payload.length(), payload.data());
+				recv(payload.size(), payload.data());
 			}
 
 			if (!open)
@@ -971,7 +971,7 @@ namespace ws {
 
 			if (h.mask) {
 				// FIXME - speed this up by treating mask_key as uint32_t?
-				for (unsigned int i = 0; i < payload.length(); i++) {
+				for (unsigned int i = 0; i < payload.size(); i++) {
 					payload[i] ^= mask_key[i % 4];
 				}
 			}
@@ -980,26 +980,26 @@ namespace ws {
 				if (h.opcode != opcode::invalid)
 					last_opcode = h.opcode;
 
-				payloadbuf += payload;
+				payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
 
 #ifdef WITH_ZLIB
 				if (!last_rsv1.has_value())
 					last_rsv1 = (bool)h.rsv1;
 #endif
 			} else if (!payloadbuf.empty()) {
-				payloadbuf += payload;
+				payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), span((uint8_t*)payload.data(), payload.size()));
+				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, span((uint8_t*)payload.data(), payload.size()));
+				parse_ws_message(last_opcode, payloadbuf);
 #endif
 				payloadbuf.clear();
 			} else {
 #ifdef WITH_ZLIB
-				parse_ws_message(h.opcode, h.rsv1, span((uint8_t*)payload.data(), payload.size()));
+				parse_ws_message(h.opcode, h.rsv1, payload);
 #else
-				parse_ws_message(h.opcode, span((uint8_t*)payload.data(), payload.size()));
+				parse_ws_message(h.opcode, payload);
 #endif
 			}
 		}
