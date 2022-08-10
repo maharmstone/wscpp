@@ -107,7 +107,7 @@ namespace ws {
 			auto& h = *(header*)recvbuf.data();
 			uint64_t len = h.len;
 
-			auto sp = span((uint8_t*)recvbuf.data(), recvbuf.size());
+			auto sp = span(recvbuf);
 
 			sp = sp.subspan(2);
 
