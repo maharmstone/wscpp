@@ -678,7 +678,7 @@ namespace ws {
 		if (impl->deflate) {
 			int err;
 			uint8_t buf[4096];
-			string comp;
+			vector<uint8_t> comp;
 
 			if (!impl->zstrm_out) {
 				impl->zstrm_out.emplace();
@@ -708,19 +708,19 @@ namespace ws {
 				if (err != Z_OK && err != Z_STREAM_END)
 					throw formatted_error("deflate returned {}", err);
 
-				comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+				comp.insert(comp.end(), buf, buf + sizeof(buf) - strm.avail_out);
 			} while (strm.avail_out == 0);
 
 			err = deflate(&strm, Z_SYNC_FLUSH);
 			if (err != Z_OK && err != Z_STREAM_END)
 				throw formatted_error("deflate returned {}", err);
 
-			comp.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+			comp.insert(comp.end(), buf, buf + sizeof(buf) - strm.avail_out);
 
 			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
 				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
 
-			impl->send(span((uint8_t*)comp.data(), comp.size() - 4), opcode, true, timeout);
+			impl->send(span(comp.data(), comp.size() - 4), opcode, true, timeout);
 		} else
 #endif
 			impl->send(payload, opcode, false, timeout);
