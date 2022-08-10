@@ -102,7 +102,7 @@ namespace ws {
 		server_client(socket_t sock, server& serv, std::span<const uint8_t, 16> ipv6_addr, const server_msg_handler& msg_handler,
 					  const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler);
 		~server_client();
-		void send(std::string_view payload, enum opcode opcode = opcode::text) const;
+		void send(std::span<const uint8_t> payload, enum opcode opcode = opcode::text) const;
 		std::string_view username() const;
 		std::string_view domain_name() const;
 		std::span<uint8_t, 16> ip_addr() const;
@@ -113,6 +113,10 @@ namespace ws {
 		void revert() const;
 		HANDLE impersonation_token() const;
 #endif
+
+		void send(std::string_view payload, enum opcode opcode = opcode::text) const {
+			send(std::span((const uint8_t*)payload.data(), payload.size()), opcode);
+		}
 
 		std::any context;
 

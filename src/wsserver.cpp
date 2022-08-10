@@ -246,7 +246,7 @@ namespace ws {
 		send_raw(payload);
 	}
 
-	void server_client::send(string_view payload, enum opcode opcode) const {
+	void server_client::send(span<const uint8_t> payload, enum opcode opcode) const {
 #ifdef WITH_ZLIB
 		if (impl->deflate) {
 			int err;
@@ -296,7 +296,7 @@ namespace ws {
 			impl->send(span((uint8_t*)comp.data(), comp.size() - 4), true, opcode);
 		} else
 #endif
-			impl->send(span((uint8_t*)payload.data(), payload.size()), false, opcode);
+			impl->send(payload, false, opcode);
 	}
 
 	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
