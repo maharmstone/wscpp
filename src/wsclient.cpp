@@ -196,6 +196,11 @@ namespace ws {
 
 		WSACleanup();
 #endif
+
+#ifdef WITH_ZLIB
+		if (zstrm_in)
+			inflateEnd(&zstrm_in.value());
+#endif
 	}
 
 	string client_pimpl::random_key() {
@@ -450,6 +455,9 @@ namespace ws {
 					 "Upgrade: websocket\r\n"
 					 "Connection: Upgrade\r\n"
 					 "Sec-WebSocket-Key: "s + key + "\r\n"
+#ifdef WITH_ZLIB
+					 "Sec-WebSocket-Extensions: permessage-deflate\r\n"
+#endif
 					 "Sec-WebSocket-Version: 13\r\n";
 
 		{
@@ -539,6 +547,55 @@ namespace ws {
 
 			if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
 				throw formatted_error("Invalid value for Sec-WebSocket-Accept.");
+
+#ifdef WITH_ZLIB
+			// FIXME - specs say we can have multiple Sec-WebSocket-Extensions headers
+
+			vector<string_view> exts;
+
+			if (headers.count("Sec-WebSocket-Extensions") != 0) {
+				const auto& ext = headers.at("Sec-WebSocket-Extensions");
+				string_view sv = ext;
+
+				do {
+					auto comma = sv.find(",");
+
+					if (comma == string::npos)
+						break;
+
+					auto sv2 = sv.substr(0, comma);
+
+					while (!sv2.empty() && sv2.back() == ' ') {
+						sv2.remove_suffix(1);
+					}
+
+					exts.emplace_back(sv2);
+
+					sv = sv.substr(comma + 1);
+
+					while (!sv.empty() && sv.front() == ' ') {
+						sv.remove_prefix(1);
+					}
+
+					if (sv.empty())
+						break;
+				} while (true);
+
+				while (!sv.empty() && sv.front() == ' ') {
+					sv.remove_prefix(1);
+				}
+
+				if (!sv.empty())
+					exts.emplace_back(sv);
+			}
+
+			// FIXME - permessage-deflate parameters
+
+			for (const auto& ext : exts) {
+				if (ext == "permessage-deflate")
+					deflate = true;
+			}
+#endif
 		} while (again);
 	}
 
@@ -669,22 +726,108 @@ namespace ws {
 #endif
 	}
 
-	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload) {
+#ifdef WITH_ZLIB
+	string client_pimpl::inflate_payload(span<const uint8_t> comp) {
+		int err;
+		string ret;
+
+		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
+
+		if (!zstrm_in) {
+			zstrm_in.emplace();
+
+			auto& strm = zstrm_in.value();
+
+			strm.zalloc = Z_NULL;
+			strm.zfree = Z_NULL;
+			strm.opaque = Z_NULL;
+			strm.avail_in = 0;
+			strm.next_in = Z_NULL;
+
+			err = inflateInit2(&strm, -MAX_WBITS);
+			if (err != Z_OK)
+				throw formatted_error("inflateInit2 returned {}", err);
+		}
+
+		auto& strm = zstrm_in.value();
+
+		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
+			uint8_t buf[4096];
+			int err;
+
+			do {
+				strm.avail_in = comp.size();
+
+				if (strm.avail_in == 0)
+					break;
+
+				strm.next_in = (uint8_t*)comp.data();
+
+				do {
+					strm.avail_out = sizeof(buf);
+					strm.next_out = buf;
+					err = inflate(&strm, Z_NO_FLUSH);
+
+					if (err != Z_OK && err != Z_STREAM_END)
+						throw formatted_error("inflate returned {}", err);
+
+					ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+				} while (strm.avail_out == 0);
+
+				comp = comp.subspan(comp.size() - strm.avail_in);
+			} while (err != Z_STREAM_END);
+		};
+
+		do_deflate(strm, ret, comp);
+		do_deflate(strm, ret, last_bit);
+
+		return ret;
+	}
+#endif
+
+#ifdef WITH_ZLIB
+	void client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, const string& payload)
+#else
+	void client_pimpl::parse_ws_message(enum opcode opcode, const string& payload)
+#endif
+	{
+#ifdef WITH_ZLIB
+		string decomp;
+
+		if (rsv1) {
+			if (!deflate)
+				throw runtime_error("RSV1 set unexpectedly.");
+
+			decomp = inflate_payload(span((uint8_t*)payload.data(), payload.size()));
+		}
+#endif
+
 		switch (opcode) {
 			case opcode::close:
 				open = false;
 				return;
 
 			case opcode::ping:
-				parent.send(payload, opcode::pong);
+#ifdef WITH_ZLIB
+				if (rsv1)
+					parent.send(decomp, opcode::pong);
+				else
+#endif
+					parent.send(payload, opcode::pong);
 				break;
 
 			default:
 				break;
 		}
 
-		if (msg_handler)
-			msg_handler(parent, payload, opcode);
+		if (msg_handler) {
+#ifdef WITH_ZLIB
+			if (rsv1)
+				msg_handler(parent, decomp, opcode);
+			else
+#endif
+				msg_handler(parent, payload, opcode);
+		}
 	}
 
 	void client_pimpl::recv_thread() {
@@ -759,11 +902,26 @@ namespace ws {
 					last_opcode = h.opcode;
 
 				payloadbuf += payload;
+
+#ifdef WITH_ZLIB
+				if (!last_rsv1.has_value())
+					last_rsv1 = (bool)h.rsv1;
+#endif
 			} else if (!payloadbuf.empty()) {
+#ifdef WITH_ZLIB
+				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf + payload);
+				last_rsv1.reset();
+#else
 				parse_ws_message(last_opcode, payloadbuf + payload);
+#endif
 				payloadbuf.clear();
-			} else
+			} else {
+#ifdef WITH_ZLIB
+				parse_ws_message(h.opcode, h.rsv1, payload);
+#else
 				parse_ws_message(h.opcode, payload);
+#endif
+			}
 		}
 	}
 

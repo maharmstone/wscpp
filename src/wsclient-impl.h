@@ -3,6 +3,7 @@
 #include "wscpp.h"
 #include <thread>
 #include <bit>
+#include <optional>
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -22,6 +23,10 @@
 #include <openssl/err.h>
 #include <openssl/conf.h>
 #include <openssl/x509v3.h>
+#endif
+
+#ifdef WITH_ZLIB
+#include <zlib.h>
 #endif
 
 #ifdef WITH_OPENSSL
@@ -157,7 +162,12 @@ namespace ws {
 		std::string recv_http();
 		void recv_thread();
 		void recv(unsigned int len, void* buf);
+#ifdef WITH_ZLIB
+		void parse_ws_message(enum opcode opcode, bool rsv1, const std::string& payload);
+		std::string inflate_payload(std::span<const uint8_t> comp);
+#else
 		void parse_ws_message(enum opcode opcode, const std::string& payload);
+#endif
 
 		client& parent;
 		std::string host;
@@ -181,6 +191,11 @@ namespace ws {
 		std::string recvbuf;
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 		std::unique_ptr<client_ssl> ssl;
+#endif
+#ifdef WITH_ZLIB
+		bool deflate = false;
+		std::optional<bool> last_rsv1;
+		std::optional<z_stream> zstrm_in;
 #endif
     };
 }
