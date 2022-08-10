@@ -670,7 +670,7 @@ namespace ws {
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
 		}
 
-		do_send(span((uint8_t*)payload.data(), payload.size()));
+		do_send(payload);
 	}
 
 	void client::send(span<const uint8_t> payload, enum opcode opcode, unsigned int timeout) const {
