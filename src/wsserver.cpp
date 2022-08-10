@@ -1268,6 +1268,9 @@ namespace ws {
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
 			   string_view auth_type) {
+		if (!auth_type.empty() && auth_type != "NTLM" && auth_type != "Negotiate")
+			throw runtime_error("Unhandled auth_type value.");
+
 		impl = make_unique<server_pimpl>(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
 	}
 
