@@ -443,7 +443,7 @@ namespace ws {
 
 	void server_client_pimpl::handle_handshake(const map<string, string>& headers) {
 		if (!serv.impl->auth_type.empty()) {
-			string auth;
+			vector<uint8_t> auth;
 #ifdef _WIN32
 			SECURITY_STATUS sec_status;
 			SecBuffer inbufs[2], outbuf;
@@ -510,7 +510,7 @@ namespace ws {
 #endif
 
 #ifdef _WIN32
-			inbufs[0].cbBuffer = auth.length();
+			inbufs[0].cbBuffer = auth.size();
 			inbufs[0].BufferType = SECBUFFER_TOKEN;
 			inbufs[0].pvBuffer = auth.data();
 
@@ -580,7 +580,7 @@ namespace ws {
 
 			get_username(token.get());
 #else
-			recv_tok.length = auth.length();
+			recv_tok.length = auth.size();
 			recv_tok.value = auth.data();
 
 			major_status = gss_accept_sec_context(&minor_status, &ctx_handle, cred_handle, &recv_tok,

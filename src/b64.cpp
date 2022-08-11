@@ -80,11 +80,13 @@ static const int B64index[256] = {
 	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
-std::string b64decode(std::string_view sv) {
+std::vector<uint8_t> b64decode(std::string_view sv) {
 	auto p = (unsigned char*)sv.data();
 	int pad = sv.length() > 0 && (sv.length() % 4 || p[sv.length() - 1] == '=');
 	const size_t L = ((sv.length() + 3) / 4 - pad) * 4;
-	std::string str(L / 4 * 3 + pad, '\0');
+	std::vector<uint8_t> str;
+
+	str.resize(L / 4 * 3 + pad);
 
 	for (size_t i = 0, j = 0; i < L; i += 4) {
 		int n = B64index[p[i]] << 18 | B64index[p[i + 1]] << 12 | B64index[p[i + 2]] << 6 | B64index[p[i + 3]];

@@ -331,7 +331,7 @@ namespace ws {
 		auto auth = b64decode(auth_msg);
 
 		if (!auth_msg.empty()) {
-			inbufs[0].cbBuffer = auth.length();
+			inbufs[0].cbBuffer = auth.size();
 			inbufs[0].BufferType = SECBUFFER_TOKEN;
 			inbufs[0].pvBuffer = auth.data();
 
@@ -408,7 +408,7 @@ namespace ws {
 
 		auto auth = b64decode(auth_msg);
 
-		recv_tok.length = auth.length();
+		recv_tok.length = auth.size();
 		recv_tok.value = auth.data();
 
 		string spn = "HTTP/" + fqdn;
