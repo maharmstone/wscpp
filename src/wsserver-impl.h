@@ -144,7 +144,7 @@ namespace ws {
 		HANDLE impersonation_token() const;
 #endif
 #ifdef WITH_ZLIB
-		std::string inflate_payload(std::span<const uint8_t> comp);
+		std::vector<uint8_t> inflate_payload(std::span<const uint8_t> comp);
 #endif
 		void send(std::span<const uint8_t> payload, bool rsv1, enum opcode opcode);
 

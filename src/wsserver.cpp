@@ -838,9 +838,9 @@ namespace ws {
 	}
 
 #ifdef WITH_ZLIB
-	string server_client_pimpl::inflate_payload(span<const uint8_t> comp) {
+	vector<uint8_t> server_client_pimpl::inflate_payload(span<const uint8_t> comp) {
 		int err;
-		string ret;
+		vector<uint8_t> ret;
 
 		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
 
@@ -862,7 +862,7 @@ namespace ws {
 
 		auto& strm = zstrm_in.value();
 
-		auto do_deflate = [](z_stream& strm, string& ret, span<const uint8_t> comp) {
+		auto do_deflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
 			uint8_t buf[4096];
 			int err;
 
@@ -882,7 +882,7 @@ namespace ws {
 					if (err != Z_OK && err != Z_STREAM_END)
 						throw formatted_error("inflate returned {}", err);
 
-					ret.append(string_view((char*)buf, sizeof(buf) - strm.avail_out));
+					ret.insert(ret.end(), buf, buf + sizeof(buf) - strm.avail_out);
 				} while (strm.avail_out == 0);
 
 				comp = comp.subspan(comp.size() - strm.avail_in);
@@ -903,7 +903,7 @@ namespace ws {
 #endif
 	{
 #ifdef WITH_ZLIB
-		string decomp;
+		vector<uint8_t> decomp;
 
 		if (rsv1) {
 			if (!deflate)
