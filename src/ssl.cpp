@@ -627,11 +627,11 @@ namespace ws {
 		FreeCredentialsHandle(&cred_handle);
 	}
 
-	void client_ssl::send(std::span<const uint8_t> sv) {
+	void client_ssl::send(span<const uint8_t> sv) {
 		SECURITY_STATUS sec_status;
 		array<SecBuffer, 4> buf;
 		SecBufferDesc bufdesc;
-		string payload;
+		vector<uint8_t> payload;
 
 		memset(buf.data(), 0, sizeof(SecBuffer) * buf.size());
 
@@ -664,7 +664,7 @@ namespace ws {
 
 		payload.resize(buf[0].cbBuffer + buf[1].cbBuffer + buf[2].cbBuffer);
 
-		client.send_raw(span((uint8_t*)payload.data(), payload.size()));
+		client.send_raw(payload);
 	}
 
 	void client_ssl::recv_raw(span<uint8_t> s) {
