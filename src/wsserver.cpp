@@ -252,7 +252,7 @@ namespace ws {
 
 	void server_client::send(span<const uint8_t> payload, enum opcode opcode) const {
 #ifdef WITH_ZLIB
-		if (impl->deflate) {
+		if (impl->deflate && !payload.empty()) {
 			int err;
 			uint8_t buf[4096];
 			vector<uint8_t> comp;
