@@ -127,7 +127,7 @@ namespace ws {
 		void send_raw(std::span<const uint8_t> sv);
 		void handle_handshake(const std::map<std::string, std::string>& headers);
 		void internal_server_error(std::string_view s);
-		std::string recv();
+		std::vector<uint8_t> recv();
 		void process_http_message(std::string_view mess);
 		void process_http_messages();
 #ifdef WITH_ZLIB

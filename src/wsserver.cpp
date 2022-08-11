@@ -735,11 +735,11 @@ namespace ws {
 		}
 	}
 
-	string server_client_pimpl::recv() {
-		char s[4096];
+	vector<uint8_t> server_client_pimpl::recv() {
+		uint8_t s[4096];
 		int bytes, err = 0;
 
-		bytes = ::recv(fd, s, sizeof(s), 0);
+		bytes = ::recv(fd, (char*)s, sizeof(s), 0);
 
 #ifdef _WIN32
 		if (bytes == SOCKET_ERROR)
@@ -747,7 +747,7 @@ namespace ws {
 
 		if (bytes == 0 || (bytes == SOCKET_ERROR && (err == WSAECONNRESET || err == WSAECONNABORTED))) {
 			open = false;
-			return "";
+			return {};
 		} else if (bytes == SOCKET_ERROR)
 			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
 #else
@@ -756,12 +756,12 @@ namespace ws {
 
 		if (bytes == 0 || (bytes == -1 && (err == ECONNRESET || err == ECONNABORTED))) {
 			open = false;
-			return "";
+			return {};
 		} else if (bytes == -1)
 			throw formatted_error("recv failed ({}).", errno_to_string(err));
 #endif
 
-		return string(s, bytes);
+		return {s, s + bytes};
 	}
 
 	void server_client_pimpl::process_http_message(string_view mess) {
