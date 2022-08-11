@@ -488,7 +488,7 @@ namespace ws {
 		SecBuffer outbuf;
 		SecBufferDesc out;
 		uint32_t context_attr;
-		string outstr;
+		vector<uint8_t> outstr;
 		SCHANNEL_CRED cred;
 
 		memset(&cred, 0, sizeof(cred));
@@ -521,14 +521,14 @@ namespace ws {
 			throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
 		}
 
-		outstr = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+		outstr.assign((uint8_t*)outbuf.pvBuffer, (uint8_t*)outbuf.pvBuffer + outbuf.cbBuffer);
 
 		if (outbuf.pvBuffer)
 			FreeContextBuffer(outbuf.pvBuffer);
 
 		ctx_handle_set = true;
 
-		string payload;
+		vector<uint8_t> payload;
 		bool read_more = false;
 
 		while (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_E_INCOMPLETE_MESSAGE) {
@@ -537,7 +537,7 @@ namespace ws {
 
 			if (!outstr.empty()) {
 				try {
-					client.send_raw(span((uint8_t*)outstr.data(), outstr.size()));
+					client.send_raw(outstr);
 					outstr.clear();
 				} catch (...) {
 					FreeCredentialsHandle(&cred_handle);
@@ -546,9 +546,9 @@ namespace ws {
 			}
 
 			if (payload.empty() || read_more) {
-				char buf[4096];
+				uint8_t buf[4096];
 
-				auto bytes = ::recv(client.sock, buf, sizeof(buf), 0);
+				auto bytes = ::recv(client.sock, (char*)buf, sizeof(buf), 0);
 
 				if (bytes == SOCKET_ERROR) {
 					FreeCredentialsHandle(&cred_handle);
@@ -561,7 +561,7 @@ namespace ws {
 					throw runtime_error("Disconnected.");
 				}
 
-				payload += string_view(buf, bytes);
+				payload.insert(payload.end(), buf, buf + bytes);
 
 				read_more = false;
 			}
@@ -570,7 +570,7 @@ namespace ws {
 			outbuf.BufferType = SECBUFFER_TOKEN;
 			outbuf.pvBuffer = nullptr;
 
-			inbuf[0].cbBuffer = (long)payload.length();
+			inbuf[0].cbBuffer = (long)payload.size();
 			inbuf[0].BufferType = SECBUFFER_TOKEN;
 			inbuf[0].pvBuffer = payload.data();
 
@@ -596,14 +596,15 @@ namespace ws {
 				throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
 			}
 
-			outstr = string((char*)outbuf.pvBuffer, outbuf.cbBuffer);
+			outstr.assign((uint8_t*)outbuf.pvBuffer, (uint8_t*)outbuf.pvBuffer + outbuf.cbBuffer);
 
 			if (outbuf.pvBuffer)
 				FreeContextBuffer(outbuf.pvBuffer);
 
-			if (inbuf[1].BufferType == SECBUFFER_EXTRA)
-				payload = payload.substr(payload.length() - inbuf[1].cbBuffer);
-			else
+			if (inbuf[1].BufferType == SECBUFFER_EXTRA) {
+				vector<uint8_t> tmp{payload.data() + payload.size() - inbuf[1].cbBuffer, payload.data() + payload.size()};
+				payload.swap(tmp);
+			} else
 				payload.clear();
 		}
 
