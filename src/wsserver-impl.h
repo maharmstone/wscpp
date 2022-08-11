@@ -83,7 +83,7 @@ namespace ws {
 	public:
 		server_pimpl(uint16_t port, int backlog, const server_msg_handler& msg_handler,
 					 const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
-					 std::string_view auth_type) :
+					 auth auth_type) :
 			port(port),
 			backlog(backlog),
 			msg_handler(msg_handler),
@@ -97,7 +97,7 @@ namespace ws {
 		server_msg_handler msg_handler;
 		server_conn_handler conn_handler;
 		server_disconn_handler disconn_handler;
-		std::string auth_type;
+		auth auth_type;
 		socket_t sock = INVALID_SOCKET;
 		std::list<server_client> clients;
 		std::recursive_mutex vector_mutex;

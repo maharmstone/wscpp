@@ -442,7 +442,7 @@ namespace ws {
 #endif
 
 	void server_client_pimpl::handle_handshake(const map<string, string>& headers) {
-		if (!serv.impl->auth_type.empty()) {
+		if (serv.impl->auth_type != auth::none) {
 			vector<uint8_t> auth;
 #ifdef _WIN32
 			SECURITY_STATUS sec_status;
@@ -458,32 +458,45 @@ namespace ws {
 			gss_name_t src_name;
 #endif
 
-			const auto& auth_type = serv.impl->auth_type;
+			string auth_type_str;
+
+			switch (serv.impl->auth_type) {
+				case auth::negotiate:
+					auth_type_str = "Negotiate";
+					break;
+
+				case auth::ntlm:
+					auth_type_str = "NTLM";
+					break;
+
+				default:
+					throw runtime_error("Unhandled auth type.");
+			}
 
 			if (headers.count("Authorization") > 0) {
 				const auto& authstr = headers.at("Authorization");
 
-				if (authstr.length() > auth_type.length() && authstr.substr(0, auth_type.length()) == auth_type &&
-					authstr[auth_type.length()] == ' ') {
-					auth = b64decode(authstr.substr(auth_type.length() + 1));
+				if (authstr.length() > auth_type_str.length() && authstr.substr(0, auth_type_str.length()) == auth_type_str &&
+					authstr[auth_type_str.length()] == ' ') {
+					auth = b64decode(authstr.substr(auth_type_str.length() + 1));
 				}
 			}
 
 			if (auth.empty()) {
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type_str + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
 				return;
 			}
 
 #ifdef _WIN32
 			if (!SecIsValidHandle(&cred_handle)) {
-				if (auth_type == "Negotiate") { // FIXME - log error if this fails, rather than throwing exception?
+				if (serv.impl->auth_type == auth::negotiate) { // FIXME - log error if this fails, rather than throwing exception?
 					auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
 					if (FAILED(ret))
 						throw formatted_error("DsServerRegisterSpn returned {}", ret);
 				}
 
-				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type).c_str(), SECPKG_CRED_INBOUND,
+				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type_str).c_str(), SECPKG_CRED_INBOUND,
 													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
 				if (FAILED(sec_status))
 					throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
@@ -559,7 +572,7 @@ namespace ws {
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(sspi);
 
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n";
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
@@ -602,7 +615,7 @@ namespace ws {
 			if (major_status == GSS_S_CONTINUE_NEEDED) {
 				auto b64 = b64encode(outbuf);
 
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type + " " + b64 + "\r\n\r\n";
+				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
 				send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
@@ -1278,11 +1291,8 @@ namespace ws {
 	}
 
 	server::server(uint16_t port, int backlog, const server_msg_handler& msg_handler,
-		       const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
-			   string_view auth_type) {
-		if (!auth_type.empty() && auth_type != "NTLM" && auth_type != "Negotiate")
-			throw runtime_error("Unhandled auth_type value.");
-
+				   const server_conn_handler& conn_handler, const server_disconn_handler& disconn_handler,
+				   auth auth_type) {
 		impl = make_unique<server_pimpl>(port, backlog, msg_handler, conn_handler, disconn_handler, auth_type);
 	}
 

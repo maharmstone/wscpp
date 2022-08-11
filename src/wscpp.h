@@ -65,6 +65,12 @@ namespace ws {
 		pong = 10
 	};
 
+	enum class auth {
+		none,
+		negotiate,
+		ntlm
+	};
+
 	class client;
 	class server_client;
 
@@ -134,7 +140,7 @@ namespace ws {
 		server(uint16_t port, int backlog, const server_msg_handler& msg_handler = nullptr,
 			   const server_conn_handler& conn_handler = nullptr,
 			   const server_disconn_handler& disconn_handler = nullptr,
-			   std::string_view auth_type = "");
+			   auth auth_type = auth::none);
 		~server();
 
 		void start();

@@ -76,7 +76,7 @@ static void main2(uint16_t port) {
 					[&](ws::server_client& c) {
 						conn_handler(serv, c);
 					},
-					disconn_handler, "Negotiate");
+					disconn_handler, ws::auth::negotiate);
 
 	printf("Starting WebSocket server...\n");
 
