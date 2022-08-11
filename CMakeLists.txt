@@ -39,19 +39,19 @@ set(SRC_FILES src/wsclient.cpp
 add_library(wscpp SHARED ${SRC_FILES})
 
 if(WIN32)
-	target_link_libraries(wscpp wsock32 ws2_32 secur32 ntdsapi crypt32)
+	target_link_libraries(wscpp PUBLIC wsock32 ws2_32 secur32 ntdsapi crypt32)
 else()
-	target_link_libraries(wscpp pthread gssapi_krb5)
+	target_link_libraries(wscpp PUBLIC pthread gssapi_krb5)
 endif()
 
-target_link_libraries(wscpp fmt::fmt-header-only)
+target_link_libraries(wscpp PRIVATE fmt::fmt-header-only)
 
 if(WITH_ZLIB)
-	target_link_libraries(wscpp ZLIB::ZLIB)
+	target_link_libraries(wscpp PUBLIC ZLIB::ZLIB)
 endif()
 
 if(WITH_OPENSSL)
-	target_link_libraries(wscpp OpenSSL::Crypto OpenSSL::SSL)
+	target_link_libraries(wscpp PUBLIC OpenSSL::Crypto OpenSSL::SSL)
 endif()
 
 target_compile_options(wscpp PRIVATE
