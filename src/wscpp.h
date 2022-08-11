@@ -170,6 +170,7 @@ namespace ws {
 		void send(std::span<const uint8_t> payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;
 		void join() const;
 		bool is_open() const;
+		void ping(unsigned int timeout_ms = 0) const;
 
 		void send(std::string_view payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const {
 			send(std::span((const uint8_t*)payload.data(), payload.size()), opcode, timeout);

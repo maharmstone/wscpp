@@ -926,6 +926,11 @@ namespace ws {
 					parent.send(payload, opcode::pong);
 				break;
 
+			case opcode::pong:
+				if (ping_sem.has_value())
+					ping_sem->release();
+				break;
+
 			default:
 				break;
 		}
@@ -1043,5 +1048,27 @@ namespace ws {
 
 	bool client::is_open() const {
 		return impl->open;
+	}
+
+	void client::ping(unsigned int timeout_ms) const {
+		impl->ping_sem.emplace(0);
+
+		// FIXME - not thread-safe?
+
+		auto& sem = impl->ping_sem.value();
+
+		send("", ws::opcode::ping);
+
+		if (timeout_ms == 0) {
+			sem.acquire();
+			impl->ping_sem.reset();
+		} else {
+			bool waited = sem.try_acquire_for(chrono::milliseconds{timeout_ms});
+
+			impl->ping_sem.reset();
+
+			if (!waited)
+				throw runtime_error("Timeout.");
+		}
 	}
 }

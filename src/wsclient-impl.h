@@ -4,6 +4,7 @@
 #include <thread>
 #include <bit>
 #include <optional>
+#include <semaphore>
 
 #ifdef _WIN32
 #define SECURITY_WIN32
@@ -198,5 +199,6 @@ namespace ws {
 		std::optional<bool> last_rsv1;
 		std::optional<z_stream> zstrm_in, zstrm_out;
 #endif
+		std::optional<std::binary_semaphore> ping_sem;
     };
 }

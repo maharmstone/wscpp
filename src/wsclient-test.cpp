@@ -38,6 +38,10 @@ static void main2(const string& hostname, uint16_t port) {
 
 	printf("Connected.\n");
 
+	printf("Pinging...\n");
+	client.ping(1000);
+	printf("Pinged.\n");
+
 	while (true) {
 		auto msg = readline("> ");
 
