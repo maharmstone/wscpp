@@ -510,8 +510,14 @@ namespace ws {
 				} else {
 					size_t colon = mess.find(": ", nl2);
 
-					if (colon != string::npos)
-						headers.emplace(mess.substr(nl2, colon - nl2), mess.substr(colon + 2, nl - colon - 2));
+					if (colon != string::npos) {
+						auto name = string_view(mess).substr(nl2, colon - nl2);
+
+						if (name == "Sec-WebSocket-Extensions" && headers.contains("Sec-WebSocket-Extensions"))
+							headers.at("Sec-WebSocket-Extensions") += ", " + mess.substr(colon + 2, nl - colon - 2);
+						else
+							headers.emplace(name, mess.substr(colon + 2, nl - colon - 2));
+					}
 				}
 
 				nl2 = nl + 2;
@@ -552,8 +558,6 @@ namespace ws {
 				throw formatted_error("Invalid value for Sec-WebSocket-Accept.");
 
 #ifdef WITH_ZLIB
-			// FIXME - specs say we can have multiple Sec-WebSocket-Extensions headers
-
 			vector<string_view> exts;
 
 			if (headers.count("Sec-WebSocket-Extensions") != 0) {
