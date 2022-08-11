@@ -42,7 +42,7 @@ using namespace std;
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 namespace ws {
-	client::client(const string& host, uint16_t port, const string& path,
+	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
 				   bool enc) {
 		impl = make_unique<client_pimpl>(*this, host, port, path, msg_handler, disconn_handler, enc);
@@ -118,7 +118,7 @@ namespace ws {
 		open = true;
 	}
 
-	client_pimpl::client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
+	client_pimpl::client_pimpl(client& parent, string_view host, uint16_t port, string_view path,
 							   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
 							   bool enc) :
 			parent(parent),

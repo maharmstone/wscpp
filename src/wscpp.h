@@ -158,7 +158,7 @@ namespace ws {
 
 	class WSCPP client {
 	public:
-		client(const std::string& host, uint16_t port, const std::string& path, const client_msg_handler& msg_handler = nullptr,
+		client(std::string_view host, uint16_t port, std::string_view path, const client_msg_handler& msg_handler = nullptr,
 			   const client_disconn_handler& disconn_handler = nullptr, bool enc = false);
 		~client();
 		void send(std::span<const uint8_t> payload, enum opcode opcode = opcode::text, unsigned int timeout = 0) const;

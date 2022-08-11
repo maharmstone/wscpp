@@ -148,7 +148,7 @@ namespace ws {
 
 	class client_pimpl {
 	public:
-		client_pimpl(client& parent, const std::string& host, uint16_t port, const std::string& path,
+		client_pimpl(client& parent, std::string_view host, uint16_t port, std::string_view path,
 					 const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
 					 bool enc);
 		~client_pimpl();
