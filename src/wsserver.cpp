@@ -288,11 +288,16 @@ namespace ws {
 				comp.insert(comp.end(), buf, buf + sizeof(buf) - strm.avail_out);
 			} while (strm.avail_out == 0);
 
-			err = deflate(&strm, Z_SYNC_FLUSH);
-			if (err != Z_OK && err != Z_STREAM_END)
-				throw formatted_error("deflate returned {}", err);
+			do {
+				strm.avail_out = sizeof(buf);
+				strm.next_out = buf;
 
-			comp.insert(comp.end(), buf, buf + sizeof(buf) - strm.avail_out);
+				err = deflate(&strm, Z_SYNC_FLUSH);
+				if (err != Z_OK && err != Z_STREAM_END)
+					throw formatted_error("deflate returned {}", err);
+
+				comp.insert(comp.end(), buf, buf + sizeof(buf) - strm.avail_out);
+			} while (strm.avail_out == 0);
 
 			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
 				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
