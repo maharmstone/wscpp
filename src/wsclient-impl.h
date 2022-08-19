@@ -5,6 +5,7 @@
 #include <bit>
 #include <optional>
 #include <semaphore>
+#include <stdexcept>
 
 #ifdef _WIN32
 #define SECURITY_WIN32
