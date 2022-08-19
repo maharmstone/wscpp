@@ -6,6 +6,7 @@ include(CMakePackageConfigHelpers)
 project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
 option(WITH_ZLIB "Use zlib for compression" ON)
 
