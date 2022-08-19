@@ -36,7 +36,7 @@ set(SRC_FILES src/wsclient.cpp
 	src/wsexcept.cpp
 	src/ssl.cpp)
 
-add_library(wscpp SHARED ${SRC_FILES})
+add_library(wscpp ${SRC_FILES})
 
 if(WIN32)
 	target_link_libraries(wscpp PUBLIC wsock32 ws2_32 secur32 ntdsapi crypt32)
