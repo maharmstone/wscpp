@@ -1368,7 +1368,7 @@ namespace ws {
 		static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
 
 		if (!memcmp(ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
-			return fmt::format("{}.{}.{}.{}", ip_addr[12], ip_addr[13], ip_addr[14], ip_addr[15]);
+			return format("{}.{}.{}.{}", ip_addr[12], ip_addr[13], ip_addr[14], ip_addr[15]);
 		else {
 			char s[INET6_ADDRSTRLEN];
 

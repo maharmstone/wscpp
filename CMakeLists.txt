@@ -10,8 +10,6 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
 option(WITH_ZLIB "Use zlib for compression" ON)
 
-find_package(fmt REQUIRED)
-
 if(WITH_ZLIB)
 	find_package(ZLIB REQUIRED)
 endif()
@@ -44,8 +42,6 @@ if(WIN32)
 else()
 	target_link_libraries(wscpp PUBLIC pthread gssapi_krb5)
 endif()
-
-target_link_libraries(wscpp PRIVATE fmt::fmt-header-only)
 
 if(WITH_ZLIB)
 	target_link_libraries(wscpp PUBLIC ZLIB::ZLIB)

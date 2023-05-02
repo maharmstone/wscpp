@@ -1,18 +1,16 @@
 #pragma once
 
-#include <fmt/format.h>
-#include <fmt/compile.h>
+#include <format>
 #include <string>
 
 #ifndef _WIN32
 #include <gssapi/gssapi.h>
 #endif
 
-class _formatted_error : public std::exception {
+class formatted_error : public std::exception {
 public:
-	template<typename T, typename... Args>
-	_formatted_error(const T& s, Args&&... args) {
-		msg = fmt::format(s, std::forward<Args>(args)...);
+	template<typename... Args>
+	formatted_error(std::format_string<Args...> s, Args&&... args) : msg(std::format(s, std::forward<Args>(args)...)) {
 	}
 
 	const char* what() const noexcept {
@@ -22,8 +20,6 @@ public:
 private:
 	std::string msg;
 };
-
-#define formatted_error(s, ...) _formatted_error(FMT_COMPILE(s), ##__VA_ARGS__)
 
 #ifndef _WIN32
 enum class krb5_minor {
@@ -286,7 +282,7 @@ enum class krb5_minor {
 };
 
 template<>
-struct fmt::formatter<enum krb5_minor> {
+struct std::formatter<enum krb5_minor> {
 	constexpr auto parse(format_parse_context& ctx) {
 		auto it = ctx.begin();
 
@@ -297,778 +293,778 @@ struct fmt::formatter<enum krb5_minor> {
 	}
 
 	template<typename format_context>
-	auto format(enum krb5_minor t, format_context& ctx) {
+	auto format(enum krb5_minor t, format_context& ctx) const {
 		switch (t) {
 			case krb5_minor::KRB5KDC_ERR_NONE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_NONE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_NONE");
 
 			case krb5_minor::KRB5KDC_ERR_NAME_EXP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_NAME_EXP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_NAME_EXP");
 
 			case krb5_minor::KRB5KDC_ERR_SERVICE_EXP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_EXP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_EXP");
 
 			case krb5_minor::KRB5KDC_ERR_BAD_PVNO:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_BAD_PVNO");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_BAD_PVNO");
 
 			case krb5_minor::KRB5KDC_ERR_C_OLD_MAST_KVNO:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_C_OLD_MAST_KVNO");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_C_OLD_MAST_KVNO");
 
 			case krb5_minor::KRB5KDC_ERR_S_OLD_MAST_KVNO:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_S_OLD_MAST_KVNO");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_S_OLD_MAST_KVNO");
 
 			case krb5_minor::KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN");
 
 			case krb5_minor::KRB5KDC_ERR_S_PRINCIPAL_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_S_PRINCIPAL_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_S_PRINCIPAL_UNKNOWN");
 
 			case krb5_minor::KRB5KDC_ERR_PRINCIPAL_NOT_UNIQUE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PRINCIPAL_NOT_UNIQUE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PRINCIPAL_NOT_UNIQUE");
 
 			case krb5_minor::KRB5KDC_ERR_NULL_KEY:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_NULL_KEY");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_NULL_KEY");
 
 			case krb5_minor::KRB5KDC_ERR_CANNOT_POSTDATE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CANNOT_POSTDATE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CANNOT_POSTDATE");
 
 			case krb5_minor::KRB5KDC_ERR_NEVER_VALID:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_NEVER_VALID");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_NEVER_VALID");
 
 			case krb5_minor::KRB5KDC_ERR_POLICY:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_POLICY");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_POLICY");
 
 			case krb5_minor::KRB5KDC_ERR_BADOPTION:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_BADOPTION");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_BADOPTION");
 
 			case krb5_minor::KRB5KDC_ERR_ETYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_ETYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_ETYPE_NOSUPP");
 
 			case krb5_minor::KRB5KDC_ERR_SUMTYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SUMTYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SUMTYPE_NOSUPP");
 
 			case krb5_minor::KRB5KDC_ERR_PADATA_TYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PADATA_TYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PADATA_TYPE_NOSUPP");
 
 			case krb5_minor::KRB5KDC_ERR_TRTYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_TRTYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_TRTYPE_NOSUPP");
 
 			case krb5_minor::KRB5KDC_ERR_CLIENT_REVOKED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_REVOKED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_REVOKED");
 
 			case krb5_minor::KRB5KDC_ERR_SERVICE_REVOKED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_REVOKED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_REVOKED");
 
 			case krb5_minor::KRB5KDC_ERR_TGT_REVOKED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_TGT_REVOKED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_TGT_REVOKED");
 
 			case krb5_minor::KRB5KDC_ERR_CLIENT_NOTYET:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NOTYET");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NOTYET");
 
 			case krb5_minor::KRB5KDC_ERR_SERVICE_NOTYET:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_NOTYET");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SERVICE_NOTYET");
 
 			case krb5_minor::KRB5KDC_ERR_KEY_EXP:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_KEY_EXP");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_KEY_EXP");
 
 			case krb5_minor::KRB5KDC_ERR_PREAUTH_FAILED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_FAILED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_FAILED");
 
 			case krb5_minor::KRB5KDC_ERR_PREAUTH_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_REQUIRED");
 
 			case krb5_minor::KRB5KDC_ERR_SERVER_NOMATCH:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SERVER_NOMATCH");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SERVER_NOMATCH");
 
 			case krb5_minor::KRB5KDC_ERR_MUST_USE_USER2USER:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_MUST_USE_USER2USER");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_MUST_USE_USER2USER");
 
 			case krb5_minor::KRB5KDC_ERR_PATH_NOT_ACCEPTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PATH_NOT_ACCEPTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PATH_NOT_ACCEPTED");
 
 			case krb5_minor::KRB5KDC_ERR_SVC_UNAVAILABLE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_SVC_UNAVAILABLE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_SVC_UNAVAILABLE");
 
 			case krb5_minor::KRB5PLACEHOLD_30:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_30");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_30");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BAD_INTEGRITY:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BAD_INTEGRITY");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BAD_INTEGRITY");
 
 			case krb5_minor::KRB5KRB_AP_ERR_TKT_EXPIRED:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_EXPIRED");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_EXPIRED");
 
 			case krb5_minor::KRB5KRB_AP_ERR_TKT_NYV:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_NYV");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_NYV");
 
 			case krb5_minor::KRB5KRB_AP_ERR_REPEAT:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_REPEAT");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_REPEAT");
 
 			case krb5_minor::KRB5KRB_AP_ERR_NOT_US:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_NOT_US");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_NOT_US");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADMATCH:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADMATCH");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADMATCH");
 
 			case krb5_minor::KRB5KRB_AP_ERR_SKEW:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_SKEW");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_SKEW");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADADDR:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADADDR");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADADDR");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADVERSION:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADVERSION");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADVERSION");
 
 			case krb5_minor::KRB5KRB_AP_ERR_MSG_TYPE:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_MSG_TYPE");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_MSG_TYPE");
 
 			case krb5_minor::KRB5KRB_AP_ERR_MODIFIED:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_MODIFIED");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_MODIFIED");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADORDER:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADORDER");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADORDER");
 
 			case krb5_minor::KRB5KRB_AP_ERR_ILL_CR_TKT:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_ILL_CR_TKT");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_ILL_CR_TKT");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADKEYVER:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADKEYVER");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADKEYVER");
 
 			case krb5_minor::KRB5KRB_AP_ERR_NOKEY:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_NOKEY");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_NOKEY");
 
 			case krb5_minor::KRB5KRB_AP_ERR_MUT_FAIL:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_MUT_FAIL");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_MUT_FAIL");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADDIRECTION:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADDIRECTION");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADDIRECTION");
 
 			case krb5_minor::KRB5KRB_AP_ERR_METHOD:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_METHOD");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_METHOD");
 
 			case krb5_minor::KRB5KRB_AP_ERR_BADSEQ:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADSEQ");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_BADSEQ");
 
 			case krb5_minor::KRB5KRB_AP_ERR_INAPP_CKSUM:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_INAPP_CKSUM");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_INAPP_CKSUM");
 
 			case krb5_minor::KRB5KRB_AP_PATH_NOT_ACCEPTED:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_PATH_NOT_ACCEPTED");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_PATH_NOT_ACCEPTED");
 
 			case krb5_minor::KRB5KRB_ERR_RESPONSE_TOO_BIG:
-				return fmt::format_to(ctx.out(), "KRB5KRB_ERR_RESPONSE_TOO_BIG");
+				return std::format_to(ctx.out(), "KRB5KRB_ERR_RESPONSE_TOO_BIG");
 
 			case krb5_minor::KRB5PLACEHOLD_53:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_53");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_53");
 
 			case krb5_minor::KRB5PLACEHOLD_54:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_54");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_54");
 
 			case krb5_minor::KRB5PLACEHOLD_55:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_55");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_55");
 
 			case krb5_minor::KRB5PLACEHOLD_56:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_56");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_56");
 
 			case krb5_minor::KRB5PLACEHOLD_57:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_57");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_57");
 
 			case krb5_minor::KRB5PLACEHOLD_58:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_58");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_58");
 
 			case krb5_minor::KRB5PLACEHOLD_59:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_59");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_59");
 
 			case krb5_minor::KRB5KRB_ERR_GENERIC:
-				return fmt::format_to(ctx.out(), "KRB5KRB_ERR_GENERIC");
+				return std::format_to(ctx.out(), "KRB5KRB_ERR_GENERIC");
 
 			case krb5_minor::KRB5KRB_ERR_FIELD_TOOLONG:
-				return fmt::format_to(ctx.out(), "KRB5KRB_ERR_FIELD_TOOLONG");
+				return std::format_to(ctx.out(), "KRB5KRB_ERR_FIELD_TOOLONG");
 
 			case krb5_minor::KRB5KDC_ERR_CLIENT_NOT_TRUSTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NOT_TRUSTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NOT_TRUSTED");
 
 			case krb5_minor::KRB5KDC_ERR_KDC_NOT_TRUSTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_KDC_NOT_TRUSTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_KDC_NOT_TRUSTED");
 
 			case krb5_minor::KRB5KDC_ERR_INVALID_SIG:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_INVALID_SIG");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_INVALID_SIG");
 
 			case krb5_minor::KRB5KDC_ERR_DH_KEY_PARAMETERS_NOT_ACCEPTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_DH_KEY_PARAMETERS_NOT_ACCEPTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_DH_KEY_PARAMETERS_NOT_ACCEPTED");
 
 			case krb5_minor::KRB5KDC_ERR_CERTIFICATE_MISMATCH:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CERTIFICATE_MISMATCH");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CERTIFICATE_MISMATCH");
 
 			case krb5_minor::KRB5KRB_AP_ERR_NO_TGT:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_NO_TGT");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_NO_TGT");
 
 			case krb5_minor::KRB5KDC_ERR_WRONG_REALM:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_WRONG_REALM");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_WRONG_REALM");
 
 			case krb5_minor::KRB5KRB_AP_ERR_USER_TO_USER_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_USER_TO_USER_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_USER_TO_USER_REQUIRED");
 
 			case krb5_minor::KRB5KDC_ERR_CANT_VERIFY_CERTIFICATE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CANT_VERIFY_CERTIFICATE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CANT_VERIFY_CERTIFICATE");
 
 			case krb5_minor::KRB5KDC_ERR_INVALID_CERTIFICATE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_INVALID_CERTIFICATE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_INVALID_CERTIFICATE");
 
 			case krb5_minor::KRB5KDC_ERR_REVOKED_CERTIFICATE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_REVOKED_CERTIFICATE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_REVOKED_CERTIFICATE");
 
 			case krb5_minor::KRB5KDC_ERR_REVOCATION_STATUS_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_REVOCATION_STATUS_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_REVOCATION_STATUS_UNKNOWN");
 
 			case krb5_minor::KRB5KDC_ERR_REVOCATION_STATUS_UNAVAILABLE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_REVOCATION_STATUS_UNAVAILABLE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_REVOCATION_STATUS_UNAVAILABLE");
 
 			case krb5_minor::KRB5KDC_ERR_CLIENT_NAME_MISMATCH:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NAME_MISMATCH");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_CLIENT_NAME_MISMATCH");
 
 			case krb5_minor::KRB5KDC_ERR_KDC_NAME_MISMATCH:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_KDC_NAME_MISMATCH");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_KDC_NAME_MISMATCH");
 
 			case krb5_minor::KRB5KDC_ERR_INCONSISTENT_KEY_PURPOSE:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_INCONSISTENT_KEY_PURPOSE");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_INCONSISTENT_KEY_PURPOSE");
 
 			case krb5_minor::KRB5KDC_ERR_DIGEST_IN_CERT_NOT_ACCEPTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_DIGEST_IN_CERT_NOT_ACCEPTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_DIGEST_IN_CERT_NOT_ACCEPTED");
 
 			case krb5_minor::KRB5KDC_ERR_PA_CHECKSUM_MUST_BE_INCLUDED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PA_CHECKSUM_MUST_BE_INCLUDED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PA_CHECKSUM_MUST_BE_INCLUDED");
 
 			case krb5_minor::KRB5KDC_ERR_DIGEST_IN_SIGNED_DATA_NOT_ACCEPTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_DIGEST_IN_SIGNED_DATA_NOT_ACCEPTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_DIGEST_IN_SIGNED_DATA_NOT_ACCEPTED");
 
 			case krb5_minor::KRB5KDC_ERR_PUBLIC_KEY_ENCRYPTION_NOT_SUPPORTED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PUBLIC_KEY_ENCRYPTION_NOT_SUPPORTED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PUBLIC_KEY_ENCRYPTION_NOT_SUPPORTED");
 
 			case krb5_minor::KRB5PLACEHOLD_82:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_82");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_82");
 
 			case krb5_minor::KRB5PLACEHOLD_83:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_83");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_83");
 
 			case krb5_minor::KRB5PLACEHOLD_84:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_84");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_84");
 
 			case krb5_minor::KRB5KRB_AP_ERR_IAKERB_KDC_NOT_FOUND:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_IAKERB_KDC_NOT_FOUND");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_IAKERB_KDC_NOT_FOUND");
 
 			case krb5_minor::KRB5KRB_AP_ERR_IAKERB_KDC_NO_RESPONSE:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_IAKERB_KDC_NO_RESPONSE");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_IAKERB_KDC_NO_RESPONSE");
 
 			case krb5_minor::KRB5PLACEHOLD_87:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_87");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_87");
 
 			case krb5_minor::KRB5PLACEHOLD_88:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_88");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_88");
 
 			case krb5_minor::KRB5PLACEHOLD_89:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_89");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_89");
 
 			case krb5_minor::KRB5KDC_ERR_PREAUTH_EXPIRED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_EXPIRED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_PREAUTH_EXPIRED");
 
 			case krb5_minor::KRB5KDC_ERR_MORE_PREAUTH_DATA_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_MORE_PREAUTH_DATA_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_MORE_PREAUTH_DATA_REQUIRED");
 
 			case krb5_minor::KRB5PLACEHOLD_92:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_92");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_92");
 
 			case krb5_minor::KRB5KDC_ERR_UNKNOWN_CRITICAL_FAST_OPTION:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_UNKNOWN_CRITICAL_FAST_OPTION");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_UNKNOWN_CRITICAL_FAST_OPTION");
 
 			case krb5_minor::KRB5PLACEHOLD_94:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_94");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_94");
 
 			case krb5_minor::KRB5PLACEHOLD_95:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_95");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_95");
 
 			case krb5_minor::KRB5PLACEHOLD_96:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_96");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_96");
 
 			case krb5_minor::KRB5PLACEHOLD_97:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_97");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_97");
 
 			case krb5_minor::KRB5PLACEHOLD_98:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_98");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_98");
 
 			case krb5_minor::KRB5PLACEHOLD_99:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_99");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_99");
 
 			case krb5_minor::KRB5KDC_ERR_NO_ACCEPTABLE_KDF:
-				return fmt::format_to(ctx.out(), "KRB5KDC_ERR_NO_ACCEPTABLE_KDF");
+				return std::format_to(ctx.out(), "KRB5KDC_ERR_NO_ACCEPTABLE_KDF");
 
 			case krb5_minor::KRB5PLACEHOLD_101:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_101");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_101");
 
 			case krb5_minor::KRB5PLACEHOLD_102:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_102");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_102");
 
 			case krb5_minor::KRB5PLACEHOLD_103:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_103");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_103");
 
 			case krb5_minor::KRB5PLACEHOLD_104:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_104");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_104");
 
 			case krb5_minor::KRB5PLACEHOLD_105:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_105");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_105");
 
 			case krb5_minor::KRB5PLACEHOLD_106:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_106");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_106");
 
 			case krb5_minor::KRB5PLACEHOLD_107:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_107");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_107");
 
 			case krb5_minor::KRB5PLACEHOLD_108:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_108");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_108");
 
 			case krb5_minor::KRB5PLACEHOLD_109:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_109");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_109");
 
 			case krb5_minor::KRB5PLACEHOLD_110:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_110");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_110");
 
 			case krb5_minor::KRB5PLACEHOLD_111:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_111");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_111");
 
 			case krb5_minor::KRB5PLACEHOLD_112:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_112");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_112");
 
 			case krb5_minor::KRB5PLACEHOLD_113:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_113");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_113");
 
 			case krb5_minor::KRB5PLACEHOLD_114:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_114");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_114");
 
 			case krb5_minor::KRB5PLACEHOLD_115:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_115");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_115");
 
 			case krb5_minor::KRB5PLACEHOLD_116:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_116");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_116");
 
 			case krb5_minor::KRB5PLACEHOLD_117:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_117");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_117");
 
 			case krb5_minor::KRB5PLACEHOLD_118:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_118");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_118");
 
 			case krb5_minor::KRB5PLACEHOLD_119:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_119");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_119");
 
 			case krb5_minor::KRB5PLACEHOLD_120:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_120");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_120");
 
 			case krb5_minor::KRB5PLACEHOLD_121:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_121");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_121");
 
 			case krb5_minor::KRB5PLACEHOLD_122:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_122");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_122");
 
 			case krb5_minor::KRB5PLACEHOLD_123:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_123");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_123");
 
 			case krb5_minor::KRB5PLACEHOLD_124:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_124");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_124");
 
 			case krb5_minor::KRB5PLACEHOLD_125:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_125");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_125");
 
 			case krb5_minor::KRB5PLACEHOLD_126:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_126");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_126");
 
 			case krb5_minor::KRB5PLACEHOLD_127:
-				return fmt::format_to(ctx.out(), "KRB5PLACEHOLD_127");
+				return std::format_to(ctx.out(), "KRB5PLACEHOLD_127");
 
 			case krb5_minor::KRB5_ERR_RCSID:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_RCSID");
+				return std::format_to(ctx.out(), "KRB5_ERR_RCSID");
 
 			case krb5_minor::KRB5_LIBOS_BADLOCKFLAG:
-				return fmt::format_to(ctx.out(), "KRB5_LIBOS_BADLOCKFLAG");
+				return std::format_to(ctx.out(), "KRB5_LIBOS_BADLOCKFLAG");
 
 			case krb5_minor::KRB5_LIBOS_CANTREADPWD:
-				return fmt::format_to(ctx.out(), "KRB5_LIBOS_CANTREADPWD");
+				return std::format_to(ctx.out(), "KRB5_LIBOS_CANTREADPWD");
 
 			case krb5_minor::KRB5_LIBOS_BADPWDMATCH:
-				return fmt::format_to(ctx.out(), "KRB5_LIBOS_BADPWDMATCH");
+				return std::format_to(ctx.out(), "KRB5_LIBOS_BADPWDMATCH");
 
 			case krb5_minor::KRB5_LIBOS_PWDINTR:
-				return fmt::format_to(ctx.out(), "KRB5_LIBOS_PWDINTR");
+				return std::format_to(ctx.out(), "KRB5_LIBOS_PWDINTR");
 
 			case krb5_minor::KRB5_PARSE_ILLCHAR:
-				return fmt::format_to(ctx.out(), "KRB5_PARSE_ILLCHAR");
+				return std::format_to(ctx.out(), "KRB5_PARSE_ILLCHAR");
 
 			case krb5_minor::KRB5_PARSE_MALFORMED:
-				return fmt::format_to(ctx.out(), "KRB5_PARSE_MALFORMED");
+				return std::format_to(ctx.out(), "KRB5_PARSE_MALFORMED");
 
 			case krb5_minor::KRB5_CONFIG_CANTOPEN:
-				return fmt::format_to(ctx.out(), "KRB5_CONFIG_CANTOPEN");
+				return std::format_to(ctx.out(), "KRB5_CONFIG_CANTOPEN");
 
 			case krb5_minor::KRB5_CONFIG_BADFORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_CONFIG_BADFORMAT");
+				return std::format_to(ctx.out(), "KRB5_CONFIG_BADFORMAT");
 
 			case krb5_minor::KRB5_CONFIG_NOTENUFSPACE:
-				return fmt::format_to(ctx.out(), "KRB5_CONFIG_NOTENUFSPACE");
+				return std::format_to(ctx.out(), "KRB5_CONFIG_NOTENUFSPACE");
 
 			case krb5_minor::KRB5_BADMSGTYPE:
-				return fmt::format_to(ctx.out(), "KRB5_BADMSGTYPE");
+				return std::format_to(ctx.out(), "KRB5_BADMSGTYPE");
 
 			case krb5_minor::KRB5_CC_BADNAME:
-				return fmt::format_to(ctx.out(), "KRB5_CC_BADNAME");
+				return std::format_to(ctx.out(), "KRB5_CC_BADNAME");
 
 			case krb5_minor::KRB5_CC_UNKNOWN_TYPE:
-				return fmt::format_to(ctx.out(), "KRB5_CC_UNKNOWN_TYPE");
+				return std::format_to(ctx.out(), "KRB5_CC_UNKNOWN_TYPE");
 
 			case krb5_minor::KRB5_CC_NOTFOUND:
-				return fmt::format_to(ctx.out(), "KRB5_CC_NOTFOUND");
+				return std::format_to(ctx.out(), "KRB5_CC_NOTFOUND");
 
 			case krb5_minor::KRB5_CC_END:
-				return fmt::format_to(ctx.out(), "KRB5_CC_END");
+				return std::format_to(ctx.out(), "KRB5_CC_END");
 
 			case krb5_minor::KRB5_NO_TKT_SUPPLIED:
-				return fmt::format_to(ctx.out(), "KRB5_NO_TKT_SUPPLIED");
+				return std::format_to(ctx.out(), "KRB5_NO_TKT_SUPPLIED");
 
 			case krb5_minor::KRB5KRB_AP_WRONG_PRINC:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_WRONG_PRINC");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_WRONG_PRINC");
 
 			case krb5_minor::KRB5KRB_AP_ERR_TKT_INVALID:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_INVALID");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_TKT_INVALID");
 
 			case krb5_minor::KRB5_PRINC_NOMATCH:
-				return fmt::format_to(ctx.out(), "KRB5_PRINC_NOMATCH");
+				return std::format_to(ctx.out(), "KRB5_PRINC_NOMATCH");
 
 			case krb5_minor::KRB5_KDCREP_MODIFIED:
-				return fmt::format_to(ctx.out(), "KRB5_KDCREP_MODIFIED");
+				return std::format_to(ctx.out(), "KRB5_KDCREP_MODIFIED");
 
 			case krb5_minor::KRB5_KDCREP_SKEW:
-				return fmt::format_to(ctx.out(), "KRB5_KDCREP_SKEW");
+				return std::format_to(ctx.out(), "KRB5_KDCREP_SKEW");
 
 			case krb5_minor::KRB5_IN_TKT_REALM_MISMATCH:
-				return fmt::format_to(ctx.out(), "KRB5_IN_TKT_REALM_MISMATCH");
+				return std::format_to(ctx.out(), "KRB5_IN_TKT_REALM_MISMATCH");
 
 			case krb5_minor::KRB5_PROG_ETYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_PROG_ETYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_PROG_ETYPE_NOSUPP");
 
 			case krb5_minor::KRB5_PROG_KEYTYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_PROG_KEYTYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_PROG_KEYTYPE_NOSUPP");
 
 			case krb5_minor::KRB5_WRONG_ETYPE:
-				return fmt::format_to(ctx.out(), "KRB5_WRONG_ETYPE");
+				return std::format_to(ctx.out(), "KRB5_WRONG_ETYPE");
 
 			case krb5_minor::KRB5_PROG_SUMTYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_PROG_SUMTYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_PROG_SUMTYPE_NOSUPP");
 
 			case krb5_minor::KRB5_REALM_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5_REALM_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5_REALM_UNKNOWN");
 
 			case krb5_minor::KRB5_SERVICE_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5_SERVICE_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5_SERVICE_UNKNOWN");
 
 			case krb5_minor::KRB5_KDC_UNREACH:
-				return fmt::format_to(ctx.out(), "KRB5_KDC_UNREACH");
+				return std::format_to(ctx.out(), "KRB5_KDC_UNREACH");
 
 			case krb5_minor::KRB5_NO_LOCALNAME:
-				return fmt::format_to(ctx.out(), "KRB5_NO_LOCALNAME");
+				return std::format_to(ctx.out(), "KRB5_NO_LOCALNAME");
 
 			case krb5_minor::KRB5_MUTUAL_FAILED:
-				return fmt::format_to(ctx.out(), "KRB5_MUTUAL_FAILED");
+				return std::format_to(ctx.out(), "KRB5_MUTUAL_FAILED");
 
 			case krb5_minor::KRB5_RC_TYPE_EXISTS:
-				return fmt::format_to(ctx.out(), "KRB5_RC_TYPE_EXISTS");
+				return std::format_to(ctx.out(), "KRB5_RC_TYPE_EXISTS");
 
 			case krb5_minor::KRB5_RC_MALLOC:
-				return fmt::format_to(ctx.out(), "KRB5_RC_MALLOC");
+				return std::format_to(ctx.out(), "KRB5_RC_MALLOC");
 
 			case krb5_minor::KRB5_RC_TYPE_NOTFOUND:
-				return fmt::format_to(ctx.out(), "KRB5_RC_TYPE_NOTFOUND");
+				return std::format_to(ctx.out(), "KRB5_RC_TYPE_NOTFOUND");
 
 			case krb5_minor::KRB5_RC_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5_RC_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5_RC_UNKNOWN");
 
 			case krb5_minor::KRB5_RC_REPLAY:
-				return fmt::format_to(ctx.out(), "KRB5_RC_REPLAY");
+				return std::format_to(ctx.out(), "KRB5_RC_REPLAY");
 
 			case krb5_minor::KRB5_RC_IO:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO");
+				return std::format_to(ctx.out(), "KRB5_RC_IO");
 
 			case krb5_minor::KRB5_RC_NOIO:
-				return fmt::format_to(ctx.out(), "KRB5_RC_NOIO");
+				return std::format_to(ctx.out(), "KRB5_RC_NOIO");
 
 			case krb5_minor::KRB5_RC_PARSE:
-				return fmt::format_to(ctx.out(), "KRB5_RC_PARSE");
+				return std::format_to(ctx.out(), "KRB5_RC_PARSE");
 
 			case krb5_minor::KRB5_RC_IO_EOF:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_EOF");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_EOF");
 
 			case krb5_minor::KRB5_RC_IO_MALLOC:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_MALLOC");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_MALLOC");
 
 			case krb5_minor::KRB5_RC_IO_PERM:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_PERM");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_PERM");
 
 			case krb5_minor::KRB5_RC_IO_IO:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_IO");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_IO");
 
 			case krb5_minor::KRB5_RC_IO_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_UNKNOWN");
 
 			case krb5_minor::KRB5_RC_IO_SPACE:
-				return fmt::format_to(ctx.out(), "KRB5_RC_IO_SPACE");
+				return std::format_to(ctx.out(), "KRB5_RC_IO_SPACE");
 
 			case krb5_minor::KRB5_TRANS_CANTOPEN:
-				return fmt::format_to(ctx.out(), "KRB5_TRANS_CANTOPEN");
+				return std::format_to(ctx.out(), "KRB5_TRANS_CANTOPEN");
 
 			case krb5_minor::KRB5_TRANS_BADFORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_TRANS_BADFORMAT");
+				return std::format_to(ctx.out(), "KRB5_TRANS_BADFORMAT");
 
 			case krb5_minor::KRB5_LNAME_CANTOPEN:
-				return fmt::format_to(ctx.out(), "KRB5_LNAME_CANTOPEN");
+				return std::format_to(ctx.out(), "KRB5_LNAME_CANTOPEN");
 
 			case krb5_minor::KRB5_LNAME_NOTRANS:
-				return fmt::format_to(ctx.out(), "KRB5_LNAME_NOTRANS");
+				return std::format_to(ctx.out(), "KRB5_LNAME_NOTRANS");
 
 			case krb5_minor::KRB5_LNAME_BADFORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_LNAME_BADFORMAT");
+				return std::format_to(ctx.out(), "KRB5_LNAME_BADFORMAT");
 
 			case krb5_minor::KRB5_CRYPTO_INTERNAL:
-				return fmt::format_to(ctx.out(), "KRB5_CRYPTO_INTERNAL");
+				return std::format_to(ctx.out(), "KRB5_CRYPTO_INTERNAL");
 
 			case krb5_minor::KRB5_KT_BADNAME:
-				return fmt::format_to(ctx.out(), "KRB5_KT_BADNAME");
+				return std::format_to(ctx.out(), "KRB5_KT_BADNAME");
 
 			case krb5_minor::KRB5_KT_UNKNOWN_TYPE:
-				return fmt::format_to(ctx.out(), "KRB5_KT_UNKNOWN_TYPE");
+				return std::format_to(ctx.out(), "KRB5_KT_UNKNOWN_TYPE");
 
 			case krb5_minor::KRB5_KT_NOTFOUND:
-				return fmt::format_to(ctx.out(), "KRB5_KT_NOTFOUND");
+				return std::format_to(ctx.out(), "KRB5_KT_NOTFOUND");
 
 			case krb5_minor::KRB5_KT_END:
-				return fmt::format_to(ctx.out(), "KRB5_KT_END");
+				return std::format_to(ctx.out(), "KRB5_KT_END");
 
 			case krb5_minor::KRB5_KT_NOWRITE:
-				return fmt::format_to(ctx.out(), "KRB5_KT_NOWRITE");
+				return std::format_to(ctx.out(), "KRB5_KT_NOWRITE");
 
 			case krb5_minor::KRB5_KT_IOERR:
-				return fmt::format_to(ctx.out(), "KRB5_KT_IOERR");
+				return std::format_to(ctx.out(), "KRB5_KT_IOERR");
 
 			case krb5_minor::KRB5_NO_TKT_IN_RLM:
-				return fmt::format_to(ctx.out(), "KRB5_NO_TKT_IN_RLM");
+				return std::format_to(ctx.out(), "KRB5_NO_TKT_IN_RLM");
 
 			case krb5_minor::KRB5DES_BAD_KEYPAR:
-				return fmt::format_to(ctx.out(), "KRB5DES_BAD_KEYPAR");
+				return std::format_to(ctx.out(), "KRB5DES_BAD_KEYPAR");
 
 			case krb5_minor::KRB5DES_WEAK_KEY:
-				return fmt::format_to(ctx.out(), "KRB5DES_WEAK_KEY");
+				return std::format_to(ctx.out(), "KRB5DES_WEAK_KEY");
 
 			case krb5_minor::KRB5_BAD_ENCTYPE:
-				return fmt::format_to(ctx.out(), "KRB5_BAD_ENCTYPE");
+				return std::format_to(ctx.out(), "KRB5_BAD_ENCTYPE");
 
 			case krb5_minor::KRB5_BAD_KEYSIZE:
-				return fmt::format_to(ctx.out(), "KRB5_BAD_KEYSIZE");
+				return std::format_to(ctx.out(), "KRB5_BAD_KEYSIZE");
 
 			case krb5_minor::KRB5_BAD_MSIZE:
-				return fmt::format_to(ctx.out(), "KRB5_BAD_MSIZE");
+				return std::format_to(ctx.out(), "KRB5_BAD_MSIZE");
 
 			case krb5_minor::KRB5_CC_TYPE_EXISTS:
-				return fmt::format_to(ctx.out(), "KRB5_CC_TYPE_EXISTS");
+				return std::format_to(ctx.out(), "KRB5_CC_TYPE_EXISTS");
 
 			case krb5_minor::KRB5_KT_TYPE_EXISTS:
-				return fmt::format_to(ctx.out(), "KRB5_KT_TYPE_EXISTS");
+				return std::format_to(ctx.out(), "KRB5_KT_TYPE_EXISTS");
 
 			case krb5_minor::KRB5_CC_IO:
-				return fmt::format_to(ctx.out(), "KRB5_CC_IO");
+				return std::format_to(ctx.out(), "KRB5_CC_IO");
 
 			case krb5_minor::KRB5_FCC_PERM:
-				return fmt::format_to(ctx.out(), "KRB5_FCC_PERM");
+				return std::format_to(ctx.out(), "KRB5_FCC_PERM");
 
 			case krb5_minor::KRB5_FCC_NOFILE:
-				return fmt::format_to(ctx.out(), "KRB5_FCC_NOFILE");
+				return std::format_to(ctx.out(), "KRB5_FCC_NOFILE");
 
 			case krb5_minor::KRB5_FCC_INTERNAL:
-				return fmt::format_to(ctx.out(), "KRB5_FCC_INTERNAL");
+				return std::format_to(ctx.out(), "KRB5_FCC_INTERNAL");
 
 			case krb5_minor::KRB5_CC_WRITE:
-				return fmt::format_to(ctx.out(), "KRB5_CC_WRITE");
+				return std::format_to(ctx.out(), "KRB5_CC_WRITE");
 
 			case krb5_minor::KRB5_CC_NOMEM:
-				return fmt::format_to(ctx.out(), "KRB5_CC_NOMEM");
+				return std::format_to(ctx.out(), "KRB5_CC_NOMEM");
 
 			case krb5_minor::KRB5_CC_FORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_CC_FORMAT");
+				return std::format_to(ctx.out(), "KRB5_CC_FORMAT");
 
 			case krb5_minor::KRB5_CC_NOT_KTYPE:
-				return fmt::format_to(ctx.out(), "KRB5_CC_NOT_KTYPE");
+				return std::format_to(ctx.out(), "KRB5_CC_NOT_KTYPE");
 
 			case krb5_minor::KRB5_INVALID_FLAGS:
-				return fmt::format_to(ctx.out(), "KRB5_INVALID_FLAGS");
+				return std::format_to(ctx.out(), "KRB5_INVALID_FLAGS");
 
 			case krb5_minor::KRB5_NO_2ND_TKT:
-				return fmt::format_to(ctx.out(), "KRB5_NO_2ND_TKT");
+				return std::format_to(ctx.out(), "KRB5_NO_2ND_TKT");
 
 			case krb5_minor::KRB5_NOCREDS_SUPPLIED:
-				return fmt::format_to(ctx.out(), "KRB5_NOCREDS_SUPPLIED");
+				return std::format_to(ctx.out(), "KRB5_NOCREDS_SUPPLIED");
 
 			case krb5_minor::KRB5_SENDAUTH_BADAUTHVERS:
-				return fmt::format_to(ctx.out(), "KRB5_SENDAUTH_BADAUTHVERS");
+				return std::format_to(ctx.out(), "KRB5_SENDAUTH_BADAUTHVERS");
 
 			case krb5_minor::KRB5_SENDAUTH_BADAPPLVERS:
-				return fmt::format_to(ctx.out(), "KRB5_SENDAUTH_BADAPPLVERS");
+				return std::format_to(ctx.out(), "KRB5_SENDAUTH_BADAPPLVERS");
 
 			case krb5_minor::KRB5_SENDAUTH_BADRESPONSE:
-				return fmt::format_to(ctx.out(), "KRB5_SENDAUTH_BADRESPONSE");
+				return std::format_to(ctx.out(), "KRB5_SENDAUTH_BADRESPONSE");
 
 			case krb5_minor::KRB5_SENDAUTH_REJECTED:
-				return fmt::format_to(ctx.out(), "KRB5_SENDAUTH_REJECTED");
+				return std::format_to(ctx.out(), "KRB5_SENDAUTH_REJECTED");
 
 			case krb5_minor::KRB5_PREAUTH_BAD_TYPE:
-				return fmt::format_to(ctx.out(), "KRB5_PREAUTH_BAD_TYPE");
+				return std::format_to(ctx.out(), "KRB5_PREAUTH_BAD_TYPE");
 
 			case krb5_minor::KRB5_PREAUTH_NO_KEY:
-				return fmt::format_to(ctx.out(), "KRB5_PREAUTH_NO_KEY");
+				return std::format_to(ctx.out(), "KRB5_PREAUTH_NO_KEY");
 
 			case krb5_minor::KRB5_PREAUTH_FAILED:
-				return fmt::format_to(ctx.out(), "KRB5_PREAUTH_FAILED");
+				return std::format_to(ctx.out(), "KRB5_PREAUTH_FAILED");
 
 			case krb5_minor::KRB5_RCACHE_BADVNO:
-				return fmt::format_to(ctx.out(), "KRB5_RCACHE_BADVNO");
+				return std::format_to(ctx.out(), "KRB5_RCACHE_BADVNO");
 
 			case krb5_minor::KRB5_CCACHE_BADVNO:
-				return fmt::format_to(ctx.out(), "KRB5_CCACHE_BADVNO");
+				return std::format_to(ctx.out(), "KRB5_CCACHE_BADVNO");
 
 			case krb5_minor::KRB5_KEYTAB_BADVNO:
-				return fmt::format_to(ctx.out(), "KRB5_KEYTAB_BADVNO");
+				return std::format_to(ctx.out(), "KRB5_KEYTAB_BADVNO");
 
 			case krb5_minor::KRB5_PROG_ATYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_PROG_ATYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_PROG_ATYPE_NOSUPP");
 
 			case krb5_minor::KRB5_RC_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5_RC_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5_RC_REQUIRED");
 
 			case krb5_minor::KRB5_ERR_BAD_HOSTNAME:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_BAD_HOSTNAME");
+				return std::format_to(ctx.out(), "KRB5_ERR_BAD_HOSTNAME");
 
 			case krb5_minor::KRB5_ERR_HOST_REALM_UNKNOWN:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_HOST_REALM_UNKNOWN");
+				return std::format_to(ctx.out(), "KRB5_ERR_HOST_REALM_UNKNOWN");
 
 			case krb5_minor::KRB5_SNAME_UNSUPP_NAMETYPE:
-				return fmt::format_to(ctx.out(), "KRB5_SNAME_UNSUPP_NAMETYPE");
+				return std::format_to(ctx.out(), "KRB5_SNAME_UNSUPP_NAMETYPE");
 
 			case krb5_minor::KRB5KRB_AP_ERR_V4_REPLY:
-				return fmt::format_to(ctx.out(), "KRB5KRB_AP_ERR_V4_REPLY");
+				return std::format_to(ctx.out(), "KRB5KRB_AP_ERR_V4_REPLY");
 
 			case krb5_minor::KRB5_REALM_CANT_RESOLVE:
-				return fmt::format_to(ctx.out(), "KRB5_REALM_CANT_RESOLVE");
+				return std::format_to(ctx.out(), "KRB5_REALM_CANT_RESOLVE");
 
 			case krb5_minor::KRB5_TKT_NOT_FORWARDABLE:
-				return fmt::format_to(ctx.out(), "KRB5_TKT_NOT_FORWARDABLE");
+				return std::format_to(ctx.out(), "KRB5_TKT_NOT_FORWARDABLE");
 
 			case krb5_minor::KRB5_FWD_BAD_PRINCIPAL:
-				return fmt::format_to(ctx.out(), "KRB5_FWD_BAD_PRINCIPAL");
+				return std::format_to(ctx.out(), "KRB5_FWD_BAD_PRINCIPAL");
 
 			case krb5_minor::KRB5_GET_IN_TKT_LOOP:
-				return fmt::format_to(ctx.out(), "KRB5_GET_IN_TKT_LOOP");
+				return std::format_to(ctx.out(), "KRB5_GET_IN_TKT_LOOP");
 
 			case krb5_minor::KRB5_CONFIG_NODEFREALM:
-				return fmt::format_to(ctx.out(), "KRB5_CONFIG_NODEFREALM");
+				return std::format_to(ctx.out(), "KRB5_CONFIG_NODEFREALM");
 
 			case krb5_minor::KRB5_SAM_UNSUPPORTED:
-				return fmt::format_to(ctx.out(), "KRB5_SAM_UNSUPPORTED");
+				return std::format_to(ctx.out(), "KRB5_SAM_UNSUPPORTED");
 
 			case krb5_minor::KRB5_SAM_INVALID_ETYPE:
-				return fmt::format_to(ctx.out(), "KRB5_SAM_INVALID_ETYPE");
+				return std::format_to(ctx.out(), "KRB5_SAM_INVALID_ETYPE");
 
 			case krb5_minor::KRB5_SAM_NO_CHECKSUM:
-				return fmt::format_to(ctx.out(), "KRB5_SAM_NO_CHECKSUM");
+				return std::format_to(ctx.out(), "KRB5_SAM_NO_CHECKSUM");
 
 			case krb5_minor::KRB5_SAM_BAD_CHECKSUM:
-				return fmt::format_to(ctx.out(), "KRB5_SAM_BAD_CHECKSUM");
+				return std::format_to(ctx.out(), "KRB5_SAM_BAD_CHECKSUM");
 
 			case krb5_minor::KRB5_KT_NAME_TOOLONG:
-				return fmt::format_to(ctx.out(), "KRB5_KT_NAME_TOOLONG");
+				return std::format_to(ctx.out(), "KRB5_KT_NAME_TOOLONG");
 
 			case krb5_minor::KRB5_KT_KVNONOTFOUND:
-				return fmt::format_to(ctx.out(), "KRB5_KT_KVNONOTFOUND");
+				return std::format_to(ctx.out(), "KRB5_KT_KVNONOTFOUND");
 
 			case krb5_minor::KRB5_APPL_EXPIRED:
-				return fmt::format_to(ctx.out(), "KRB5_APPL_EXPIRED");
+				return std::format_to(ctx.out(), "KRB5_APPL_EXPIRED");
 
 			case krb5_minor::KRB5_LIB_EXPIRED:
-				return fmt::format_to(ctx.out(), "KRB5_LIB_EXPIRED");
+				return std::format_to(ctx.out(), "KRB5_LIB_EXPIRED");
 
 			case krb5_minor::KRB5_CHPW_PWDNULL:
-				return fmt::format_to(ctx.out(), "KRB5_CHPW_PWDNULL");
+				return std::format_to(ctx.out(), "KRB5_CHPW_PWDNULL");
 
 			case krb5_minor::KRB5_CHPW_FAIL:
-				return fmt::format_to(ctx.out(), "KRB5_CHPW_FAIL");
+				return std::format_to(ctx.out(), "KRB5_CHPW_FAIL");
 
 			case krb5_minor::KRB5_KT_FORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_KT_FORMAT");
+				return std::format_to(ctx.out(), "KRB5_KT_FORMAT");
 
 			case krb5_minor::KRB5_NOPERM_ETYPE:
-				return fmt::format_to(ctx.out(), "KRB5_NOPERM_ETYPE");
+				return std::format_to(ctx.out(), "KRB5_NOPERM_ETYPE");
 
 			case krb5_minor::KRB5_CONFIG_ETYPE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_CONFIG_ETYPE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_CONFIG_ETYPE_NOSUPP");
 
 			case krb5_minor::KRB5_OBSOLETE_FN:
-				return fmt::format_to(ctx.out(), "KRB5_OBSOLETE_FN");
+				return std::format_to(ctx.out(), "KRB5_OBSOLETE_FN");
 
 			case krb5_minor::KRB5_EAI_FAIL:
-				return fmt::format_to(ctx.out(), "KRB5_EAI_FAIL");
+				return std::format_to(ctx.out(), "KRB5_EAI_FAIL");
 
 			case krb5_minor::KRB5_EAI_NODATA:
-				return fmt::format_to(ctx.out(), "KRB5_EAI_NODATA");
+				return std::format_to(ctx.out(), "KRB5_EAI_NODATA");
 
 			case krb5_minor::KRB5_EAI_NONAME:
-				return fmt::format_to(ctx.out(), "KRB5_EAI_NONAME");
+				return std::format_to(ctx.out(), "KRB5_EAI_NONAME");
 
 			case krb5_minor::KRB5_EAI_SERVICE:
-				return fmt::format_to(ctx.out(), "KRB5_EAI_SERVICE");
+				return std::format_to(ctx.out(), "KRB5_EAI_SERVICE");
 
 			case krb5_minor::KRB5_ERR_NUMERIC_REALM:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_NUMERIC_REALM");
+				return std::format_to(ctx.out(), "KRB5_ERR_NUMERIC_REALM");
 
 			case krb5_minor::KRB5_ERR_BAD_S2K_PARAMS:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_BAD_S2K_PARAMS");
+				return std::format_to(ctx.out(), "KRB5_ERR_BAD_S2K_PARAMS");
 
 			case krb5_minor::KRB5_ERR_NO_SERVICE:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_NO_SERVICE");
+				return std::format_to(ctx.out(), "KRB5_ERR_NO_SERVICE");
 
 			case krb5_minor::KRB5_CC_READONLY:
-				return fmt::format_to(ctx.out(), "KRB5_CC_READONLY");
+				return std::format_to(ctx.out(), "KRB5_CC_READONLY");
 
 			case krb5_minor::KRB5_CC_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_CC_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_CC_NOSUPP");
 
 			case krb5_minor::KRB5_DELTAT_BADFORMAT:
-				return fmt::format_to(ctx.out(), "KRB5_DELTAT_BADFORMAT");
+				return std::format_to(ctx.out(), "KRB5_DELTAT_BADFORMAT");
 
 			case krb5_minor::KRB5_PLUGIN_NO_HANDLE:
-				return fmt::format_to(ctx.out(), "KRB5_PLUGIN_NO_HANDLE");
+				return std::format_to(ctx.out(), "KRB5_PLUGIN_NO_HANDLE");
 
 			case krb5_minor::KRB5_PLUGIN_OP_NOTSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_PLUGIN_OP_NOTSUPP");
+				return std::format_to(ctx.out(), "KRB5_PLUGIN_OP_NOTSUPP");
 
 			case krb5_minor::KRB5_ERR_INVALID_UTF8:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_INVALID_UTF8");
+				return std::format_to(ctx.out(), "KRB5_ERR_INVALID_UTF8");
 
 			case krb5_minor::KRB5_ERR_FAST_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5_ERR_FAST_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5_ERR_FAST_REQUIRED");
 
 			case krb5_minor::KRB5_LOCAL_ADDR_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5_LOCAL_ADDR_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5_LOCAL_ADDR_REQUIRED");
 
 			case krb5_minor::KRB5_REMOTE_ADDR_REQUIRED:
-				return fmt::format_to(ctx.out(), "KRB5_REMOTE_ADDR_REQUIRED");
+				return std::format_to(ctx.out(), "KRB5_REMOTE_ADDR_REQUIRED");
 
 			case krb5_minor::KRB5_TRACE_NOSUPP:
-				return fmt::format_to(ctx.out(), "KRB5_TRACE_NOSUPP");
+				return std::format_to(ctx.out(), "KRB5_TRACE_NOSUPP");
 
 			default:
-				return fmt::format_to(ctx.out(), "{}", (int32_t)t);
+				return std::format_to(ctx.out(), "{}", (int32_t)t);
 		}
 	}
 };
@@ -1081,7 +1077,7 @@ public:
 		gss_buffer_desc status_string;
 		bool first = true;
 
-		msg = fmt::format("{} failed (minor {}): ", func, (enum krb5_minor)minor);
+		msg = std::format("{} failed (minor {}): ", func, (enum krb5_minor)minor);
 
 		do {
 			gss_display_status(&min_status, major, GSS_C_GSS_CODE, GSS_C_NO_OID,
@@ -1202,7 +1198,7 @@ enum class sec_error : uint32_t {
 };
 
 template<>
-struct fmt::formatter<enum sec_error> {
+struct std::formatter<enum sec_error> {
 	constexpr auto parse(format_parse_context& ctx) {
 		auto it = ctx.begin();
 
@@ -1213,289 +1209,289 @@ struct fmt::formatter<enum sec_error> {
 	}
 
 	template<typename format_context>
-	auto format(enum sec_error t, format_context& ctx) {
+	auto format(enum sec_error t, format_context& ctx) const {
 		switch (t) {
 			case sec_error::_SEC_E_OK:
-				return fmt::format_to(ctx.out(), "SEC_E_OK");
+				return std::format_to(ctx.out(), "SEC_E_OK");
 
 			case sec_error::_SEC_E_INSUFFICIENT_MEMORY:
-				return fmt::format_to(ctx.out(), "SEC_E_INSUFFICIENT_MEMORY");
+				return std::format_to(ctx.out(), "SEC_E_INSUFFICIENT_MEMORY");
 
 			case sec_error::_SEC_E_INVALID_HANDLE:
-				return fmt::format_to(ctx.out(), "SEC_E_INVALID_HANDLE");
+				return std::format_to(ctx.out(), "SEC_E_INVALID_HANDLE");
 
 			case sec_error::_SEC_E_UNSUPPORTED_FUNCTION:
-				return fmt::format_to(ctx.out(), "SEC_E_UNSUPPORTED_FUNCTION");
+				return std::format_to(ctx.out(), "SEC_E_UNSUPPORTED_FUNCTION");
 
 			case sec_error::_SEC_E_TARGET_UNKNOWN:
-				return fmt::format_to(ctx.out(), "SEC_E_TARGET_UNKNOWN");
+				return std::format_to(ctx.out(), "SEC_E_TARGET_UNKNOWN");
 
 			case sec_error::_SEC_E_INTERNAL_ERROR:
-				return fmt::format_to(ctx.out(), "SEC_E_INTERNAL_ERROR");
+				return std::format_to(ctx.out(), "SEC_E_INTERNAL_ERROR");
 
 			case sec_error::_SEC_E_SECPKG_NOT_FOUND:
-				return fmt::format_to(ctx.out(), "SEC_E_SECPKG_NOT_FOUND");
+				return std::format_to(ctx.out(), "SEC_E_SECPKG_NOT_FOUND");
 
 			case sec_error::_SEC_E_NOT_OWNER:
-				return fmt::format_to(ctx.out(), "SEC_E_NOT_OWNER");
+				return std::format_to(ctx.out(), "SEC_E_NOT_OWNER");
 
 			case sec_error::_SEC_E_CANNOT_INSTALL:
-				return fmt::format_to(ctx.out(), "SEC_E_CANNOT_INSTALL");
+				return std::format_to(ctx.out(), "SEC_E_CANNOT_INSTALL");
 
 			case sec_error::_SEC_E_INVALID_TOKEN:
-				return fmt::format_to(ctx.out(), "SEC_E_INVALID_TOKEN");
+				return std::format_to(ctx.out(), "SEC_E_INVALID_TOKEN");
 
 			case sec_error::_SEC_E_CANNOT_PACK:
-				return fmt::format_to(ctx.out(), "SEC_E_CANNOT_PACK");
+				return std::format_to(ctx.out(), "SEC_E_CANNOT_PACK");
 
 			case sec_error::_SEC_E_QOP_NOT_SUPPORTED:
-				return fmt::format_to(ctx.out(), "SEC_E_QOP_NOT_SUPPORTED");
+				return std::format_to(ctx.out(), "SEC_E_QOP_NOT_SUPPORTED");
 
 			case sec_error::_SEC_E_NO_IMPERSONATION:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_IMPERSONATION");
+				return std::format_to(ctx.out(), "SEC_E_NO_IMPERSONATION");
 
 			case sec_error::_SEC_E_LOGON_DENIED:
-				return fmt::format_to(ctx.out(), "SEC_E_LOGON_DENIED");
+				return std::format_to(ctx.out(), "SEC_E_LOGON_DENIED");
 
 			case sec_error::_SEC_E_UNKNOWN_CREDENTIALS:
-				return fmt::format_to(ctx.out(), "SEC_E_UNKNOWN_CREDENTIALS");
+				return std::format_to(ctx.out(), "SEC_E_UNKNOWN_CREDENTIALS");
 
 			case sec_error::_SEC_E_NO_CREDENTIALS:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_CREDENTIALS");
+				return std::format_to(ctx.out(), "SEC_E_NO_CREDENTIALS");
 
 			case sec_error::_SEC_E_MESSAGE_ALTERED:
-				return fmt::format_to(ctx.out(), "SEC_E_MESSAGE_ALTERED");
+				return std::format_to(ctx.out(), "SEC_E_MESSAGE_ALTERED");
 
 			case sec_error::_SEC_E_OUT_OF_SEQUENCE:
-				return fmt::format_to(ctx.out(), "SEC_E_OUT_OF_SEQUENCE");
+				return std::format_to(ctx.out(), "SEC_E_OUT_OF_SEQUENCE");
 
 			case sec_error::_SEC_E_NO_AUTHENTICATING_AUTHORITY:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_AUTHENTICATING_AUTHORITY");
+				return std::format_to(ctx.out(), "SEC_E_NO_AUTHENTICATING_AUTHORITY");
 
 			case sec_error::_SEC_I_CONTINUE_NEEDED:
-				return fmt::format_to(ctx.out(), "SEC_I_CONTINUE_NEEDED");
+				return std::format_to(ctx.out(), "SEC_I_CONTINUE_NEEDED");
 
 			case sec_error::_SEC_I_COMPLETE_NEEDED:
-				return fmt::format_to(ctx.out(), "SEC_I_COMPLETE_NEEDED");
+				return std::format_to(ctx.out(), "SEC_I_COMPLETE_NEEDED");
 
 			case sec_error::_SEC_I_COMPLETE_AND_CONTINUE:
-				return fmt::format_to(ctx.out(), "SEC_I_COMPLETE_AND_CONTINUE");
+				return std::format_to(ctx.out(), "SEC_I_COMPLETE_AND_CONTINUE");
 
 			case sec_error::_SEC_I_LOCAL_LOGON:
-				return fmt::format_to(ctx.out(), "SEC_I_LOCAL_LOGON");
+				return std::format_to(ctx.out(), "SEC_I_LOCAL_LOGON");
 
 			case sec_error::_SEC_I_GENERIC_EXTENSION_RECEIVED:
-				return fmt::format_to(ctx.out(), "SEC_I_GENERIC_EXTENSION_RECEIVED");
+				return std::format_to(ctx.out(), "SEC_I_GENERIC_EXTENSION_RECEIVED");
 
 			case sec_error::_SEC_E_BAD_PKGID:
-				return fmt::format_to(ctx.out(), "SEC_E_BAD_PKGID");
+				return std::format_to(ctx.out(), "SEC_E_BAD_PKGID");
 
 			case sec_error::_SEC_E_CONTEXT_EXPIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_CONTEXT_EXPIRED");
+				return std::format_to(ctx.out(), "SEC_E_CONTEXT_EXPIRED");
 
 			case sec_error::_SEC_I_CONTEXT_EXPIRED:
-				return fmt::format_to(ctx.out(), "SEC_I_CONTEXT_EXPIRED");
+				return std::format_to(ctx.out(), "SEC_I_CONTEXT_EXPIRED");
 
 			case sec_error::_SEC_E_INCOMPLETE_MESSAGE:
-				return fmt::format_to(ctx.out(), "SEC_E_INCOMPLETE_MESSAGE");
+				return std::format_to(ctx.out(), "SEC_E_INCOMPLETE_MESSAGE");
 
 			case sec_error::_SEC_E_INCOMPLETE_CREDENTIALS:
-				return fmt::format_to(ctx.out(), "SEC_E_INCOMPLETE_CREDENTIALS");
+				return std::format_to(ctx.out(), "SEC_E_INCOMPLETE_CREDENTIALS");
 
 			case sec_error::_SEC_E_BUFFER_TOO_SMALL:
-				return fmt::format_to(ctx.out(), "SEC_E_BUFFER_TOO_SMALL");
+				return std::format_to(ctx.out(), "SEC_E_BUFFER_TOO_SMALL");
 
 			case sec_error::_SEC_I_INCOMPLETE_CREDENTIALS:
-				return fmt::format_to(ctx.out(), "SEC_I_INCOMPLETE_CREDENTIALS");
+				return std::format_to(ctx.out(), "SEC_I_INCOMPLETE_CREDENTIALS");
 
 			case sec_error::_SEC_I_RENEGOTIATE:
-				return fmt::format_to(ctx.out(), "SEC_I_RENEGOTIATE");
+				return std::format_to(ctx.out(), "SEC_I_RENEGOTIATE");
 
 			case sec_error::_SEC_E_WRONG_PRINCIPAL:
-				return fmt::format_to(ctx.out(), "SEC_E_WRONG_PRINCIPAL");
+				return std::format_to(ctx.out(), "SEC_E_WRONG_PRINCIPAL");
 
 			case sec_error::_SEC_I_NO_LSA_CONTEXT:
-				return fmt::format_to(ctx.out(), "SEC_I_NO_LSA_CONTEXT");
+				return std::format_to(ctx.out(), "SEC_I_NO_LSA_CONTEXT");
 
 			case sec_error::_SEC_E_TIME_SKEW:
-				return fmt::format_to(ctx.out(), "SEC_E_TIME_SKEW");
+				return std::format_to(ctx.out(), "SEC_E_TIME_SKEW");
 
 			case sec_error::_SEC_E_UNTRUSTED_ROOT:
-				return fmt::format_to(ctx.out(), "SEC_E_UNTRUSTED_ROOT");
+				return std::format_to(ctx.out(), "SEC_E_UNTRUSTED_ROOT");
 
 			case sec_error::_SEC_E_ILLEGAL_MESSAGE:
-				return fmt::format_to(ctx.out(), "SEC_E_ILLEGAL_MESSAGE");
+				return std::format_to(ctx.out(), "SEC_E_ILLEGAL_MESSAGE");
 
 			case sec_error::_SEC_E_CERT_UNKNOWN:
-				return fmt::format_to(ctx.out(), "SEC_E_CERT_UNKNOWN");
+				return std::format_to(ctx.out(), "SEC_E_CERT_UNKNOWN");
 
 			case sec_error::_SEC_E_CERT_EXPIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_CERT_EXPIRED");
+				return std::format_to(ctx.out(), "SEC_E_CERT_EXPIRED");
 
 			case sec_error::_SEC_E_ENCRYPT_FAILURE:
-				return fmt::format_to(ctx.out(), "SEC_E_ENCRYPT_FAILURE");
+				return std::format_to(ctx.out(), "SEC_E_ENCRYPT_FAILURE");
 
 			case sec_error::_SEC_E_DECRYPT_FAILURE:
-				return fmt::format_to(ctx.out(), "SEC_E_DECRYPT_FAILURE");
+				return std::format_to(ctx.out(), "SEC_E_DECRYPT_FAILURE");
 
 			case sec_error::_SEC_E_ALGORITHM_MISMATCH:
-				return fmt::format_to(ctx.out(), "SEC_E_ALGORITHM_MISMATCH");
+				return std::format_to(ctx.out(), "SEC_E_ALGORITHM_MISMATCH");
 
 			case sec_error::_SEC_E_SECURITY_QOS_FAILED:
-				return fmt::format_to(ctx.out(), "SEC_E_SECURITY_QOS_FAILED");
+				return std::format_to(ctx.out(), "SEC_E_SECURITY_QOS_FAILED");
 
 			case sec_error::_SEC_E_UNFINISHED_CONTEXT_DELETED:
-				return fmt::format_to(ctx.out(), "SEC_E_UNFINISHED_CONTEXT_DELETED");
+				return std::format_to(ctx.out(), "SEC_E_UNFINISHED_CONTEXT_DELETED");
 
 			case sec_error::_SEC_E_NO_TGT_REPLY:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_TGT_REPLY");
+				return std::format_to(ctx.out(), "SEC_E_NO_TGT_REPLY");
 
 			case sec_error::_SEC_E_NO_IP_ADDRESSES:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_IP_ADDRESSES");
+				return std::format_to(ctx.out(), "SEC_E_NO_IP_ADDRESSES");
 
 			case sec_error::_SEC_E_WRONG_CREDENTIAL_HANDLE:
-				return fmt::format_to(ctx.out(), "SEC_E_WRONG_CREDENTIAL_HANDLE");
+				return std::format_to(ctx.out(), "SEC_E_WRONG_CREDENTIAL_HANDLE");
 
 			case sec_error::_SEC_E_CRYPTO_SYSTEM_INVALID:
-				return fmt::format_to(ctx.out(), "SEC_E_CRYPTO_SYSTEM_INVALID");
+				return std::format_to(ctx.out(), "SEC_E_CRYPTO_SYSTEM_INVALID");
 
 			case sec_error::_SEC_E_MAX_REFERRALS_EXCEEDED:
-				return fmt::format_to(ctx.out(), "SEC_E_MAX_REFERRALS_EXCEEDED");
+				return std::format_to(ctx.out(), "SEC_E_MAX_REFERRALS_EXCEEDED");
 
 			case sec_error::_SEC_E_MUST_BE_KDC:
-				return fmt::format_to(ctx.out(), "SEC_E_MUST_BE_KDC");
+				return std::format_to(ctx.out(), "SEC_E_MUST_BE_KDC");
 
 			case sec_error::_SEC_E_STRONG_CRYPTO_NOT_SUPPORTED:
-				return fmt::format_to(ctx.out(), "SEC_E_STRONG_CRYPTO_NOT_SUPPORTED");
+				return std::format_to(ctx.out(), "SEC_E_STRONG_CRYPTO_NOT_SUPPORTED");
 
 			case sec_error::_SEC_E_TOO_MANY_PRINCIPALS:
-				return fmt::format_to(ctx.out(), "SEC_E_TOO_MANY_PRINCIPALS");
+				return std::format_to(ctx.out(), "SEC_E_TOO_MANY_PRINCIPALS");
 
 			case sec_error::_SEC_E_NO_PA_DATA:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_PA_DATA");
+				return std::format_to(ctx.out(), "SEC_E_NO_PA_DATA");
 
 			case sec_error::_SEC_E_PKINIT_NAME_MISMATCH:
-				return fmt::format_to(ctx.out(), "SEC_E_PKINIT_NAME_MISMATCH");
+				return std::format_to(ctx.out(), "SEC_E_PKINIT_NAME_MISMATCH");
 
 			case sec_error::_SEC_E_SMARTCARD_LOGON_REQUIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_SMARTCARD_LOGON_REQUIRED");
+				return std::format_to(ctx.out(), "SEC_E_SMARTCARD_LOGON_REQUIRED");
 
 			case sec_error::_SEC_E_SHUTDOWN_IN_PROGRESS:
-				return fmt::format_to(ctx.out(), "SEC_E_SHUTDOWN_IN_PROGRESS");
+				return std::format_to(ctx.out(), "SEC_E_SHUTDOWN_IN_PROGRESS");
 
 			case sec_error::_SEC_E_KDC_INVALID_REQUEST:
-				return fmt::format_to(ctx.out(), "SEC_E_KDC_INVALID_REQUEST");
+				return std::format_to(ctx.out(), "SEC_E_KDC_INVALID_REQUEST");
 
 			case sec_error::_SEC_E_KDC_UNABLE_TO_REFER:
-				return fmt::format_to(ctx.out(), "SEC_E_KDC_UNABLE_TO_REFER");
+				return std::format_to(ctx.out(), "SEC_E_KDC_UNABLE_TO_REFER");
 
 			case sec_error::_SEC_E_KDC_UNKNOWN_ETYPE:
-				return fmt::format_to(ctx.out(), "SEC_E_KDC_UNKNOWN_ETYPE");
+				return std::format_to(ctx.out(), "SEC_E_KDC_UNKNOWN_ETYPE");
 
 			case sec_error::_SEC_E_UNSUPPORTED_PREAUTH:
-				return fmt::format_to(ctx.out(), "SEC_E_UNSUPPORTED_PREAUTH");
+				return std::format_to(ctx.out(), "SEC_E_UNSUPPORTED_PREAUTH");
 
 			case sec_error::_SEC_E_DELEGATION_REQUIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_DELEGATION_REQUIRED");
+				return std::format_to(ctx.out(), "SEC_E_DELEGATION_REQUIRED");
 
 			case sec_error::_SEC_E_BAD_BINDINGS:
-				return fmt::format_to(ctx.out(), "SEC_E_BAD_BINDINGS");
+				return std::format_to(ctx.out(), "SEC_E_BAD_BINDINGS");
 
 			case sec_error::_SEC_E_MULTIPLE_ACCOUNTS:
-				return fmt::format_to(ctx.out(), "SEC_E_MULTIPLE_ACCOUNTS");
+				return std::format_to(ctx.out(), "SEC_E_MULTIPLE_ACCOUNTS");
 
 			case sec_error::_SEC_E_NO_KERB_KEY:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_KERB_KEY");
+				return std::format_to(ctx.out(), "SEC_E_NO_KERB_KEY");
 
 			case sec_error::_SEC_E_CERT_WRONG_USAGE:
-				return fmt::format_to(ctx.out(), "SEC_E_CERT_WRONG_USAGE");
+				return std::format_to(ctx.out(), "SEC_E_CERT_WRONG_USAGE");
 
 			case sec_error::_SEC_E_DOWNGRADE_DETECTED:
-				return fmt::format_to(ctx.out(), "SEC_E_DOWNGRADE_DETECTED");
+				return std::format_to(ctx.out(), "SEC_E_DOWNGRADE_DETECTED");
 
 			case sec_error::_SEC_E_SMARTCARD_CERT_REVOKED:
-				return fmt::format_to(ctx.out(), "SEC_E_SMARTCARD_CERT_REVOKED");
+				return std::format_to(ctx.out(), "SEC_E_SMARTCARD_CERT_REVOKED");
 
 			case sec_error::_SEC_E_ISSUING_CA_UNTRUSTED:
-				return fmt::format_to(ctx.out(), "SEC_E_ISSUING_CA_UNTRUSTED");
+				return std::format_to(ctx.out(), "SEC_E_ISSUING_CA_UNTRUSTED");
 
 			case sec_error::_SEC_E_REVOCATION_OFFLINE_C:
-				return fmt::format_to(ctx.out(), "SEC_E_REVOCATION_OFFLINE_C");
+				return std::format_to(ctx.out(), "SEC_E_REVOCATION_OFFLINE_C");
 
 			case sec_error::_SEC_E_PKINIT_CLIENT_FAILURE:
-				return fmt::format_to(ctx.out(), "SEC_E_PKINIT_CLIENT_FAILURE");
+				return std::format_to(ctx.out(), "SEC_E_PKINIT_CLIENT_FAILURE");
 
 			case sec_error::_SEC_E_SMARTCARD_CERT_EXPIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_SMARTCARD_CERT_EXPIRED");
+				return std::format_to(ctx.out(), "SEC_E_SMARTCARD_CERT_EXPIRED");
 
 			case sec_error::_SEC_E_NO_S4U_PROT_SUPPORT:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_S4U_PROT_SUPPORT");
+				return std::format_to(ctx.out(), "SEC_E_NO_S4U_PROT_SUPPORT");
 
 			case sec_error::_SEC_E_CROSSREALM_DELEGATION_FAILURE:
-				return fmt::format_to(ctx.out(), "SEC_E_CROSSREALM_DELEGATION_FAILURE");
+				return std::format_to(ctx.out(), "SEC_E_CROSSREALM_DELEGATION_FAILURE");
 
 			case sec_error::_SEC_E_REVOCATION_OFFLINE_KDC:
-				return fmt::format_to(ctx.out(), "SEC_E_REVOCATION_OFFLINE_KDC");
+				return std::format_to(ctx.out(), "SEC_E_REVOCATION_OFFLINE_KDC");
 
 			case sec_error::_SEC_E_ISSUING_CA_UNTRUSTED_KDC:
-				return fmt::format_to(ctx.out(), "SEC_E_ISSUING_CA_UNTRUSTED_KDC");
+				return std::format_to(ctx.out(), "SEC_E_ISSUING_CA_UNTRUSTED_KDC");
 
 			case sec_error::_SEC_E_KDC_CERT_EXPIRED:
-				return fmt::format_to(ctx.out(), "SEC_E_KDC_CERT_EXPIRED");
+				return std::format_to(ctx.out(), "SEC_E_KDC_CERT_EXPIRED");
 
 			case sec_error::_SEC_E_KDC_CERT_REVOKED:
-				return fmt::format_to(ctx.out(), "SEC_E_KDC_CERT_REVOKED");
+				return std::format_to(ctx.out(), "SEC_E_KDC_CERT_REVOKED");
 
 			case sec_error::_SEC_I_SIGNATURE_NEEDED:
-				return fmt::format_to(ctx.out(), "SEC_I_SIGNATURE_NEEDED");
+				return std::format_to(ctx.out(), "SEC_I_SIGNATURE_NEEDED");
 
 			case sec_error::_SEC_E_INVALID_PARAMETER:
-				return fmt::format_to(ctx.out(), "SEC_E_INVALID_PARAMETER");
+				return std::format_to(ctx.out(), "SEC_E_INVALID_PARAMETER");
 
 			case sec_error::_SEC_E_DELEGATION_POLICY:
-				return fmt::format_to(ctx.out(), "SEC_E_DELEGATION_POLICY");
+				return std::format_to(ctx.out(), "SEC_E_DELEGATION_POLICY");
 
 			case sec_error::_SEC_E_POLICY_NLTM_ONLY:
-				return fmt::format_to(ctx.out(), "SEC_E_POLICY_NLTM_ONLY");
+				return std::format_to(ctx.out(), "SEC_E_POLICY_NLTM_ONLY");
 
 			case sec_error::_SEC_I_NO_RENEGOTIATION:
-				return fmt::format_to(ctx.out(), "SEC_I_NO_RENEGOTIATION");
+				return std::format_to(ctx.out(), "SEC_I_NO_RENEGOTIATION");
 
 			case sec_error::_SEC_E_NO_CONTEXT:
-				return fmt::format_to(ctx.out(), "SEC_E_NO_CONTEXT");
+				return std::format_to(ctx.out(), "SEC_E_NO_CONTEXT");
 
 			case sec_error::_SEC_E_PKU2U_CERT_FAILURE:
-				return fmt::format_to(ctx.out(), "SEC_E_PKU2U_CERT_FAILURE");
+				return std::format_to(ctx.out(), "SEC_E_PKU2U_CERT_FAILURE");
 
 			case sec_error::_SEC_E_MUTUAL_AUTH_FAILED:
-				return fmt::format_to(ctx.out(), "SEC_E_MUTUAL_AUTH_FAILED");
+				return std::format_to(ctx.out(), "SEC_E_MUTUAL_AUTH_FAILED");
 
 			case sec_error::_SEC_I_MESSAGE_FRAGMENT:
-				return fmt::format_to(ctx.out(), "SEC_I_MESSAGE_FRAGMENT");
+				return std::format_to(ctx.out(), "SEC_I_MESSAGE_FRAGMENT");
 
 			case sec_error::_SEC_E_ONLY_HTTPS_ALLOWED:
-				return fmt::format_to(ctx.out(), "SEC_E_ONLY_HTTPS_ALLOWED");
+				return std::format_to(ctx.out(), "SEC_E_ONLY_HTTPS_ALLOWED");
 
 			case sec_error::_SEC_I_CONTINUE_NEEDED_MESSAGE_OK:
-				return fmt::format_to(ctx.out(), "SEC_I_CONTINUE_NEEDED_MESSAGE_OK");
+				return std::format_to(ctx.out(), "SEC_I_CONTINUE_NEEDED_MESSAGE_OK");
 
 			case sec_error::_SEC_E_APPLICATION_PROTOCOL_MISMATCH:
-				return fmt::format_to(ctx.out(), "SEC_E_APPLICATION_PROTOCOL_MISMATCH");
+				return std::format_to(ctx.out(), "SEC_E_APPLICATION_PROTOCOL_MISMATCH");
 
 			case sec_error::_SEC_I_ASYNC_CALL_PENDING:
-				return fmt::format_to(ctx.out(), "SEC_I_ASYNC_CALL_PENDING");
+				return std::format_to(ctx.out(), "SEC_I_ASYNC_CALL_PENDING");
 
 			case sec_error::_SEC_E_INVALID_UPN_NAME:
-				return fmt::format_to(ctx.out(), "SEC_E_INVALID_UPN_NAME");
+				return std::format_to(ctx.out(), "SEC_E_INVALID_UPN_NAME");
 
 			case sec_error::_SEC_E_EXT_BUFFER_TOO_SMALL:
-				return fmt::format_to(ctx.out(), "SEC_E_EXT_BUFFER_TOO_SMALL");
+				return std::format_to(ctx.out(), "SEC_E_EXT_BUFFER_TOO_SMALL");
 
 			case sec_error::_SEC_E_INSUFFICIENT_BUFFERS:
-				return fmt::format_to(ctx.out(), "SEC_E_INSUFFICIENT_BUFFERS");
+				return std::format_to(ctx.out(), "SEC_E_INSUFFICIENT_BUFFERS");
 
 			default:
-				return fmt::format_to(ctx.out(), "{:08x}", (uint32_t)t);
+				return std::format_to(ctx.out(), "{:08x}", (uint32_t)t);
 		}
 	}
 };
