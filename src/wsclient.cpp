@@ -879,6 +879,9 @@ namespace ws {
 				strm.next_in = (uint8_t*)comp.data();
 
 				do {
+					if (strm.avail_in == 0)
+						break;
+
 					strm.avail_out = sizeof(buf);
 					strm.next_out = buf;
 					err = inflate(&strm, Z_NO_FLUSH);
