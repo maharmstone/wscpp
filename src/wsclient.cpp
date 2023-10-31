@@ -866,7 +866,7 @@ namespace ws {
 
 		auto& strm = zstrm_in.value();
 
-		auto do_deflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
+		auto do_inflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
 			uint8_t buf[4096];
 			int err;
 
@@ -893,8 +893,8 @@ namespace ws {
 			} while (err != Z_STREAM_END);
 		};
 
-		do_deflate(strm, ret, comp);
-		do_deflate(strm, ret, last_bit);
+		do_inflate(strm, ret, comp);
+		do_inflate(strm, ret, last_bit);
 
 		return ret;
 	}
