@@ -7,6 +7,7 @@ project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(BUILD_MODULE "Build module" OFF)
 option(WITH_OPENSSL "Use OpenSSL for encryption" ON)
 option(WITH_ZLIB "Use zlib for compression" ON)
 
@@ -109,3 +110,26 @@ configure_package_config_file(
 )
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wscppConfig.cmake" DESTINATION "lib/cmake/wscpp")
+
+if(BUILD_MODULE)
+	cmake_minimum_required(VERSION 3.28)
+
+	add_library(wscpp-mod SHARED)
+	target_sources(wscpp-mod PUBLIC FILE_SET CXX_MODULES FILES src/mod.cpp)
+	target_compile_features(wscpp-mod PUBLIC cxx_std_20)
+
+	install(TARGETS wscpp-mod
+		EXPORT wscpp-mod-targets
+		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+		ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+		LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+		PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+		PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+		FILE_SET CXX_MODULES DESTINATION "lib/cmake/wscpp"
+	)
+
+	export(TARGETS wscpp-mod
+		FILE ${PROJECT_BINARY_DIR}/wscpp-mod-targets.cmake)
+
+	install(EXPORT wscpp-mod-targets DESTINATION lib/cmake/wscpp)
+endif()
