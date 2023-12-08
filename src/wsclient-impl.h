@@ -100,6 +100,7 @@ namespace ws {
 	};
 
 	static_assert(sizeof(header) == 2);
+#ifndef __clang__ // not yet supported on Clang (17.0.6)
 	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::invalid, false, 0)) == 0x0000);
 	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::text, false, 0)) == 0x0001);
 	static_assert(std::bit_cast<uint16_t, header>(header(true, false, false, false, opcode::text, false, 0)) == 0x0081);
@@ -110,6 +111,7 @@ namespace ws {
 	static_assert(std::bit_cast<uint16_t, header>(header(false, false, false, false, opcode::text, true, 0x7f)) == 0xff01);
 	static_assert(std::bit_cast<uint16_t, header>(header(true, false, false, false, opcode::text, true, 0x7f)) == 0xff81);
 	static_assert(std::bit_cast<uint16_t, header>(header(true, true, false, false, opcode::text, false, 0x7)) == 0x7c1);
+#endif
 
 	class client_pimpl;
 
