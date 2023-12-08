@@ -1187,7 +1187,7 @@ namespace ws {
 									if (pf.revents & POLLIN)
 										ct.impl->read();
 									else if (pf.revents & POLLOUT) {
-										vector<uint8_t> to_send = move(ct.impl->sendbuf);
+										vector<uint8_t> to_send = std::move(ct.impl->sendbuf);
 
 										ct.impl->send_raw(to_send);
 									}
