@@ -263,20 +263,18 @@ public:
 };
 
 static void add_certs_to_store(X509_STORE* store) {
-	PCCERT_CONTEXT certctx = nullptr;
-
 	unique_ptr<HCERTSTORE, cert_store_closer> h{CertOpenSystemStoreW(0, L"ROOT")};
 
 	if (!h)
 		throw formatted_error("CertOpenSystemStore failed (error {})", GetLastError());
 
-	while ((certctx = CertEnumCertificatesInStore(h.get(), certctx))) {
-		if (!(certctx->dwCertEncodingType & X509_ASN_ENCODING))
+	for (PCCERT_CONTEXT c = nullptr; c; c = CertEnumCertificatesInStore(h.get(), c)) {
+		if (!(c->dwCertEncodingType & X509_ASN_ENCODING))
 			continue;
 
-		const unsigned char* cert = certctx->pbCertEncoded;
+		const unsigned char* cert = c->pbCertEncoded;
 
-		unique_ptr<X509*, x509_closer> x509{d2i_X509(nullptr, &cert, certctx->cbCertEncoded)};
+		unique_ptr<X509*, x509_closer> x509{d2i_X509(nullptr, &cert, c->cbCertEncoded)};
 
 		if (!x509)
 			continue;
