@@ -95,7 +95,7 @@ namespace ws {
 #endif
 
 				// FIXME - only do this if necessary?
-				if (getnameinfo(ai->ai_addr, ai->ai_addrlen, hostname, NI_MAXHOST, nullptr, 0, 0) == 0)
+				if (getnameinfo(ai->ai_addr, (int)ai->ai_addrlen, hostname, NI_MAXHOST, nullptr, 0, 0) == 0)
 					fqdn = hostname;
 
 				break;
