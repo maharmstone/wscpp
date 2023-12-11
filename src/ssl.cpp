@@ -469,7 +469,7 @@ namespace ws {
 	}
 
 	unsigned int client_ssl::recv(span<uint8_t> s) {
-		auto ret = SSL_read(ssl.get(), s.data(), s.size());
+		auto ret = SSL_read(ssl.get(), s.data(), (int)s.size());
 
 		if (ret <= 0) {
 			if (exception)
