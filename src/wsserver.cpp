@@ -274,7 +274,7 @@ namespace ws {
 
 			auto& strm = impl->zstrm_out.value();
 
-			strm.avail_in = payload.size();
+			strm.avail_in = (unsigned int)payload.size();
 			strm.next_in = (uint8_t*)payload.data();
 
 			do {
