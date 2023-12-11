@@ -389,7 +389,7 @@ namespace ws {
 		buf.resize(sizeof(TOKEN_USER));
 		tu = (TOKEN_USER*)&buf[0];
 
-		if (GetTokenInformation(token.get(), TokenUser, tu, buf.size(), &ret) == 0) {
+		if (GetTokenInformation(token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0) {
 			auto le = GetLastError();
 
 			if (le != ERROR_INSUFFICIENT_BUFFER)
@@ -399,7 +399,7 @@ namespace ws {
 		buf.resize(ret);
 		tu = (TOKEN_USER*)&buf[0];
 
-		if (GetTokenInformation(token.get(), TokenUser, tu, buf.size(), &ret) == 0)
+		if (GetTokenInformation(token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0)
 			throw formatted_error("GetTokenInformation failed (last error {})", GetLastError());
 
 		if (!IsValidSid(tu->User.Sid))
