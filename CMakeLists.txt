@@ -31,7 +31,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SRC_FILES src/wsclient.cpp
 	src/wsserver.cpp
-	src/b64.cpp
 	src/sha1.cpp
 	src/wsexcept.cpp
 	src/ssl.cpp)
