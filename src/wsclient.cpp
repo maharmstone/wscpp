@@ -871,16 +871,12 @@ namespace ws {
 			int err;
 
 			do {
-				strm.avail_in = comp.size();
-
-				if (strm.avail_in == 0)
-					break;
-
+				strm.avail_in = (unsigned int)comp.size();
 				strm.next_in = (uint8_t*)comp.data();
 
 				do {
 					if (strm.avail_in == 0)
-						break;
+						return;
 
 					strm.avail_out = sizeof(buf);
 					strm.next_out = buf;
