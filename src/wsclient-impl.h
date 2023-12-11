@@ -120,7 +120,7 @@ namespace ws {
 	public:
 		client_ssl(client_pimpl& client);
 #ifdef WITH_OPENSSL
-		int ssl_read_cb(std::span<uint8_t> s);
+		size_t ssl_read_cb(std::span<uint8_t> s);
 		int ssl_write_cb(std::span<const uint8_t> sv);
 		long ssl_ctrl_cb(int cmd, long num, void* ptr);
 		int ssl_verify_cb(int preverify, X509_STORE_CTX* x509_ctx);
