@@ -378,7 +378,7 @@ namespace ws {
 		return ret;
 	}
 
-	void server_client_pimpl::get_username(HANDLE token) {
+	void server_client_pimpl::get_username() {
 		vector<uint8_t> buf;
 		TOKEN_USER* tu;
 		DWORD ret = 0;
@@ -389,7 +389,7 @@ namespace ws {
 		buf.resize(sizeof(TOKEN_USER));
 		tu = (TOKEN_USER*)&buf[0];
 
-		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0) {
+		if (GetTokenInformation(token.get(), TokenUser, tu, buf.size(), &ret) == 0) {
 			auto le = GetLastError();
 
 			if (le != ERROR_INSUFFICIENT_BUFFER)
@@ -399,7 +399,7 @@ namespace ws {
 		buf.resize(ret);
 		tu = (TOKEN_USER*)&buf[0];
 
-		if (GetTokenInformation(token, TokenUser, tu, buf.size(), &ret) == 0)
+		if (GetTokenInformation(token.get(), TokenUser, tu, buf.size(), &ret) == 0)
 			throw formatted_error("GetTokenInformation failed (last error {})", GetLastError());
 
 		if (!IsValidSid(tu->User.Sid))
@@ -596,7 +596,7 @@ namespace ws {
 				token.reset(h);
 			}
 
-			get_username(token.get());
+			get_username();
 #else
 			recv_tok.length = auth.size();
 			recv_tok.value = auth.data();

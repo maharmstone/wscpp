@@ -138,7 +138,7 @@ namespace ws {
 		void read();
 		std::string ip_addr_string() const;
 #ifdef _WIN32
-		void get_username(HANDLE token);
+		void get_username();
 		void impersonate() const;
 		void revert() const;
 		HANDLE impersonation_token() const;
