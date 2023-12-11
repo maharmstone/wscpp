@@ -656,7 +656,7 @@ namespace ws {
 
 			static_assert(sizeof(msg) == 6);
 
-			msg.h = header(true, rsv1, false, false, opcode, true, len);
+			msg.h = header(true, rsv1, false, false, opcode, true, (uint8_t)len);
 			msg.mask = mask;
 
 			do_send(span((const uint8_t*)&msg, sizeof(msg)));
