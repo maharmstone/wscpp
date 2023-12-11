@@ -72,6 +72,7 @@ static constexpr std::string b64encode(std::span<const uint8_t> sv) {
 	return outStr;
 }
 
+#ifndef __clang__ // doesn't work on Clang (17.0.6)
 static_assert(b64encode({}) == "");
 static_assert(b64encode(std::vector<uint8_t>{'f'}) == "Zg==");
 static_assert(b64encode(std::vector<uint8_t>{'f','o'}) == "Zm8=");
@@ -80,6 +81,7 @@ static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b'}) == "Zm9vYg==");
 static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b','a',}) == "Zm9vYmE=");
 static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b','a','r'}) == "Zm9vYmFy");
 static_assert(b64encode(std::vector<uint8_t>{0xc2, 0xa3}) == "wqM=");
+#endif
 
 static constexpr int B64index[256] = {
 	0,   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
