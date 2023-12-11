@@ -102,18 +102,18 @@ static constexpr std::vector<uint8_t> b64decode(std::string_view sv) {
 
 	for (size_t i = 0, j = 0; i < L; i += 4) {
 		int n = B64index[(uint8_t)p[i]] << 18 | B64index[(uint8_t)p[i + 1]] << 12 | B64index[(uint8_t)p[i + 2]] << 6 | B64index[(uint8_t)p[i + 3]];
-		str[j++] = n >> 16;
-		str[j++] = n >> 8 & 0xFF;
+		str[j++] = (n >> 16) & 0xFF;
+		str[j++] = (n >> 8) & 0xFF;
 		str[j++] = n & 0xFF;
 	}
 
 	if (pad) {
 		int n = B64index[(uint8_t)p[L]] << 18 | B64index[(uint8_t)p[L + 1]] << 12;
-		str[str.size() - 1] = n >> 16;
+		str[str.size() - 1] = (n >> 16) & 0xFF;
 
 		if (sv.length() > L + 2 && p[L + 2] != '=') {
 			n |= B64index[(uint8_t)p[L + 2]] << 6;
-			str.push_back(n >> 8 & 0xFF);
+			str.push_back((n >> 8) & 0xFF);
 		}
 	}
 
