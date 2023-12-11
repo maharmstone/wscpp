@@ -207,7 +207,7 @@ namespace ws {
 			return;
 
 		if (len <= 125) {
-			header h(true, rsv1, false, false, opcode, false, len);
+			header h(true, rsv1, false, false, opcode, false, (uint8_t)len);
 
 			send_raw(span((const uint8_t*)&h, sizeof(h)));
 		} else if (len < 0x10000) {
