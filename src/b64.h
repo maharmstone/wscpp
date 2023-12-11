@@ -79,6 +79,7 @@ static_assert(b64encode(std::vector<uint8_t>{'f','o','o'}) == "Zm9v");
 static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b'}) == "Zm9vYg==");
 static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b','a',}) == "Zm9vYmE=");
 static_assert(b64encode(std::vector<uint8_t>{'f','o','o','b','a','r'}) == "Zm9vYmFy");
+static_assert(b64encode(std::vector<uint8_t>{0xc2, 0xa3}) == "wqM=");
 
 static constexpr int B64index[256] = {
 	0,   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -126,3 +127,4 @@ static_assert(b64decode("Zm9v") == std::vector<uint8_t>{'f','o','o'});
 static_assert(b64decode("Zm9vYg==") == std::vector<uint8_t>{'f','o','o','b'});
 static_assert(b64decode("Zm9vYmE=") == std::vector<uint8_t>{'f','o','o','b','a'});
 static_assert(b64decode("Zm9vYmFy") == std::vector<uint8_t>{'f','o','o','b','a','r'});
+static_assert(b64decode("wqM=") == std::vector<uint8_t>{0xc2, 0xa3});
