@@ -528,7 +528,7 @@ namespace ws {
 #endif
 
 #ifdef _WIN32
-			inbufs[0].cbBuffer = auth.size();
+			inbufs[0].cbBuffer = (unsigned long)auth.size();
 			inbufs[0].BufferType = SECBUFFER_TOKEN;
 			inbufs[0].pvBuffer = auth.data();
 
