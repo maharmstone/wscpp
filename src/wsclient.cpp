@@ -796,7 +796,7 @@ namespace ws {
 					return;
 			} else {
 #endif
-				bytes = ::recv(sock, (char*)sp.data(), sp.size(), 0);
+				bytes = ::recv(sock, (char*)sp.data(), (int)sp.size(), 0);
 #ifdef _WIN32
 				if (bytes == SOCKET_ERROR) {
 					err = WSAGetLastError();
