@@ -889,7 +889,7 @@ namespace ws {
 			int err;
 
 			do {
-				strm.avail_in = comp.size();
+				strm.avail_in = (unsigned int)comp.size();
 
 				if (strm.avail_in == 0)
 					break;
