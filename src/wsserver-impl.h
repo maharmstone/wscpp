@@ -128,7 +128,6 @@ namespace ws {
 		std::vector<uint8_t> recv();
 		void read();
 #ifdef _WIN32
-		void impersonate() const;
 		void revert() const;
 		HANDLE impersonation_token() const;
 #endif
