@@ -55,6 +55,427 @@ static string lower(string s) {
 	return s;
 }
 
+#ifdef _WIN32
+static __inline string utf16_to_utf8(u16string_view s) {
+	string ret;
+
+	if (s.empty())
+		return "";
+
+	auto len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), nullptr, 0,
+								nullptr, nullptr);
+
+	if (len == 0)
+		throw formatted_error("WideCharToMultiByte 1 failed.");
+
+	ret.resize(len);
+
+	len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), ret.data(), len,
+							nullptr, nullptr);
+
+	if (len == 0)
+		throw formatted_error("WideCharToMultiByte 2 failed.");
+
+	return ret;
+}
+#endif
+
+#ifndef _WIN32
+static string get_fqdn() {
+	struct addrinfo hints, *info;
+	int err;
+	char hostname[HOST_NAME_MAX + 1];
+
+	hostname[HOST_NAME_MAX] = 0;
+	gethostname(hostname, HOST_NAME_MAX);
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_CANONNAME;
+
+	err = getaddrinfo(hostname, nullptr, &hints, &info);
+	if (err != 0)
+		throw formatted_error("getaddrinfo failed for {} (error {}).", hostname, err);
+
+	if (!info)
+		throw formatted_error("Could not get fully-qualified domain name.");
+
+	string ret = info->ai_canonname;
+
+	freeaddrinfo(info);
+
+	return ret;
+}
+#endif
+
+static void handle_handshake(ws::server_client_pimpl& p, const map<string, string>& headers) {
+	if (p.serv.impl->auth_type != ws::auth::none) {
+		vector<uint8_t> auth;
+#ifdef _WIN32
+		SECURITY_STATUS sec_status;
+		SecBuffer inbufs[2], outbuf;
+		SecBufferDesc in, out;
+		TimeStamp timestamp;
+		unsigned long context_attr;
+#else
+		OM_uint32 major_status, minor_status;
+		OM_uint32 ret_flags;
+		gss_buffer_desc recv_tok, send_tok, name_buffer;
+		gss_OID mech_type;
+		gss_name_t src_name;
+#endif
+
+		string auth_type_str;
+
+		switch (p.serv.impl->auth_type) {
+			case ws::auth::negotiate:
+				auth_type_str = "Negotiate";
+				break;
+
+			case ws::auth::ntlm:
+				auth_type_str = "NTLM";
+				break;
+
+			default:
+				throw runtime_error("Unhandled auth type.");
+		}
+
+		if (headers.count("Authorization") > 0) {
+			const auto& authstr = headers.at("Authorization");
+
+			if (authstr.length() > auth_type_str.length() && authstr.substr(0, auth_type_str.length()) == auth_type_str &&
+				authstr[auth_type_str.length()] == ' ') {
+				auth = b64decode(authstr.substr(auth_type_str.length() + 1));
+			}
+		}
+
+		if (auth.empty()) {
+			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type_str + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			return;
+		}
+
+#ifdef _WIN32
+		if (!SecIsValidHandle(&p.cred_handle)) {
+			if (p.serv.impl->auth_type == ws::auth::negotiate) { // FIXME - log error if this fails, rather than throwing exception?
+				auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
+				if (FAILED(ret))
+					throw formatted_error("DsServerRegisterSpn returned {}", ret);
+			}
+
+			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type_str).c_str(), SECPKG_CRED_INBOUND,
+													nullptr, nullptr, nullptr, nullptr, &p.cred_handle, &timestamp);
+			if (FAILED(sec_status))
+				throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
+		}
+#else
+		if (p.cred_handle == 0) {
+			gss_buffer_desc name_buf;
+			gss_name_t gss_name;
+			string spn = "HTTP/" + get_fqdn();
+
+			name_buf.length = spn.length();
+			name_buf.value = (void*)spn.data();
+
+			major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
+			if (major_status != GSS_S_COMPLETE)
+				throw gss_error("gss_import_name", major_status, minor_status);
+
+			major_status = gss_acquire_cred(&minor_status, gss_name, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+											GSS_C_ACCEPT, &p.cred_handle, nullptr, nullptr);
+
+			if (major_status != GSS_S_COMPLETE)
+				throw gss_error("gss_acquire_cred", major_status, minor_status);
+		}
+#endif
+
+#ifdef _WIN32
+		inbufs[0].cbBuffer = (unsigned long)auth.size();
+		inbufs[0].BufferType = SECBUFFER_TOKEN;
+		inbufs[0].pvBuffer = auth.data();
+
+		inbufs[1].cbBuffer = 0;
+		inbufs[1].BufferType = SECBUFFER_EMPTY;
+		inbufs[1].pvBuffer = nullptr;
+
+		in.ulVersion = SECBUFFER_VERSION;
+		in.cBuffers = 2;
+		in.pBuffers = inbufs;
+
+		outbuf.cbBuffer = 0;
+		outbuf.BufferType = SECBUFFER_TOKEN;
+		outbuf.pvBuffer = nullptr;
+
+		out.ulVersion = SECBUFFER_VERSION;
+		out.cBuffers = 1;
+		out.pBuffers = &outbuf;
+
+		sec_status = AcceptSecurityContext(&p.cred_handle, p.ctx_handle_set ? &p.ctx_handle : nullptr, &in,
+											ASC_REQ_ALLOCATE_MEMORY, SECURITY_NATIVE_DREP, &p.ctx_handle, &out,
+											&context_attr, &timestamp);
+
+		vector<uint8_t> sspi;
+
+		if (outbuf.cbBuffer > 0) {
+			auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
+
+			sspi.assign(sp.begin(), sp.end());
+		}
+
+		if (outbuf.pvBuffer)
+			FreeContextBuffer(outbuf.pvBuffer);
+
+		if (sec_status == SEC_E_LOGON_DENIED) {
+			static const string error_msg = "Logon denied.";
+			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(error_msg.length()) + "\r\n\r\n" + error_msg;
+
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			return;
+		} else if (FAILED(sec_status))
+			throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
+
+		p.ctx_handle_set = true;
+
+		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
+			auto b64 = b64encode(sspi);
+
+			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+
+			return;
+		}
+
+		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
+
+		{
+			HANDLE h;
+
+			sec_status = QuerySecurityContextToken(&p.ctx_handle, &h);
+
+			if (FAILED(sec_status))
+				throw formatted_error("QuerySecurityContextToken returned {}", (enum sec_error)sec_status);
+
+			p.token.reset(h);
+		}
+
+		p.get_username();
+#else
+		recv_tok.length = auth.size();
+		recv_tok.value = auth.data();
+
+		major_status = gss_accept_sec_context(&minor_status, &p.ctx_handle, p.cred_handle, &recv_tok,
+												GSS_C_NO_CHANNEL_BINDINGS, &src_name, &mech_type, &send_tok,
+												&ret_flags, nullptr, nullptr);
+
+		if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
+			throw gss_error("gss_accept_sec_context", major_status, minor_status);
+
+		vector<uint8_t> outbuf;
+
+		if (send_tok.length != 0) {
+			auto sp = span((uint8_t*)send_tok.value, send_tok.length);
+			outbuf.assign(sp.begin(), sp.end());
+
+			gss_release_buffer(&minor_status, &send_tok);
+		}
+
+		if (major_status == GSS_S_CONTINUE_NEEDED) {
+			auto b64 = b64encode(outbuf);
+
+			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+
+			return;
+		}
+
+		major_status = gss_display_name(&minor_status, src_name, &name_buffer, nullptr);
+		if (major_status != GSS_S_COMPLETE) {
+			gss_release_name(&minor_status, &src_name);
+			throw gss_error("gss_display_name", major_status, minor_status);
+		}
+
+		p.username = string((char*)name_buffer.value, name_buffer.length);
+
+		gss_release_name(&minor_status, &src_name);
+		gss_release_buffer(&minor_status, &name_buffer);
+
+		if (p.username.find("@") != string::npos) {
+			auto st = p.username.find("@");
+
+			p.domain_name = p.username.substr(st + 1);
+			p.username = p.username.substr(0, st);
+		}
+#endif
+	}
+
+	if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
+		const auto& msg = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"s;
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		return;
+	}
+
+	const auto& wsv = headers.at("Sec-WebSocket-Version");
+	unsigned int version;
+
+	auto [ptr, ec] = from_chars(wsv.data(), wsv.data() + wsv.length(), version);
+
+	if (ptr != wsv.data() + wsv.length())
+		throw runtime_error("Invalid Sec-WebSocket-Version value.");
+
+	if (version > 13) {
+		const auto& msg = "HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n"s;
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		return;
+	}
+
+#ifdef WITH_ZLIB
+	vector<string_view> exts;
+
+	if (headers.count("Sec-WebSocket-Extensions") != 0) {
+		const auto& ext = headers.at("Sec-WebSocket-Extensions");
+		string_view sv = ext;
+
+		do {
+			auto comma = sv.find(",");
+
+			if (comma == string::npos)
+				break;
+
+			auto sv2 = sv.substr(0, comma);
+
+			while (!sv2.empty() && sv2.back() == ' ') {
+				sv2.remove_suffix(1);
+			}
+
+			exts.emplace_back(sv2);
+
+			sv = sv.substr(comma + 1);
+
+			while (!sv.empty() && sv.front() == ' ') {
+				sv.remove_prefix(1);
+			}
+
+			if (sv.empty())
+				break;
+		} while (true);
+
+		while (!sv.empty() && sv.front() == ' ') {
+			sv.remove_prefix(1);
+		}
+
+		if (!sv.empty())
+			exts.emplace_back(sv);
+	}
+
+	for (const auto& ext : exts) {
+		if (ext == "permessage-deflate") {
+			p.deflate = true;
+			break;
+		} else if (ext.starts_with("permessage-deflate;")) { // ignore any parameters
+			p.deflate = true;
+			break;
+		}
+	}
+#endif
+
+	string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
+	auto msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n";
+
+#ifdef WITH_ZLIB
+	if (p.deflate)
+		msg += "Sec-WebSocket-Extensions: permessage-deflate\r\n";
+#endif
+
+	msg += "\r\n";
+
+	p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+
+	if (!p.open)
+		return;
+
+	p.state = p.state_enum::websocket;
+
+	if (p.conn_handler) {
+		try {
+			p.conn_handler(p.parent);
+		} catch (...) {
+			// disconnect client if handler throws exception
+			p.open = false;
+		}
+	}
+}
+
+static void internal_server_error(ws::server_client_pimpl& p, string_view s) {
+	try {
+		const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	} catch (...) {
+	}
+}
+
+static void process_http_message(ws::server_client_pimpl& p, string_view mess) {
+	bool first = true;
+	size_t nl = mess.find("\r\n"), nl2 = 0;
+	string verb, path;
+	map<string, string> headers;
+
+	do {
+		if (first) {
+			size_t space = mess.find(" ");
+
+			if (space == string::npos || space > nl)
+				verb = mess.substr(0, nl);
+			else {
+				verb = mess.substr(0, space);
+
+				size_t space2 = mess.find(" ", space + 1);
+
+				if (space2 == string::npos || space2 > nl)
+					path = mess.substr(space + 1, nl - space - 1);
+				else
+					path = mess.substr(space + 1, space2 - space - 1);
+			}
+
+			first = false;
+		} else {
+			size_t colon = mess.find(": ", nl2);
+
+			if (colon != string::npos) {
+				auto name = mess.substr(nl2, colon - nl2);
+
+				if (name == "Sec-WebSocket-Extensions" && headers.contains("Sec-WebSocket-Extensions"))
+					headers.at("Sec-WebSocket-Extensions") += ", " + string{mess.substr(colon + 2, nl - colon - 2)};
+				else
+					headers.emplace(name, mess.substr(colon + 2, nl - colon - 2));
+			}
+		}
+
+		nl2 = nl + 2;
+		nl = mess.find("\r\n", nl2);
+	} while (nl != string::npos);
+
+	size_t qm = path.find("?");
+	if (qm != string::npos)
+		path = path.substr(0, qm);
+
+	if (path != "/") {
+		const auto& msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"s;
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	} else if (verb != "GET") {
+		const auto& msg = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n"s;
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	} else {
+		try {
+			handle_handshake(p, headers);
+		} catch (const exception& e) {
+			internal_server_error(p, e.what());
+		} catch (...) {
+			internal_server_error(p, "Unhandled exception.");
+		}
+	}
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -355,29 +776,6 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	static __inline string utf16_to_utf8(u16string_view s) {
-		string ret;
-
-		if (s.empty())
-			return "";
-
-		auto len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), nullptr, 0,
-									nullptr, nullptr);
-
-		if (len == 0)
-			throw formatted_error("WideCharToMultiByte 1 failed.");
-
-		ret.resize(len);
-
-		len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)s.data(), (int)s.length(), ret.data(), len,
-								nullptr, nullptr);
-
-		if (len == 0)
-			throw formatted_error("WideCharToMultiByte 2 failed.");
-
-		return ret;
-	}
-
 	void server_client_pimpl::get_username() {
 		vector<uint8_t> buf;
 		TOKEN_USER* tu;
@@ -417,340 +815,6 @@ namespace ws {
 	}
 #endif
 
-#ifndef _WIN32
-	static string get_fqdn() {
-		struct addrinfo hints, *info;
-		int err;
-		char hostname[HOST_NAME_MAX + 1];
-
-		hostname[HOST_NAME_MAX] = 0;
-		gethostname(hostname, HOST_NAME_MAX);
-
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = AI_CANONNAME;
-
-		err = getaddrinfo(hostname, nullptr, &hints, &info);
-		if (err != 0)
-			throw formatted_error("getaddrinfo failed for {} (error {}).", hostname, err);
-
-		if (!info)
-			throw formatted_error("Could not get fully-qualified domain name.");
-
-		string ret = info->ai_canonname;
-
-		freeaddrinfo(info);
-
-		return ret;
-	}
-#endif
-
-	static void handle_handshake(server_client_pimpl& p, const map<string, string>& headers) {
-		if (p.serv.impl->auth_type != auth::none) {
-			vector<uint8_t> auth;
-#ifdef _WIN32
-			SECURITY_STATUS sec_status;
-			SecBuffer inbufs[2], outbuf;
-			SecBufferDesc in, out;
-			TimeStamp timestamp;
-			unsigned long context_attr;
-#else
-			OM_uint32 major_status, minor_status;
-			OM_uint32 ret_flags;
-			gss_buffer_desc recv_tok, send_tok, name_buffer;
-			gss_OID mech_type;
-			gss_name_t src_name;
-#endif
-
-			string auth_type_str;
-
-			switch (p.serv.impl->auth_type) {
-				case auth::negotiate:
-					auth_type_str = "Negotiate";
-					break;
-
-				case auth::ntlm:
-					auth_type_str = "NTLM";
-					break;
-
-				default:
-					throw runtime_error("Unhandled auth type.");
-			}
-
-			if (headers.count("Authorization") > 0) {
-				const auto& authstr = headers.at("Authorization");
-
-				if (authstr.length() > auth_type_str.length() && authstr.substr(0, auth_type_str.length()) == auth_type_str &&
-					authstr[auth_type_str.length()] == ' ') {
-					auth = b64decode(authstr.substr(auth_type_str.length() + 1));
-				}
-			}
-
-			if (auth.empty()) {
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type_str + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-				return;
-			}
-
-#ifdef _WIN32
-			if (!SecIsValidHandle(&p.cred_handle)) {
-				if (p.serv.impl->auth_type == auth::negotiate) { // FIXME - log error if this fails, rather than throwing exception?
-					auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
-					if (FAILED(ret))
-						throw formatted_error("DsServerRegisterSpn returned {}", ret);
-				}
-
-				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type_str).c_str(), SECPKG_CRED_INBOUND,
-													   nullptr, nullptr, nullptr, nullptr, &p.cred_handle, &timestamp);
-				if (FAILED(sec_status))
-					throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
-			}
-#else
-			if (p.cred_handle == 0) {
-				gss_buffer_desc name_buf;
-				gss_name_t gss_name;
-				string spn = "HTTP/" + get_fqdn();
-
-				name_buf.length = spn.length();
-				name_buf.value = (void*)spn.data();
-
-				major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
-				if (major_status != GSS_S_COMPLETE)
-					throw gss_error("gss_import_name", major_status, minor_status);
-
-				major_status = gss_acquire_cred(&minor_status, gss_name, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-												GSS_C_ACCEPT, &p.cred_handle, nullptr, nullptr);
-
-				if (major_status != GSS_S_COMPLETE)
-					throw gss_error("gss_acquire_cred", major_status, minor_status);
-			}
-#endif
-
-#ifdef _WIN32
-			inbufs[0].cbBuffer = (unsigned long)auth.size();
-			inbufs[0].BufferType = SECBUFFER_TOKEN;
-			inbufs[0].pvBuffer = auth.data();
-
-			inbufs[1].cbBuffer = 0;
-			inbufs[1].BufferType = SECBUFFER_EMPTY;
-			inbufs[1].pvBuffer = nullptr;
-
-			in.ulVersion = SECBUFFER_VERSION;
-			in.cBuffers = 2;
-			in.pBuffers = inbufs;
-
-			outbuf.cbBuffer = 0;
-			outbuf.BufferType = SECBUFFER_TOKEN;
-			outbuf.pvBuffer = nullptr;
-
-			out.ulVersion = SECBUFFER_VERSION;
-			out.cBuffers = 1;
-			out.pBuffers = &outbuf;
-
-			sec_status = AcceptSecurityContext(&p.cred_handle, p.ctx_handle_set ? &p.ctx_handle : nullptr, &in,
-											   ASC_REQ_ALLOCATE_MEMORY, SECURITY_NATIVE_DREP, &p.ctx_handle, &out,
-											   &context_attr, &timestamp);
-
-			vector<uint8_t> sspi;
-
-			if (outbuf.cbBuffer > 0) {
-				auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
-
-				sspi.assign(sp.begin(), sp.end());
-			}
-
-			if (outbuf.pvBuffer)
-				FreeContextBuffer(outbuf.pvBuffer);
-
-			if (sec_status == SEC_E_LOGON_DENIED) {
-				static const string error_msg = "Logon denied.";
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(error_msg.length()) + "\r\n\r\n" + error_msg;
-
-				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-				return;
-			} else if (FAILED(sec_status))
-				throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
-
-			p.ctx_handle_set = true;
-
-			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
-				auto b64 = b64encode(sspi);
-
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-
-				return;
-			}
-
-			// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)
-
-			{
-				HANDLE h;
-
-				sec_status = QuerySecurityContextToken(&p.ctx_handle, &h);
-
-				if (FAILED(sec_status))
-					throw formatted_error("QuerySecurityContextToken returned {}", (enum sec_error)sec_status);
-
-				p.token.reset(h);
-			}
-
-			p.get_username();
-#else
-			recv_tok.length = auth.size();
-			recv_tok.value = auth.data();
-
-			major_status = gss_accept_sec_context(&minor_status, &p.ctx_handle, p.cred_handle, &recv_tok,
-												  GSS_C_NO_CHANNEL_BINDINGS, &src_name, &mech_type, &send_tok,
-												  &ret_flags, nullptr, nullptr);
-
-			if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
-				throw gss_error("gss_accept_sec_context", major_status, minor_status);
-
-			vector<uint8_t> outbuf;
-
-			if (send_tok.length != 0) {
-				auto sp = span((uint8_t*)send_tok.value, send_tok.length);
-				outbuf.assign(sp.begin(), sp.end());
-
-				gss_release_buffer(&minor_status, &send_tok);
-			}
-
-			if (major_status == GSS_S_CONTINUE_NEEDED) {
-				auto b64 = b64encode(outbuf);
-
-				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-
-				return;
-			}
-
-			major_status = gss_display_name(&minor_status, src_name, &name_buffer, nullptr);
-			if (major_status != GSS_S_COMPLETE) {
-				gss_release_name(&minor_status, &src_name);
-				throw gss_error("gss_display_name", major_status, minor_status);
-			}
-
-			p.username = string((char*)name_buffer.value, name_buffer.length);
-
-			gss_release_name(&minor_status, &src_name);
-			gss_release_buffer(&minor_status, &name_buffer);
-
-			if (p.username.find("@") != string::npos) {
-				auto st = p.username.find("@");
-
-				p.domain_name = p.username.substr(st + 1);
-				p.username = p.username.substr(0, st);
-			}
-#endif
-		}
-
-		if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
-			const auto& msg = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"s;
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-			return;
-		}
-
-		const auto& wsv = headers.at("Sec-WebSocket-Version");
-		unsigned int version;
-
-		auto [ptr, ec] = from_chars(wsv.data(), wsv.data() + wsv.length(), version);
-
-		if (ptr != wsv.data() + wsv.length())
-			throw runtime_error("Invalid Sec-WebSocket-Version value.");
-
-		if (version > 13) {
-			const auto& msg = "HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n"s;
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-			return;
-		}
-
-#ifdef WITH_ZLIB
-		vector<string_view> exts;
-
-		if (headers.count("Sec-WebSocket-Extensions") != 0) {
-			const auto& ext = headers.at("Sec-WebSocket-Extensions");
-			string_view sv = ext;
-
-			do {
-				auto comma = sv.find(",");
-
-				if (comma == string::npos)
-					break;
-
-				auto sv2 = sv.substr(0, comma);
-
-				while (!sv2.empty() && sv2.back() == ' ') {
-					sv2.remove_suffix(1);
-				}
-
-				exts.emplace_back(sv2);
-
-				sv = sv.substr(comma + 1);
-
-				while (!sv.empty() && sv.front() == ' ') {
-					sv.remove_prefix(1);
-				}
-
-				if (sv.empty())
-					break;
-			} while (true);
-
-			while (!sv.empty() && sv.front() == ' ') {
-				sv.remove_prefix(1);
-			}
-
-			if (!sv.empty())
-				exts.emplace_back(sv);
-		}
-
-		for (const auto& ext : exts) {
-			if (ext == "permessage-deflate") {
-				p.deflate = true;
-				break;
-			} else if (ext.starts_with("permessage-deflate;")) { // ignore any parameters
-				p.deflate = true;
-				break;
-			}
-		}
-#endif
-
-		string resp = b64encode(sha1(headers.at("Sec-WebSocket-Key") + MAGIC_STRING));
-		auto msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n";
-
-#ifdef WITH_ZLIB
-		if (p.deflate)
-			msg += "Sec-WebSocket-Extensions: permessage-deflate\r\n";
-#endif
-
-		msg += "\r\n";
-
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-
-		if (!p.open)
-			return;
-
-		p.state = p.state_enum::websocket;
-
-		if (p.conn_handler) {
-			try {
-				p.conn_handler(p.parent);
-			} catch (...) {
-				// disconnect client if handler throws exception
-				p.open = false;
-			}
-		}
-	}
-
-	static void internal_server_error(server_client_pimpl& p, string_view s) {
-		try {
-			const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-		} catch (...) {
-		}
-	}
-
 	vector<uint8_t> server_client_pimpl::recv() {
 		uint8_t s[4096];
 		int bytes, err = 0;
@@ -778,68 +842,6 @@ namespace ws {
 #endif
 
 		return {s, s + bytes};
-	}
-
-	static void process_http_message(server_client_pimpl& p, string_view mess) {
-		bool first = true;
-		size_t nl = mess.find("\r\n"), nl2 = 0;
-		string verb, path;
-		map<string, string> headers;
-
-		do {
-			if (first) {
-				size_t space = mess.find(" ");
-
-				if (space == string::npos || space > nl)
-					verb = mess.substr(0, nl);
-				else {
-					verb = mess.substr(0, space);
-
-					size_t space2 = mess.find(" ", space + 1);
-
-					if (space2 == string::npos || space2 > nl)
-						path = mess.substr(space + 1, nl - space - 1);
-					else
-						path = mess.substr(space + 1, space2 - space - 1);
-				}
-
-				first = false;
-			} else {
-				size_t colon = mess.find(": ", nl2);
-
-				if (colon != string::npos) {
-					auto name = mess.substr(nl2, colon - nl2);
-
-					if (name == "Sec-WebSocket-Extensions" && headers.contains("Sec-WebSocket-Extensions"))
-						headers.at("Sec-WebSocket-Extensions") += ", " + string{mess.substr(colon + 2, nl - colon - 2)};
-					else
-						headers.emplace(name, mess.substr(colon + 2, nl - colon - 2));
-				}
-			}
-
-			nl2 = nl + 2;
-			nl = mess.find("\r\n", nl2);
-		} while (nl != string::npos);
-
-		size_t qm = path.find("?");
-		if (qm != string::npos)
-			path = path.substr(0, qm);
-
-		if (path != "/") {
-			const auto& msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"s;
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-		} else if (verb != "GET") {
-			const auto& msg = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n"s;
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-		} else {
-			try {
-				handle_handshake(p, headers);
-			} catch (const exception& e) {
-				internal_server_error(p, e.what());
-			} catch (...) {
-				internal_server_error(p, "Unhandled exception.");
-			}
-		}
 	}
 
 	void server_client_pimpl::process_http_messages() {
