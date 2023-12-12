@@ -126,7 +126,6 @@ namespace ws {
 
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
-		void read();
 
 		server_client& parent;
 		bool open = true;

@@ -738,6 +738,120 @@ static void send(ws::server_client_pimpl& p, span<const uint8_t> payload, bool r
 	p.send_raw(payload);
 }
 
+static void read(ws::server_client_pimpl& p) {
+	auto msg = p.recv();
+
+	if (!p.open)
+		return;
+
+	p.recvbuf.insert(p.recvbuf.end(), msg.data(), msg.data() + msg.size());
+
+	if (p.state == p.state_enum::http)
+		process_http_messages(p);
+
+	if (p.state != p.state_enum::websocket)
+		return;
+
+	while (true) {
+		if (p.recvbuf.size() < 2)
+			return;
+
+		auto& h = *(ws::header*)p.recvbuf.data();
+		uint64_t len = h.len;
+
+		auto sp = span(p.recvbuf);
+
+		sp = sp.subspan(2);
+
+		if (len == 126) {
+			if (sp.size() < 2)
+				return;
+
+			len = (sp[0] << 8) | sp[1];
+			sp = sp.subspan(2);
+		} else if (len == 127) {
+			if (sp.size() < 8)
+				return;
+
+			len = sp[0];
+			len <<= 8;
+			len |= sp[1];
+			len <<= 8;
+			len |= sp[2];
+			len <<= 8;
+			len |= sp[3];
+			len <<= 8;
+			len |= sp[4];
+			len <<= 8;
+			len |= sp[5];
+			len <<= 8;
+			len |= sp[6];
+			len <<= 8;
+			len |= sp[7];
+
+			sp = sp.subspan(8);
+		}
+
+		span<const uint8_t> mask_key;
+
+		if (h.mask) {
+			if (sp.size() < 4)
+				return;
+
+			mask_key = sp.subspan(0, 4);
+			sp = sp.subspan(4);
+		}
+
+		if (sp.size() < len)
+			return;
+
+		if (h.mask && len != 0) {
+			auto payload = sp.subspan(0, len);
+
+			for (unsigned int i = 0; i < payload.size(); i++) {
+				payload[i] ^= mask_key[i % 4];
+			}
+		}
+
+		if (!h.fin) {
+			if (h.opcode != ws::opcode::invalid)
+				p.last_opcode = h.opcode;
+
+#ifdef WITH_ZLIB
+			if (!p.last_rsv1.has_value())
+				p.last_rsv1 = (bool)h.rsv1;
+#endif
+
+			p.payloadbuf.insert(p.payloadbuf.end(), sp.data(), sp.data() + len);
+		} else if (!p.payloadbuf.empty()) {
+			p.payloadbuf.insert(p.payloadbuf.end(), sp.data(), sp.data() + len);
+
+#ifdef WITH_ZLIB
+			parse_ws_message(p, p.last_opcode, p.last_rsv1.value(), p.payloadbuf);
+			p.last_rsv1.reset();
+#else
+			parse_ws_message(p, p.last_opcode, p.payloadbuf);
+#endif
+			p.payloadbuf.clear();
+		} else {
+#ifdef WITH_ZLIB
+			parse_ws_message(p, h.opcode, h.rsv1, sp.subspan(0, len));
+			p.last_rsv1.reset();
+#else
+			parse_ws_message(p, h.opcode, sp.subspan(0, len));
+#endif
+		}
+
+		if (!p.open)
+			return;
+
+		sp = sp.subspan(len);
+
+		vector<uint8_t> tmp{sp.data(), p.recvbuf.data() + p.recvbuf.size()};
+		p.recvbuf.swap(tmp);
+	}
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -767,120 +881,6 @@ namespace ws {
 
 	server_client::~server_client() {
 		// needs to be defined for unique_ptr with pimpl
-	}
-
-	void server_client_pimpl::read() {
-		auto msg = recv();
-
-		if (!open)
-			return;
-
-		recvbuf.insert(recvbuf.end(), msg.data(), msg.data() + msg.size());
-
-		if (state == state_enum::http)
-			process_http_messages(*this);
-
-		if (state != state_enum::websocket)
-			return;
-
-		while (true) {
-			if (recvbuf.size() < 2)
-				return;
-
-			auto& h = *(header*)recvbuf.data();
-			uint64_t len = h.len;
-
-			auto sp = span(recvbuf);
-
-			sp = sp.subspan(2);
-
-			if (len == 126) {
-				if (sp.size() < 2)
-					return;
-
-				len = (sp[0] << 8) | sp[1];
-				sp = sp.subspan(2);
-			} else if (len == 127) {
-				if (sp.size() < 8)
-					return;
-
-				len = sp[0];
-				len <<= 8;
-				len |= sp[1];
-				len <<= 8;
-				len |= sp[2];
-				len <<= 8;
-				len |= sp[3];
-				len <<= 8;
-				len |= sp[4];
-				len <<= 8;
-				len |= sp[5];
-				len <<= 8;
-				len |= sp[6];
-				len <<= 8;
-				len |= sp[7];
-
-				sp = sp.subspan(8);
-			}
-
-			span<const uint8_t> mask_key;
-
-			if (h.mask) {
-				if (sp.size() < 4)
-					return;
-
-				mask_key = sp.subspan(0, 4);
-				sp = sp.subspan(4);
-			}
-
-			if (sp.size() < len)
-				return;
-
-			if (h.mask && len != 0) {
-				auto payload = sp.subspan(0, len);
-
-				for (unsigned int i = 0; i < payload.size(); i++) {
-					payload[i] ^= mask_key[i % 4];
-				}
-			}
-
-			if (!h.fin) {
-				if (h.opcode != opcode::invalid)
-					last_opcode = h.opcode;
-
-#ifdef WITH_ZLIB
-				if (!last_rsv1.has_value())
-					last_rsv1 = (bool)h.rsv1;
-#endif
-
-				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
-			} else if (!payloadbuf.empty()) {
-				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
-
-#ifdef WITH_ZLIB
-				parse_ws_message(*this, last_opcode, last_rsv1.value(), payloadbuf);
-				last_rsv1.reset();
-#else
-				parse_ws_message(*this, last_opcode, payloadbuf);
-#endif
-				payloadbuf.clear();
-			} else {
-#ifdef WITH_ZLIB
-				parse_ws_message(*this, h.opcode, h.rsv1, sp.subspan(0, len));
-				last_rsv1.reset();
-#else
-				parse_ws_message(*this, h.opcode, sp.subspan(0, len));
-#endif
-			}
-
-			if (!open)
-				return;
-
-			sp = sp.subspan(len);
-
-			vector<uint8_t> tmp{sp.data(), recvbuf.data() + recvbuf.size()};
-			recvbuf.swap(tmp);
-		}
 	}
 
 	void server_client::send(span<const uint8_t> payload, enum opcode opcode) const {
@@ -1196,7 +1196,7 @@ namespace ws {
 								continue;
 
 							if (netev.lNetworkEvents & (FD_READ | FD_CLOSE))
-								ct.impl->read();
+								::read(*ct.impl);
 							else if (netev.lNetworkEvents & FD_WRITE) {
 								vector<uint8_t> to_send = move(ct.impl->sendbuf);
 
@@ -1225,7 +1225,7 @@ namespace ws {
 							for (auto& ct : impl->clients) {
 								if (ct.impl->fd == pf.fd) {
 									if (pf.revents & POLLIN)
-										ct.impl->read();
+										::read(*ct.impl);
 									else if (pf.revents & POLLOUT) {
 										vector<uint8_t> to_send = std::move(ct.impl->sendbuf);
 
