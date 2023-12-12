@@ -738,8 +738,37 @@ static void send(ws::server_client_pimpl& p, span<const uint8_t> payload, bool r
 	p.send_raw(payload);
 }
 
+vector<uint8_t> recv(ws::server_client_pimpl& p) {
+	uint8_t s[4096];
+	int bytes, err = 0;
+
+	bytes = recv(p.fd, (char*)s, sizeof(s), 0);
+
+#ifdef _WIN32
+	if (bytes == SOCKET_ERROR)
+		err = WSAGetLastError();
+
+	if (bytes == 0 || (bytes == SOCKET_ERROR && (err == WSAECONNRESET || err == WSAECONNABORTED))) {
+		p.open = false;
+		return {};
+	} else if (bytes == SOCKET_ERROR)
+		throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
+#else
+	if (bytes == -1)
+		err = errno;
+
+	if (bytes == 0 || (bytes == -1 && (err == ECONNRESET || err == ECONNABORTED))) {
+		p.open = false;
+		return {};
+	} else if (bytes == -1)
+		throw formatted_error("recv failed ({}).", errno_to_string(err));
+#endif
+
+	return {s, s + bytes};
+}
+
 static void read(ws::server_client_pimpl& p) {
-	auto msg = p.recv();
+	auto msg = recv(p);
 
 	if (!p.open)
 		return;
@@ -985,35 +1014,6 @@ namespace ws {
 
 			sv = sv.subspan(bytes);
 		} while (true);
-	}
-
-	vector<uint8_t> server_client_pimpl::recv() {
-		uint8_t s[4096];
-		int bytes, err = 0;
-
-		bytes = ::recv(fd, (char*)s, sizeof(s), 0);
-
-#ifdef _WIN32
-		if (bytes == SOCKET_ERROR)
-			err = WSAGetLastError();
-
-		if (bytes == 0 || (bytes == SOCKET_ERROR && (err == WSAECONNRESET || err == WSAECONNABORTED))) {
-			open = false;
-			return {};
-		} else if (bytes == SOCKET_ERROR)
-			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
-#else
-		if (bytes == -1)
-			err = errno;
-
-		if (bytes == 0 || (bytes == -1 && (err == ECONNRESET || err == ECONNABORTED))) {
-			open = false;
-			return {};
-		} else if (bytes == -1)
-			throw formatted_error("recv failed ({}).", errno_to_string(err));
-#endif
-
-		return {s, s + bytes};
 	}
 
 	void server::start() {
