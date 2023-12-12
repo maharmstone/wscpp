@@ -127,7 +127,6 @@ namespace ws {
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
 		void read();
-		std::string ip_addr_string() const;
 #ifdef _WIN32
 		void get_username();
 		void impersonate() const;

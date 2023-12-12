@@ -548,6 +548,20 @@ static void parse_ws_message(ws::server_client_pimpl& p, enum ws::opcode opcode,
 	}
 }
 
+string ip_addr_string(const ws::server_client_pimpl& p) {
+	static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+
+	if (!memcmp(p.ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
+		return format("{}.{}.{}.{}", p.ip_addr[12], p.ip_addr[13], p.ip_addr[14], p.ip_addr[15]);
+	else {
+		char s[INET6_ADDRSTRLEN];
+
+		inet_ntop(AF_INET6, p.ip_addr.data(), s, sizeof(s));
+
+		return s;
+	}
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -824,7 +838,7 @@ namespace ws {
 				if (WSAGetLastError() == WSAECONNABORTED)
 					open = false;
 
-				throw formatted_error("send failed to {} ({}).", ip_addr_string(), wsa_error_to_string(WSAGetLastError()));
+				throw formatted_error("send failed to {} ({}).", ip_addr_string(*this), wsa_error_to_string(WSAGetLastError()));
 			}
 #else
 			if (bytes == -1) {
@@ -836,7 +850,7 @@ namespace ws {
 				if (errno == ECONNABORTED)
 					open = false;
 
-				throw formatted_error("send failed to {} ({}).", ip_addr_string(), errno_to_string(errno));
+				throw formatted_error("send failed to {} ({}).", ip_addr_string(*this), errno_to_string(errno));
 			}
 #endif
 
@@ -1365,22 +1379,8 @@ namespace ws {
 		return impl->ip_addr;
 	}
 
-	string server_client_pimpl::ip_addr_string() const {
-		static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
-
-		if (!memcmp(ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
-			return format("{}.{}.{}.{}", ip_addr[12], ip_addr[13], ip_addr[14], ip_addr[15]);
-		else {
-			char s[INET6_ADDRSTRLEN];
-
-			inet_ntop(AF_INET6, ip_addr.data(), s, sizeof(s));
-
-			return s;
-		}
-	}
-
 	string server_client::ip_addr_string() const {
-		return impl->ip_addr_string();
+		return ::ip_addr_string(*impl);
 	}
 
 	uint64_t server_client::client_id() const {
