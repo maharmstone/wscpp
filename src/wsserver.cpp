@@ -780,7 +780,7 @@ namespace ws {
 		return {s, s + bytes};
 	}
 
-	void server_client_pimpl::process_http_message(string_view mess) {
+	static void process_http_message(server_client_pimpl& p, string_view mess) {
 		bool first = true;
 		size_t nl = mess.find("\r\n"), nl2 = 0;
 		string verb, path;
@@ -827,17 +827,17 @@ namespace ws {
 
 		if (path != "/") {
 			const auto& msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"s;
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 		} else if (verb != "GET") {
 			const auto& msg = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n"s;
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 		} else {
 			try {
-				handle_handshake(*this, headers);
+				handle_handshake(p, headers);
 			} catch (const exception& e) {
-				internal_server_error(*this, e.what());
+				internal_server_error(p, e.what());
 			} catch (...) {
-				internal_server_error(*this, "Unhandled exception.");
+				internal_server_error(p, "Unhandled exception.");
 			}
 		}
 	}
@@ -849,7 +849,7 @@ namespace ws {
 			if (dnl == string::npos)
 				return;
 
-			process_http_message(string_view((char*)recvbuf.data(), dnl + 2));
+			process_http_message(*this, string_view((char*)recvbuf.data(), dnl + 2));
 
 			vector<uint8_t> tmp{recvbuf.data() + dnl + 4, recvbuf.data() + recvbuf.size()};
 			recvbuf.swap(tmp);

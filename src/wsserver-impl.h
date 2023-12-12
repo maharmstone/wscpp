@@ -126,7 +126,6 @@ namespace ws {
 
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
-		void process_http_message(std::string_view mess);
 		void process_http_messages();
 #ifdef WITH_ZLIB
 		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);
