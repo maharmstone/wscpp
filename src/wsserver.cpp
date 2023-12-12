@@ -493,6 +493,61 @@ static void process_http_messages(ws::server_client_pimpl& p) {
 	} while (true);
 }
 
+#ifdef WITH_ZLIB
+static void parse_ws_message(ws::server_client_pimpl& p, enum ws::opcode opcode, bool rsv1, span<const uint8_t> payload)
+#else
+static void parse_ws_message(ws::server_client_pimpl& p, enum ws::opcode opcode, span<const uint8_t> payload)
+#endif
+{
+#ifdef WITH_ZLIB
+	vector<uint8_t> decomp;
+
+	if (rsv1) {
+		if (!p.deflate)
+			throw runtime_error("RSV1 set unexpectedly.");
+
+		decomp = p.inflate_payload(payload);
+	}
+#endif
+
+	switch (opcode) {
+		case ws::opcode::close:
+			p.open = false;
+			return;
+
+		case ws::opcode::ping:
+#ifdef WITH_ZLIB
+			if (rsv1)
+				p.parent.send(decomp, ws::opcode::pong);
+			else
+#endif
+				p.parent.send(payload, ws::opcode::pong);
+			break;
+
+		case ws::opcode::text: {
+			if (p.msg_handler) {
+				try {
+#ifdef WITH_ZLIB
+					if (rsv1)
+						p.msg_handler(p.parent, string_view((char*)decomp.data(), decomp.size()));
+					else
+#endif
+						p.msg_handler(p.parent, string_view((char*)payload.data(), payload.size()));
+				} catch (...) {
+					// disconnect client if handler throws exception
+					p.open = false;
+					return;
+				}
+			}
+
+			break;
+		}
+
+		default:
+			break;
+	}
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -613,18 +668,18 @@ namespace ws {
 				payloadbuf.insert(payloadbuf.end(), sp.data(), sp.data() + len);
 
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
+				parse_ws_message(*this, last_opcode, last_rsv1.value(), payloadbuf);
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, payloadbuf);
+				parse_ws_message(*this, last_opcode, payloadbuf);
 #endif
 				payloadbuf.clear();
 			} else {
 #ifdef WITH_ZLIB
-				parse_ws_message(h.opcode, h.rsv1, sp.subspan(0, len));
+				parse_ws_message(*this, h.opcode, h.rsv1, sp.subspan(0, len));
 				last_rsv1.reset();
 #else
-				parse_ws_message(h.opcode, sp.subspan(0, len));
+				parse_ws_message(*this, h.opcode, sp.subspan(0, len));
 #endif
 			}
 
@@ -918,61 +973,6 @@ namespace ws {
 		return ret;
 	}
 #endif
-
-#ifdef WITH_ZLIB
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, span<const uint8_t> payload)
-#else
-	void server_client_pimpl::parse_ws_message(enum opcode opcode, span<const uint8_t> payload)
-#endif
-	{
-#ifdef WITH_ZLIB
-		vector<uint8_t> decomp;
-
-		if (rsv1) {
-			if (!deflate)
-				throw runtime_error("RSV1 set unexpectedly.");
-
-			decomp = inflate_payload(payload);
-		}
-#endif
-
-		switch (opcode) {
-			case opcode::close:
-				open = false;
-				return;
-
-			case opcode::ping:
-#ifdef WITH_ZLIB
-				if (rsv1)
-					parent.send(decomp, opcode::pong);
-				else
-#endif
-					parent.send(payload, opcode::pong);
-				break;
-
-			case opcode::text: {
-				if (msg_handler) {
-					try {
-#ifdef WITH_ZLIB
-						if (rsv1)
-							msg_handler(parent, string_view((char*)decomp.data(), decomp.size()));
-						else
-#endif
-							msg_handler(parent, string_view((char*)payload.data(), payload.size()));
-					} catch (...) {
-						// disconnect client if handler throws exception
-						open = false;
-						return;
-					}
-				}
-
-				break;
-			}
-
-			default:
-				break;
-		}
-	}
 
 	void server::start() {
 #ifdef _WIN32

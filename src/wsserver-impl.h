@@ -126,11 +126,6 @@ namespace ws {
 
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
-#ifdef WITH_ZLIB
-		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);
-#else
-		void parse_ws_message(enum opcode opcode, std::span<const uint8_t> payload);
-#endif
 		void read();
 		std::string ip_addr_string() const;
 #ifdef _WIN32
