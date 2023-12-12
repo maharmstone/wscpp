@@ -446,8 +446,8 @@ namespace ws {
 	}
 #endif
 
-	void server_client_pimpl::handle_handshake(const map<string, string>& headers) {
-		if (serv.impl->auth_type != auth::none) {
+	static void handle_handshake(server_client_pimpl& p, const map<string, string>& headers) {
+		if (p.serv.impl->auth_type != auth::none) {
 			vector<uint8_t> auth;
 #ifdef _WIN32
 			SECURITY_STATUS sec_status;
@@ -465,7 +465,7 @@ namespace ws {
 
 			string auth_type_str;
 
-			switch (serv.impl->auth_type) {
+			switch (p.serv.impl->auth_type) {
 				case auth::negotiate:
 					auth_type_str = "Negotiate";
 					break;
@@ -489,25 +489,25 @@ namespace ws {
 
 			if (auth.empty()) {
 				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type_str + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
+				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 				return;
 			}
 
 #ifdef _WIN32
-			if (!SecIsValidHandle(&cred_handle)) {
-				if (serv.impl->auth_type == auth::negotiate) { // FIXME - log error if this fails, rather than throwing exception?
+			if (!SecIsValidHandle(&p.cred_handle)) {
+				if (p.serv.impl->auth_type == auth::negotiate) { // FIXME - log error if this fails, rather than throwing exception?
 					auto ret = DsServerRegisterSpnW(DS_SPN_ADD_SPN_OP, L"HTTP", nullptr);
 					if (FAILED(ret))
 						throw formatted_error("DsServerRegisterSpn returned {}", ret);
 				}
 
 				sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)utf8_to_utf16(auth_type_str).c_str(), SECPKG_CRED_INBOUND,
-													   nullptr, nullptr, nullptr, nullptr, &cred_handle, &timestamp);
+													   nullptr, nullptr, nullptr, nullptr, &p.cred_handle, &timestamp);
 				if (FAILED(sec_status))
 					throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
 			}
 #else
-			if (cred_handle == 0) {
+			if (p.cred_handle == 0) {
 				gss_buffer_desc name_buf;
 				gss_name_t gss_name;
 				string spn = "HTTP/" + get_fqdn();
@@ -520,7 +520,7 @@ namespace ws {
 					throw gss_error("gss_import_name", major_status, minor_status);
 
 				major_status = gss_acquire_cred(&minor_status, gss_name, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-												GSS_C_ACCEPT, &cred_handle, nullptr, nullptr);
+												GSS_C_ACCEPT, &p.cred_handle, nullptr, nullptr);
 
 				if (major_status != GSS_S_COMPLETE)
 					throw gss_error("gss_acquire_cred", major_status, minor_status);
@@ -548,9 +548,9 @@ namespace ws {
 			out.cBuffers = 1;
 			out.pBuffers = &outbuf;
 
-			sec_status = AcceptSecurityContext(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr, &in, ASC_REQ_ALLOCATE_MEMORY,
-											   SECURITY_NATIVE_DREP, &ctx_handle, &out, &context_attr,
-											   &timestamp);
+			sec_status = AcceptSecurityContext(&p.cred_handle, p.ctx_handle_set ? &p.ctx_handle : nullptr, &in,
+											   ASC_REQ_ALLOCATE_MEMORY, SECURITY_NATIVE_DREP, &p.ctx_handle, &out,
+											   &context_attr, &timestamp);
 
 			vector<uint8_t> sspi;
 
@@ -567,18 +567,18 @@ namespace ws {
 				static const string error_msg = "Logon denied.";
 				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(error_msg.length()) + "\r\n\r\n" + error_msg;
 
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
+				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 				return;
 			} else if (FAILED(sec_status))
 				throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
 
-			ctx_handle_set = true;
+			p.ctx_handle_set = true;
 
 			if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE) {
 				auto b64 = b64encode(sspi);
 
 				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
+				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
 			}
@@ -588,20 +588,20 @@ namespace ws {
 			{
 				HANDLE h;
 
-				sec_status = QuerySecurityContextToken(&ctx_handle, &h);
+				sec_status = QuerySecurityContextToken(&p.ctx_handle, &h);
 
 				if (FAILED(sec_status))
 					throw formatted_error("QuerySecurityContextToken returned {}", (enum sec_error)sec_status);
 
-				token.reset(h);
+				p.token.reset(h);
 			}
 
-			get_username();
+			p.get_username();
 #else
 			recv_tok.length = auth.size();
 			recv_tok.value = auth.data();
 
-			major_status = gss_accept_sec_context(&minor_status, &ctx_handle, cred_handle, &recv_tok,
+			major_status = gss_accept_sec_context(&minor_status, &p.ctx_handle, p.cred_handle, &recv_tok,
 												  GSS_C_NO_CHANNEL_BINDINGS, &src_name, &mech_type, &send_tok,
 												  &ret_flags, nullptr, nullptr);
 
@@ -621,7 +621,7 @@ namespace ws {
 				auto b64 = b64encode(outbuf);
 
 				const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
+				p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 
 				return;
 			}
@@ -632,23 +632,23 @@ namespace ws {
 				throw gss_error("gss_display_name", major_status, minor_status);
 			}
 
-			username = string((char*)name_buffer.value, name_buffer.length);
+			p.username = string((char*)name_buffer.value, name_buffer.length);
 
 			gss_release_name(&minor_status, &src_name);
 			gss_release_buffer(&minor_status, &name_buffer);
 
-			if (username.find("@") != string::npos) {
-				auto st = username.find("@");
+			if (p.username.find("@") != string::npos) {
+				auto st = p.username.find("@");
 
-				domain_name = username.substr(st + 1);
-				username = username.substr(0, st);
+				p.domain_name = p.username.substr(st + 1);
+				p.username = p.username.substr(0, st);
 			}
 #endif
 		}
 
 		if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 			const auto& msg = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"s;
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 			return;
 		}
 
@@ -662,7 +662,7 @@ namespace ws {
 
 		if (version > 13) {
 			const auto& msg = "HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n"s;
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 			return;
 		}
 
@@ -707,10 +707,10 @@ namespace ws {
 
 		for (const auto& ext : exts) {
 			if (ext == "permessage-deflate") {
-				deflate = true;
+				p.deflate = true;
 				break;
 			} else if (ext.starts_with("permessage-deflate;")) { // ignore any parameters
-				deflate = true;
+				p.deflate = true;
 				break;
 			}
 		}
@@ -720,25 +720,25 @@ namespace ws {
 		auto msg = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + resp + "\r\n";
 
 #ifdef WITH_ZLIB
-		if (deflate)
+		if (p.deflate)
 			msg += "Sec-WebSocket-Extensions: permessage-deflate\r\n";
 #endif
 
 		msg += "\r\n";
 
-		send_raw(span((uint8_t*)msg.data(), msg.size()));
+		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 
-		if (!open)
+		if (!p.open)
 			return;
 
-		state = state_enum::websocket;
+		p.state = p.state_enum::websocket;
 
-		if (conn_handler) {
+		if (p.conn_handler) {
 			try {
-				conn_handler(parent);
+				p.conn_handler(p.parent);
 			} catch (...) {
 				// disconnect client if handler throws exception
-				open = false;
+				p.open = false;
 			}
 		}
 	}
@@ -833,7 +833,7 @@ namespace ws {
 			send_raw(span((uint8_t*)msg.data(), msg.size()));
 		} else {
 			try {
-				handle_handshake(headers);
+				handle_handshake(*this, headers);
 			} catch (const exception& e) {
 				internal_server_error(e.what());
 			} catch (...) {

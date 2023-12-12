@@ -156,7 +156,6 @@ namespace ws {
 		friend server_client;
 		friend server_client_pimpl;
 
-	private:
 		std::unique_ptr<server_pimpl> impl;
 	};
 
