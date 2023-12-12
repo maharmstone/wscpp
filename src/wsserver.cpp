@@ -476,6 +476,23 @@ static void process_http_message(ws::server_client_pimpl& p, string_view mess) {
 	}
 }
 
+static void process_http_messages(ws::server_client_pimpl& p) {
+	do {
+		size_t dnl = string_view((char*)p.recvbuf.data(), p.recvbuf.size()).find("\r\n\r\n");
+
+		if (dnl == string::npos)
+			return;
+
+		process_http_message(p, string_view((char*)p.recvbuf.data(), dnl + 2));
+
+		vector<uint8_t> tmp{p.recvbuf.data() + dnl + 4, p.recvbuf.data() + p.recvbuf.size()};
+		p.recvbuf.swap(tmp);
+
+		if (p.state != p.state_enum::http)
+			break;
+	} while (true);
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -516,7 +533,7 @@ namespace ws {
 		recvbuf.insert(recvbuf.end(), msg.data(), msg.data() + msg.size());
 
 		if (state == state_enum::http)
-			process_http_messages();
+			process_http_messages(*this);
 
 		if (state != state_enum::websocket)
 			return;
@@ -842,23 +859,6 @@ namespace ws {
 #endif
 
 		return {s, s + bytes};
-	}
-
-	void server_client_pimpl::process_http_messages() {
-		do {
-			size_t dnl = string_view((char*)recvbuf.data(), recvbuf.size()).find("\r\n\r\n");
-
-			if (dnl == string::npos)
-				return;
-
-			process_http_message(*this, string_view((char*)recvbuf.data(), dnl + 2));
-
-			vector<uint8_t> tmp{recvbuf.data() + dnl + 4, recvbuf.data() + recvbuf.size()};
-			recvbuf.swap(tmp);
-
-			if (state != state_enum::http)
-				break;
-		} while (true);
 	}
 
 #ifdef WITH_ZLIB
