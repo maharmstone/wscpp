@@ -688,6 +688,56 @@ string ip_addr_string(const ws::server_client_pimpl& p) {
 	}
 }
 
+static void send(ws::server_client_pimpl& p, span<const uint8_t> payload, bool rsv1, enum ws::opcode opcode) {
+	size_t len = payload.size();
+
+	if (!p.open)
+		return;
+
+	if (len <= 125) {
+		ws::header h(true, rsv1, false, false, opcode, false, (uint8_t)len);
+
+		p.send_raw(span((const uint8_t*)&h, sizeof(h)));
+	} else if (len < 0x10000) {
+		struct {
+			ws::header h;
+			uint8_t len[2];
+		} msg;
+
+		static_assert(sizeof(msg) == 4);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, false, 126);
+		msg.len[0] = (len & 0xff00) >> 8;
+		msg.len[1] = len & 0xff;
+
+		p.send_raw(span((const uint8_t*)&msg, sizeof(msg)));
+	} else {
+		struct {
+			ws::header h;
+			uint8_t len[8];
+		} msg;
+
+		static_assert(sizeof(msg) == 10);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, false, 127);
+		msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
+		msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
+		msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
+		msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
+		msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
+		msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
+		msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
+		msg.len[7] = len & 0xff;
+
+		p.send_raw(span((const uint8_t*)&msg, sizeof(msg)));
+	}
+
+	if (!p.open)
+		return;
+
+	p.send_raw(payload);
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -833,56 +883,6 @@ namespace ws {
 		}
 	}
 
-	void server_client_pimpl::send(span<const uint8_t> payload, bool rsv1, enum opcode opcode) {
-		size_t len = payload.size();
-
-		if (!open)
-			return;
-
-		if (len <= 125) {
-			header h(true, rsv1, false, false, opcode, false, (uint8_t)len);
-
-			send_raw(span((const uint8_t*)&h, sizeof(h)));
-		} else if (len < 0x10000) {
-			struct {
-				header h;
-				uint8_t len[2];
-			} msg;
-
-			static_assert(sizeof(msg) == 4);
-
-			msg.h = header(true, rsv1, false, false, opcode, false, 126);
-			msg.len[0] = (len & 0xff00) >> 8;
-			msg.len[1] = len & 0xff;
-
-			send_raw(span((const uint8_t*)&msg, sizeof(msg)));
-		} else {
-			struct {
-				header h;
-				uint8_t len[8];
-			} msg;
-
-			static_assert(sizeof(msg) == 10);
-
-			msg.h = header(true, rsv1, false, false, opcode, false, 127);
-			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
-			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
-			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
-			msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
-			msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
-			msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
-			msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
-			msg.len[7] = len & 0xff;
-
-			send_raw(span((const uint8_t*)&msg, sizeof(msg)));
-		}
-
-		if (!open)
-			return;
-
-		send_raw(payload);
-	}
-
 	void server_client::send(span<const uint8_t> payload, enum opcode opcode) const {
 #ifdef WITH_ZLIB
 		if (impl->deflate && !payload.empty()) {
@@ -935,10 +935,10 @@ namespace ws {
 			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
 				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
 
-			impl->send(span(comp.data(), comp.size() - 4), true, opcode);
+			::send(*impl, span(comp.data(), comp.size() - 4), true, opcode);
 		} else
 #endif
-			impl->send(payload, false, opcode);
+			::send(*impl, payload, false, opcode);
 	}
 
 	void server_client_pimpl::send_raw(span<const uint8_t> sv) {

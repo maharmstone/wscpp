@@ -127,7 +127,6 @@ namespace ws {
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
 		void read();
-		void send(std::span<const uint8_t> payload, bool rsv1, enum opcode opcode);
 
 		server_client& parent;
 		bool open = true;
