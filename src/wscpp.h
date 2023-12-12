@@ -126,7 +126,6 @@ namespace ws {
 
 		std::any context;
 
-		friend server_client_pimpl;
 		friend server;
 
 	private:
