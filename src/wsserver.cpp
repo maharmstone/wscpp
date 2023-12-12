@@ -109,6 +109,46 @@ static string get_fqdn() {
 }
 #endif
 
+#ifdef _WIN32
+static void get_username(ws::server_client_pimpl& p) {
+	vector<uint8_t> buf;
+	TOKEN_USER* tu;
+	DWORD ret = 0;
+	WCHAR usernamew[256], domain_namew[256];
+	DWORD user_size, domain_size;
+	SID_NAME_USE use;
+
+	buf.resize(sizeof(TOKEN_USER));
+	tu = (TOKEN_USER*)&buf[0];
+
+	if (GetTokenInformation(p.token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0) {
+		auto le = GetLastError();
+
+		if (le != ERROR_INSUFFICIENT_BUFFER)
+			throw formatted_error("GetTokenInformation failed (last error {})", le);
+	}
+
+	buf.resize(ret);
+	tu = (TOKEN_USER*)&buf[0];
+
+	if (GetTokenInformation(p.token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0)
+		throw formatted_error("GetTokenInformation failed (last error {})", GetLastError());
+
+	if (!IsValidSid(tu->User.Sid))
+		throw formatted_error("Invalid SID.");
+
+	user_size = sizeof(usernamew) / sizeof(WCHAR);
+	domain_size = sizeof(domain_namew) / sizeof(WCHAR);
+
+	if (!LookupAccountSidW(nullptr, tu->User.Sid, usernamew, &user_size, domain_namew,
+						   &domain_size, &use))
+		throw formatted_error("LookupAccountSid failed (last error {})", GetLastError());
+
+	p.username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
+	p.domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
+}
+#endif
+
 static void handle_handshake(ws::server_client_pimpl& p, const map<string, string>& headers) {
 	if (p.serv.impl->auth_type != ws::auth::none) {
 		vector<uint8_t> auth;
@@ -259,7 +299,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 			p.token.reset(h);
 		}
 
-		p.get_username();
+		get_username(p);
 #else
 		recv_tok.length = auth.size();
 		recv_tok.value = auth.data();
@@ -918,46 +958,6 @@ namespace ws {
 			sv = sv.subspan(bytes);
 		} while (true);
 	}
-
-#ifdef _WIN32
-	void server_client_pimpl::get_username() {
-		vector<uint8_t> buf;
-		TOKEN_USER* tu;
-		DWORD ret = 0;
-		WCHAR usernamew[256], domain_namew[256];
-		DWORD user_size, domain_size;
-		SID_NAME_USE use;
-
-		buf.resize(sizeof(TOKEN_USER));
-		tu = (TOKEN_USER*)&buf[0];
-
-		if (GetTokenInformation(token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0) {
-			auto le = GetLastError();
-
-			if (le != ERROR_INSUFFICIENT_BUFFER)
-				throw formatted_error("GetTokenInformation failed (last error {})", le);
-		}
-
-		buf.resize(ret);
-		tu = (TOKEN_USER*)&buf[0];
-
-		if (GetTokenInformation(token.get(), TokenUser, tu, (DWORD)buf.size(), &ret) == 0)
-			throw formatted_error("GetTokenInformation failed (last error {})", GetLastError());
-
-		if (!IsValidSid(tu->User.Sid))
-			throw formatted_error("Invalid SID.");
-
-		user_size = sizeof(usernamew) / sizeof(WCHAR);
-		domain_size = sizeof(domain_namew) / sizeof(WCHAR);
-
-		if (!LookupAccountSidW(nullptr, tu->User.Sid, usernamew, &user_size, domain_namew,
-							   &domain_size, &use))
-			throw formatted_error("LookupAccountSid failed (last error {})", GetLastError());
-
-		username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
-		domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
-	}
-#endif
 
 	vector<uint8_t> server_client_pimpl::recv() {
 		uint8_t s[4096];
