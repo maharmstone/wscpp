@@ -128,7 +128,6 @@ namespace ws {
 		std::vector<uint8_t> recv();
 		void read();
 #ifdef _WIN32
-		void revert() const;
 		HANDLE impersonation_token() const;
 #endif
 		void send(std::span<const uint8_t> payload, bool rsv1, enum opcode opcode);

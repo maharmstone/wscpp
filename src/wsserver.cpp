@@ -159,6 +159,18 @@ static void impersonate(const ws::server_client_pimpl& p) {
 	if (FAILED(sec_status))
 		throw formatted_error("ImpersonateSecurityContext returned {}", (enum sec_error)sec_status);
 }
+
+static void revert(const ws::server_client_pimpl& p) {
+	SECURITY_STATUS sec_status;
+
+	if (!p.ctx_handle_set)
+		throw formatted_error("ctx_handle not set");
+
+	sec_status = RevertSecurityContext((PCtxtHandle)&p.ctx_handle);
+
+	if (FAILED(sec_status))
+		throw formatted_error("RevertSecurityContext returned {}", (enum sec_error)sec_status);
+}
 #endif
 
 static void handle_handshake(ws::server_client_pimpl& p, const map<string, string>& headers) {
@@ -1346,24 +1358,12 @@ namespace ws {
 	}
 
 #ifdef _WIN32
-	void server_client_pimpl::revert() const {
-		SECURITY_STATUS sec_status;
-
-		if (!ctx_handle_set)
-			throw formatted_error("ctx_handle not set");
-
-		sec_status = RevertSecurityContext((PCtxtHandle)&ctx_handle);
-
-		if (FAILED(sec_status))
-			throw formatted_error("RevertSecurityContext returned {}", (enum sec_error)sec_status);
-	}
-
 	void server_client::impersonate() const {
 		::impersonate(*impl);
 	}
 
 	void server_client::revert() const {
-		impl->revert();
+		::revert(*impl);
 	}
 
 	HANDLE server_client_pimpl::impersonation_token() const {
