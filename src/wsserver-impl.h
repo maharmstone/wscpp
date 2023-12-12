@@ -44,40 +44,40 @@ typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
 #define INVALID_SOCKET -1
 #endif
 
+#ifdef _WIN32
+class wsa_event {
+public:
+	wsa_event() {
+		h = WSACreateEvent();
+		if (h == WSA_INVALID_EVENT)
+			throw formatted_error("WSACreateEvent failed (error {}).", WSAGetLastError());
+	}
+
+	~wsa_event() {
+		WSACloseEvent(h);
+	}
+
+	operator WSAEVENT() {
+		return h;
+	}
+
+	void reset() {
+		if (!WSAResetEvent(h))
+			throw formatted_error("WSAResetEvent failed (error {}).", WSAGetLastError());
+	}
+
+	void set() {
+		if (!WSASetEvent(h))
+			throw formatted_error("WSASetEvent failed (error {}).", WSAGetLastError());
+	}
+
+private:
+	WSAEVENT h;
+};
+#endif
+
 namespace ws {
 	class server_client_pimpl;
-
-#ifdef _WIN32
-	class wsa_event {
-	public:
-		wsa_event() {
-			h = WSACreateEvent();
-			if (h == WSA_INVALID_EVENT)
-				throw formatted_error("WSACreateEvent failed (error {}).", WSAGetLastError());
-		}
-
-		~wsa_event() {
-			WSACloseEvent(h);
-		}
-
-		operator WSAEVENT() {
-			return h;
-		}
-
-		void reset() {
-			if (!WSAResetEvent(h))
-				throw formatted_error("WSAResetEvent failed (error {}).", WSAGetLastError());
-		}
-
-		void set() {
-			if (!WSASetEvent(h))
-				throw formatted_error("WSASetEvent failed (error {}).", WSAGetLastError());
-		}
-
-	private:
-		WSAEVENT h;
-	};
-#endif
 
 	class server_pimpl {
 	public:
