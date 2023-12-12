@@ -124,8 +124,6 @@ namespace ws {
 
 		~server_client_pimpl();
 
-		void send_raw(std::span<const uint8_t> sv);
-
 		server_client& parent;
 		bool open = true;
 		server_msg_handler msg_handler;

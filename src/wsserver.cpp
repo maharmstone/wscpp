@@ -177,6 +177,74 @@ static HANDLE impersonation_token(const ws::server_client_pimpl& p) {
 }
 #endif
 
+static string ip_addr_string(const ws::server_client_pimpl& p) {
+	static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+
+	if (!memcmp(p.ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
+		return format("{}.{}.{}.{}", p.ip_addr[12], p.ip_addr[13], p.ip_addr[14], p.ip_addr[15]);
+	else {
+		char s[INET6_ADDRSTRLEN];
+
+		inet_ntop(AF_INET6, p.ip_addr.data(), s, sizeof(s));
+
+		return s;
+	}
+}
+
+void send_raw(ws::server_client_pimpl& p, span<const uint8_t> sv) {
+	if (!p.sendbuf.empty()) {
+		p.sendbuf.insert(p.sendbuf.end(), sv.begin(), sv.end());
+#ifdef _WIN32
+		p.serv.impl->ev.set();
+#endif
+		return;
+	}
+
+	do {
+		int bytes = send(p.fd, (char*)sv.data(), (int)sv.size(), 0);
+
+#ifdef _WIN32
+		if (bytes == SOCKET_ERROR) {
+			if (WSAGetLastError() == WSAEWOULDBLOCK) {
+				p.sendbuf.insert(p.sendbuf.end(), sv.begin(), sv.end());
+				p.serv.impl->ev.set();
+				return;
+			}
+
+			if (WSAGetLastError() == WSAECONNABORTED)
+				p.open = false;
+
+			throw formatted_error("send failed to {} ({}).", ip_addr_string(p), wsa_error_to_string(WSAGetLastError()));
+		}
+#else
+		if (bytes == -1) {
+			if (errno == EWOULDBLOCK) {
+				p.sendbuf.insert(p.sendbuf.end(), sv.begin(), sv.end());
+				return;
+			}
+
+			if (errno == ECONNABORTED)
+				p.open = false;
+
+			throw formatted_error("send failed to {} ({}).", ip_addr_string(p), errno_to_string(errno));
+		}
+#endif
+
+		if ((size_t)bytes == sv.size())
+			break;
+
+		sv = sv.subspan(bytes);
+	} while (true);
+}
+
+static void internal_server_error(ws::server_client_pimpl& p, string_view s) {
+	try {
+		const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
+		send_raw(p, span((uint8_t*)msg.data(), msg.size()));
+	} catch (...) {
+	}
+}
+
 static void handle_handshake(ws::server_client_pimpl& p, const map<string, string>& headers) {
 	if (p.serv.impl->auth_type != ws::auth::none) {
 		vector<uint8_t> auth;
@@ -220,7 +288,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 
 		if (auth.empty()) {
 			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: " + auth_type_str + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 			return;
 		}
 
@@ -298,7 +366,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 			static const string error_msg = "Logon denied.";
 			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: " + to_string(error_msg.length()) + "\r\n\r\n" + error_msg;
 
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 			return;
 		} else if (FAILED(sec_status))
 			throw formatted_error("AcceptSecurityContext returned {}", (enum sec_error)sec_status);
@@ -309,7 +377,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 			auto b64 = b64encode(sspi);
 
 			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 
 			return;
 		}
@@ -352,7 +420,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 			auto b64 = b64encode(outbuf);
 
 			const auto& msg = "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nWWW-Authenticate: " + auth_type_str + " " + b64 + "\r\n\r\n";
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 
 			return;
 		}
@@ -379,7 +447,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 
 	if (headers.count("Upgrade") == 0 || lower(headers.at("Upgrade")) != "websocket" || headers.count("Sec-WebSocket-Key") == 0 || headers.count("Sec-WebSocket-Version") == 0) {
 		const auto& msg = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"s;
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 		return;
 	}
 
@@ -393,7 +461,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 
 	if (version > 13) {
 		const auto& msg = "HTTP/1.1 400 Bad Request\r\nSec-WebSocket-Version: 13\r\nContent-Length: 0\r\n\r\n"s;
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 		return;
 	}
 
@@ -457,7 +525,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 
 	msg += "\r\n";
 
-	p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 
 	if (!p.open)
 		return;
@@ -471,14 +539,6 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 			// disconnect client if handler throws exception
 			p.open = false;
 		}
-	}
-}
-
-static void internal_server_error(ws::server_client_pimpl& p, string_view s) {
-	try {
-		const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
-	} catch (...) {
 	}
 }
 
@@ -529,10 +589,10 @@ static void process_http_message(ws::server_client_pimpl& p, string_view mess) {
 
 	if (path != "/") {
 		const auto& msg = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"s;
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 	} else if (verb != "GET") {
 		const auto& msg = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n"s;
-		p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+		send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 	} else {
 		try {
 			handle_handshake(p, headers);
@@ -672,70 +732,6 @@ static void parse_ws_message(ws::server_client_pimpl& p, enum ws::opcode opcode,
 		default:
 			break;
 	}
-}
-
-string ip_addr_string(const ws::server_client_pimpl& p) {
-	static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
-
-	if (!memcmp(p.ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
-		return format("{}.{}.{}.{}", p.ip_addr[12], p.ip_addr[13], p.ip_addr[14], p.ip_addr[15]);
-	else {
-		char s[INET6_ADDRSTRLEN];
-
-		inet_ntop(AF_INET6, p.ip_addr.data(), s, sizeof(s));
-
-		return s;
-	}
-}
-
-static void send(ws::server_client_pimpl& p, span<const uint8_t> payload, bool rsv1, enum ws::opcode opcode) {
-	size_t len = payload.size();
-
-	if (!p.open)
-		return;
-
-	if (len <= 125) {
-		ws::header h(true, rsv1, false, false, opcode, false, (uint8_t)len);
-
-		p.send_raw(span((const uint8_t*)&h, sizeof(h)));
-	} else if (len < 0x10000) {
-		struct {
-			ws::header h;
-			uint8_t len[2];
-		} msg;
-
-		static_assert(sizeof(msg) == 4);
-
-		msg.h = ws::header(true, rsv1, false, false, opcode, false, 126);
-		msg.len[0] = (len & 0xff00) >> 8;
-		msg.len[1] = len & 0xff;
-
-		p.send_raw(span((const uint8_t*)&msg, sizeof(msg)));
-	} else {
-		struct {
-			ws::header h;
-			uint8_t len[8];
-		} msg;
-
-		static_assert(sizeof(msg) == 10);
-
-		msg.h = ws::header(true, rsv1, false, false, opcode, false, 127);
-		msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
-		msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
-		msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
-		msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
-		msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
-		msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
-		msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
-		msg.len[7] = len & 0xff;
-
-		p.send_raw(span((const uint8_t*)&msg, sizeof(msg)));
-	}
-
-	if (!p.open)
-		return;
-
-	p.send_raw(payload);
 }
 
 vector<uint8_t> recv(ws::server_client_pimpl& p) {
@@ -881,6 +877,56 @@ static void read(ws::server_client_pimpl& p) {
 	}
 }
 
+static void send(ws::server_client_pimpl& p, span<const uint8_t> payload, bool rsv1, enum ws::opcode opcode) {
+	size_t len = payload.size();
+
+	if (!p.open)
+		return;
+
+	if (len <= 125) {
+		ws::header h(true, rsv1, false, false, opcode, false, (uint8_t)len);
+
+		send_raw(p, span((const uint8_t*)&h, sizeof(h)));
+	} else if (len < 0x10000) {
+		struct {
+			ws::header h;
+			uint8_t len[2];
+		} msg;
+
+		static_assert(sizeof(msg) == 4);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, false, 126);
+		msg.len[0] = (len & 0xff00) >> 8;
+		msg.len[1] = len & 0xff;
+
+		send_raw(p, span((const uint8_t*)&msg, sizeof(msg)));
+	} else {
+		struct {
+			ws::header h;
+			uint8_t len[8];
+		} msg;
+
+		static_assert(sizeof(msg) == 10);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, false, 127);
+		msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
+		msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
+		msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
+		msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
+		msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
+		msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
+		msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
+		msg.len[7] = len & 0xff;
+
+		send_raw(p, span((const uint8_t*)&msg, sizeof(msg)));
+	}
+
+	if (!p.open)
+		return;
+
+	send_raw(p, payload);
+}
+
 namespace ws {
 	server_client_pimpl::~server_client_pimpl() {
 #ifdef _WIN32
@@ -968,52 +1014,6 @@ namespace ws {
 		} else
 #endif
 			::send(*impl, payload, false, opcode);
-	}
-
-	void server_client_pimpl::send_raw(span<const uint8_t> sv) {
-		if (!sendbuf.empty()) {
-			sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
-#ifdef _WIN32
-			serv.impl->ev.set();
-#endif
-			return;
-		}
-
-		do {
-			int bytes = ::send(fd, (char*)sv.data(), (int)sv.size(), 0);
-
-#ifdef _WIN32
-			if (bytes == SOCKET_ERROR) {
-				if (WSAGetLastError() == WSAEWOULDBLOCK) {
-					sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
-					serv.impl->ev.set();
-					return;
-				}
-
-				if (WSAGetLastError() == WSAECONNABORTED)
-					open = false;
-
-				throw formatted_error("send failed to {} ({}).", ip_addr_string(*this), wsa_error_to_string(WSAGetLastError()));
-			}
-#else
-			if (bytes == -1) {
-				if (errno == EWOULDBLOCK) {
-					sendbuf.insert(sendbuf.end(), sv.begin(), sv.end());
-					return;
-				}
-
-				if (errno == ECONNABORTED)
-					open = false;
-
-				throw formatted_error("send failed to {} ({}).", ip_addr_string(*this), errno_to_string(errno));
-			}
-#endif
-
-			if ((size_t)bytes == sv.size())
-				break;
-
-			sv = sv.subspan(bytes);
-		} while (true);
 	}
 
 	void server::start() {
@@ -1200,7 +1200,7 @@ namespace ws {
 							else if (netev.lNetworkEvents & FD_WRITE) {
 								vector<uint8_t> to_send = move(ct.impl->sendbuf);
 
-								ct.impl->send_raw(to_send);
+								send_raw(*ct.impl, to_send);
 							}
 
 							if (!ct.impl->open) {
@@ -1229,7 +1229,7 @@ namespace ws {
 									else if (pf.revents & POLLOUT) {
 										vector<uint8_t> to_send = std::move(ct.impl->sendbuf);
 
-										ct.impl->send_raw(to_send);
+										send_raw(*ct.impl, to_send);
 									}
 
 									if (pf.revents & (POLLHUP | POLLERR | POLLNVAL) || !ct.impl->open) {
