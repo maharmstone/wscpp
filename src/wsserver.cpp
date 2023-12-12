@@ -743,10 +743,10 @@ namespace ws {
 		}
 	}
 
-	void server_client_pimpl::internal_server_error(string_view s) {
+	static void internal_server_error(server_client_pimpl& p, string_view s) {
 		try {
 			const auto& msg = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: " + to_string(s.size()) + "\r\nConnection: close\r\n\r\n" + string(s);
-			send_raw(span((uint8_t*)msg.data(), msg.size()));
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
 		} catch (...) {
 		}
 	}
@@ -835,9 +835,9 @@ namespace ws {
 			try {
 				handle_handshake(*this, headers);
 			} catch (const exception& e) {
-				internal_server_error(e.what());
+				internal_server_error(*this, e.what());
 			} catch (...) {
-				internal_server_error("Unhandled exception.");
+				internal_server_error(*this, "Unhandled exception.");
 			}
 		}
 	}
