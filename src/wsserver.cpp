@@ -171,6 +171,10 @@ static void revert(const ws::server_client_pimpl& p) {
 	if (FAILED(sec_status))
 		throw formatted_error("RevertSecurityContext returned {}", (enum sec_error)sec_status);
 }
+
+static HANDLE impersonation_token(const ws::server_client_pimpl& p) {
+	return p.token.get();
+}
 #endif
 
 static void handle_handshake(ws::server_client_pimpl& p, const map<string, string>& headers) {
@@ -1366,12 +1370,8 @@ namespace ws {
 		::revert(*impl);
 	}
 
-	HANDLE server_client_pimpl::impersonation_token() const {
-		return token.get();
-	}
-
 	HANDLE server_client::impersonation_token() const {
-		return impl->impersonation_token();
+		return ::impersonation_token(*impl);
 	}
 #endif
 

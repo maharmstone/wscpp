@@ -127,9 +127,6 @@ namespace ws {
 		void send_raw(std::span<const uint8_t> sv);
 		std::vector<uint8_t> recv();
 		void read();
-#ifdef _WIN32
-		HANDLE impersonation_token() const;
-#endif
 		void send(std::span<const uint8_t> payload, bool rsv1, enum opcode opcode);
 
 		server_client& parent;
