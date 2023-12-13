@@ -41,6 +41,72 @@ using namespace std;
 
 #define MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+static void open_connexion(ws::client_pimpl& p) {
+	int wsa_error = 0;
+
+	struct addrinfo hints, *result;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	if (getaddrinfo(p.host.c_str(), to_string(p.port).c_str(), &hints, &result) != 0)
+		throw formatted_error("getaddr failed.");
+
+	try {
+		for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
+			char hostname[NI_MAXHOST];
+
+			p.sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
+			if (p.sock == INVALID_SOCKET) {
+#ifdef _WIN32
+				throw formatted_error("socket failed (error {})", wsa_error_to_string(WSAGetLastError()));
+#else
+				throw formatted_error("socket failed (error {})", errno_to_string(errno));
+#endif
+			}
+
+#ifdef _WIN32
+			if (connect(p.sock, ai->ai_addr, (int)ai->ai_addrlen) == SOCKET_ERROR) {
+				wsa_error = WSAGetLastError();
+				closesocket(p.sock);
+				p.sock = INVALID_SOCKET;
+				continue;
+			}
+#else
+			if (connect(p.sock, ai->ai_addr, (int)ai->ai_addrlen) == -1) {
+				wsa_error = errno;
+				close(p.sock);
+				p.sock = INVALID_SOCKET;
+				continue;
+			}
+#endif
+
+			// FIXME - only do this if necessary?
+			if (getnameinfo(ai->ai_addr, (int)ai->ai_addrlen, hostname, NI_MAXHOST, nullptr, 0, 0) == 0)
+				p.fqdn = hostname;
+
+			break;
+		}
+	} catch (...) {
+		freeaddrinfo(result);
+		throw;
+	}
+
+	freeaddrinfo(result);
+
+	if (p.sock == INVALID_SOCKET) {
+#ifdef _WIN32
+		throw formatted_error("Could not connect to {} (error {}).", p.host, wsa_error_to_string(wsa_error));
+#else
+		throw formatted_error("Could not connect to {} (error {}).", p.host, errno_to_string(wsa_error));
+#endif
+	}
+
+	p.open = true;
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -50,72 +116,6 @@ namespace ws {
 
 	client::~client() {
 		// needs to be defined for unique_ptr to work with impl
-	}
-
-	void client_pimpl::open_connexion() {
-		int wsa_error = 0;
-
-		struct addrinfo hints, *result;
-
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-
-		if (getaddrinfo(host.c_str(), to_string(port).c_str(), &hints, &result) != 0)
-			throw formatted_error("getaddr failed.");
-
-		try {
-			for (struct addrinfo* ai = result; ai; ai = ai->ai_next) {
-				char hostname[NI_MAXHOST];
-
-				sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
-				if (sock == INVALID_SOCKET) {
-#ifdef _WIN32
-					throw formatted_error("socket failed (error {})", wsa_error_to_string(WSAGetLastError()));
-#else
-					throw formatted_error("socket failed (error {})", errno_to_string(errno));
-#endif
-				}
-
-#ifdef _WIN32
-				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == SOCKET_ERROR) {
-					wsa_error = WSAGetLastError();
-					closesocket(sock);
-					sock = INVALID_SOCKET;
-					continue;
-				}
-#else
-				if (connect(sock, ai->ai_addr, (int)ai->ai_addrlen) == -1) {
-					wsa_error = errno;
-					close(sock);
-					sock = INVALID_SOCKET;
-					continue;
-				}
-#endif
-
-				// FIXME - only do this if necessary?
-				if (getnameinfo(ai->ai_addr, (int)ai->ai_addrlen, hostname, NI_MAXHOST, nullptr, 0, 0) == 0)
-					fqdn = hostname;
-
-				break;
-			}
-		} catch (...) {
-			freeaddrinfo(result);
-			throw;
-		}
-
-		freeaddrinfo(result);
-
-		if (sock == INVALID_SOCKET) {
-#ifdef _WIN32
-			throw formatted_error("Could not connect to {} (error {}).", host, wsa_error_to_string(wsa_error));
-#else
-			throw formatted_error("Could not connect to {} (error {}).", host, errno_to_string(wsa_error));
-#endif
-		}
-
-		open = true;
 	}
 
 	client_pimpl::client_pimpl(client& parent, string_view host, uint16_t port, string_view path,
@@ -135,7 +135,7 @@ namespace ws {
 
 		try {
 #endif
-			open_connexion();
+			open_connexion(*this);
 
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 			if (enc)
