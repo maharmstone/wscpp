@@ -147,10 +147,6 @@ static void get_username(ws::server_client_pimpl& p) {
 	p.username = utf16_to_utf8(u16string_view((char16_t*)usernamew));
 	p.domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
 }
-
-static HANDLE impersonation_token(const ws::server_client_pimpl& p) {
-	return p.token.get();
-}
 #endif
 
 static string ip_addr_string(const ws::server_client_pimpl& p) {
@@ -1363,7 +1359,7 @@ namespace ws {
 	}
 
 	HANDLE server_client::impersonation_token() const {
-		return ::impersonation_token(*impl);
+		return impl->token.get();
 	}
 #endif
 
