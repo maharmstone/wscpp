@@ -148,18 +148,6 @@ static void get_username(ws::server_client_pimpl& p) {
 	p.domain_name = utf16_to_utf8(u16string_view((char16_t*)domain_namew));
 }
 
-static void impersonate(const ws::server_client_pimpl& p) {
-	SECURITY_STATUS sec_status;
-
-	if (!p.ctx_handle_set)
-		throw formatted_error("ctx_handle not set");
-
-	sec_status = ImpersonateSecurityContext((PCtxtHandle)&p.ctx_handle);
-
-	if (FAILED(sec_status))
-		throw formatted_error("ImpersonateSecurityContext returned {}", (enum sec_error)sec_status);
-}
-
 static void revert(const ws::server_client_pimpl& p) {
 	SECURITY_STATUS sec_status;
 
@@ -1363,7 +1351,15 @@ namespace ws {
 
 #ifdef _WIN32
 	void server_client::impersonate() const {
-		::impersonate(*impl);
+		SECURITY_STATUS sec_status;
+
+		if (!impl->ctx_handle_set)
+			throw formatted_error("ctx_handle not set");
+
+		sec_status = ImpersonateSecurityContext((PCtxtHandle)&impl->ctx_handle);
+
+		if (FAILED(sec_status))
+			throw formatted_error("ImpersonateSecurityContext returned {}", (enum sec_error)sec_status);
 	}
 
 	void server_client::revert() const {
