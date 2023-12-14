@@ -416,6 +416,22 @@ static void send_handshake(ws::client_pimpl& p) {
 	} while (again);
 }
 
+static void set_send_timeout(const ws::client_pimpl& p, unsigned int timeout) {
+#ifdef _WIN32
+	DWORD tv = timeout * 1000;
+
+	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+		throw formatted_error("setsockopt returned {}.", wsa_error_to_string(WSAGetLastError()));
+#else
+	struct timeval tv;
+	tv.tv_sec = timeout;
+	tv.tv_usec = 0;
+
+	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+		throw formatted_error("setsockopt returned {}.", errno_to_string(errno));
+#endif
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -515,25 +531,9 @@ namespace ws {
 #endif
 	}
 
-	void client_pimpl::set_send_timeout(unsigned int timeout) const {
-#ifdef _WIN32
-		DWORD tv = timeout * 1000;
-
-		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-			throw formatted_error("setsockopt returned {}.", wsa_error_to_string(WSAGetLastError()));
-#else
-		struct timeval tv;
-		tv.tv_sec = timeout;
-		tv.tv_usec = 0;
-
-		if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-			throw formatted_error("setsockopt returned {}.", errno_to_string(errno));
-#endif
-	}
-
 	void client_pimpl::send_raw(span<const uint8_t> s, unsigned int timeout) const {
 		if (timeout != 0)
-			set_send_timeout(timeout);
+			set_send_timeout(*this, timeout);
 
 		try {
 			auto ret = ::send(sock, (char*)s.data(), (int)s.size(), 0);
@@ -550,13 +550,13 @@ namespace ws {
 				throw formatted_error("send sent {} bytes, expected {}", ret, s.size());
 		} catch (...) {
 			if (timeout != 0)
-				set_send_timeout(0);
+				set_send_timeout(*this, 0);
 
 			throw;
 		}
 
 		if (timeout != 0)
-			set_send_timeout(0);
+			set_send_timeout(*this, 0);
 	}
 
 	string client_pimpl::recv_http() {
