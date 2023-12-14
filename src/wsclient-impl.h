@@ -159,7 +159,6 @@ namespace ws {
 
 		void send_raw(std::span<const uint8_t> s, unsigned int timeout = 0) const;
 		void recv(std::span<uint8_t> sp);
-		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
 
 		client& parent;
 		std::string host;

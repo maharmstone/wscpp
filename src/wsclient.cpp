@@ -689,6 +689,104 @@ static void recv_thread(ws::client_pimpl& p) {
 	}
 }
 
+static void apply_mask(uint32_t mask, span<const uint8_t> pt, span<uint8_t> buf) {
+	while (pt.size() >= sizeof(uint32_t)) {
+		*(uint32_t*)buf.data() = *(uint32_t*)pt.data() ^ mask;
+
+		pt = pt.subspan(sizeof(uint32_t));
+		buf = buf.subspan(sizeof(uint32_t));
+	}
+
+	if (pt.empty())
+		return;
+
+	auto mask_key = span((uint8_t*)&mask, sizeof(mask));
+
+	for (unsigned int i = 0; i < pt.size(); i++) {
+		buf[i] = pt[i] ^ mask_key[i % 4];
+	}
+}
+
+static void send(const ws::client_pimpl& p, span<const uint8_t> payload, enum ws::opcode opcode,
+				 bool rsv1, unsigned int timeout) {
+	uint64_t len = payload.size();
+
+	auto do_send = [&](span<const uint8_t> s) {
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		if (p.ssl) // FIXME - timeout
+			p.ssl->send(s);
+		else
+#endif
+			p.send_raw(s, timeout);
+	};
+
+	auto mask = random_mask();
+
+	if (len <= 125) {
+#pragma pack(push, 1)
+		struct {
+			ws::header h;
+			uint32_t mask;
+		} msg;
+#pragma pack(pop)
+
+		static_assert(sizeof(msg) == 6);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, true, (uint8_t)len);
+		msg.mask = mask;
+
+		do_send(span((const uint8_t*)&msg, sizeof(msg)));
+	} else if (len < 0x10000) {
+#pragma pack(push, 1)
+		struct {
+			ws::header h;
+			uint8_t len[2];
+			uint32_t mask;
+		} msg;
+#pragma pack(pop)
+
+		static_assert(sizeof(msg) == 8);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, true, 126);
+		msg.len[0] = (len & 0xff00) >> 8;
+		msg.len[1] = len & 0xff;
+		msg.mask = mask;
+
+		do_send(span((const uint8_t*)&msg, sizeof(msg)));
+	} else {
+#pragma pack(push, 1)
+		struct {
+			ws::header h;
+			uint8_t len[8];
+			uint32_t mask;
+		} msg;
+#pragma pack(pop)
+
+		static_assert(sizeof(msg) == 14);
+
+		msg.h = ws::header(true, rsv1, false, false, opcode, true, 127);
+		msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
+		msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
+		msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
+		msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
+		msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
+		msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
+		msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
+		msg.len[7] = (uint8_t)(len & 0xff);
+		msg.mask = mask;
+
+		do_send(span((const uint8_t*)&msg, sizeof(msg)));
+	}
+
+	vector<uint8_t> masked;
+
+	masked.resize(payload.size());
+
+	apply_mask(mask, payload, masked);
+
+	do_send(masked);
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -816,103 +914,6 @@ namespace ws {
 			set_send_timeout(*this, 0);
 	}
 
-	static void apply_mask(uint32_t mask, span<const uint8_t> pt, span<uint8_t> buf) {
-		while (pt.size() >= sizeof(uint32_t)) {
-			*(uint32_t*)buf.data() = *(uint32_t*)pt.data() ^ mask;
-
-			pt = pt.subspan(sizeof(uint32_t));
-			buf = buf.subspan(sizeof(uint32_t));
-		}
-
-		if (pt.empty())
-			return;
-
-		auto mask_key = span((uint8_t*)&mask, sizeof(mask));
-
-		for (unsigned int i = 0; i < pt.size(); i++) {
-			buf[i] = pt[i] ^ mask_key[i % 4];
-		}
-	}
-
-	void client_pimpl::send(span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const {
-		uint64_t len = payload.size();
-
-		auto do_send = [&](span<const uint8_t> s) {
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (ssl) // FIXME - timeout
-				ssl->send(s);
-			else
-#endif
-				send_raw(s, timeout);
-		};
-
-		auto mask = random_mask();
-
-		if (len <= 125) {
-#pragma pack(push, 1)
-			struct {
-				header h;
-				uint32_t mask;
-			} msg;
-#pragma pack(pop)
-
-			static_assert(sizeof(msg) == 6);
-
-			msg.h = header(true, rsv1, false, false, opcode, true, (uint8_t)len);
-			msg.mask = mask;
-
-			do_send(span((const uint8_t*)&msg, sizeof(msg)));
-		} else if (len < 0x10000) {
-#pragma pack(push, 1)
-			struct {
-				header h;
-				uint8_t len[2];
-				uint32_t mask;
-			} msg;
-#pragma pack(pop)
-
-			static_assert(sizeof(msg) == 8);
-
-			msg.h = header(true, rsv1, false, false, opcode, true, 126);
-			msg.len[0] = (len & 0xff00) >> 8;
-			msg.len[1] = len & 0xff;
-			msg.mask = mask;
-
-			do_send(span((const uint8_t*)&msg, sizeof(msg)));
-		} else {
-#pragma pack(push, 1)
-			struct {
-				header h;
-				uint8_t len[8];
-				uint32_t mask;
-			} msg;
-#pragma pack(pop)
-
-			static_assert(sizeof(msg) == 14);
-
-			msg.h = header(true, rsv1, false, false, opcode, true, 127);
-			msg.len[0] = (uint8_t)((len & 0xff00000000000000) >> 56);
-			msg.len[1] = (uint8_t)((len & 0xff000000000000) >> 48);
-			msg.len[2] = (uint8_t)((len & 0xff0000000000) >> 40);
-			msg.len[3] = (uint8_t)((len & 0xff00000000) >> 32);
-			msg.len[4] = (uint8_t)((len & 0xff000000) >> 24);
-			msg.len[5] = (uint8_t)((len & 0xff0000) >> 16);
-			msg.len[6] = (uint8_t)((len & 0xff00) >> 8);
-			msg.len[7] = (uint8_t)(len & 0xff);
-			msg.mask = mask;
-
-			do_send(span((const uint8_t*)&msg, sizeof(msg)));
-		}
-
-		vector<uint8_t> masked;
-
-		masked.resize(payload.size());
-
-		apply_mask(mask, payload, masked);
-
-		do_send(masked);
-	}
-
 	void client::send(span<const uint8_t> payload, enum opcode opcode, unsigned int timeout) const {
 #ifdef WITH_ZLIB
 		if (impl->deflate && !payload.empty()) {
@@ -965,10 +966,10 @@ namespace ws {
 			if (comp.size() < 4 || *(uint32_t*)&comp[comp.size() - 4] != 0xffff0000)
 				throw runtime_error("Compressed message did not end with 00 00 ff ff.");
 
-			impl->send(span(comp.data(), comp.size() - 4), opcode, true, timeout);
+			::send(*impl, span(comp.data(), comp.size() - 4), opcode, true, timeout);
 		} else
 #endif
-			impl->send(payload, opcode, false, timeout);
+			::send(*impl, payload, opcode, false, timeout);
 	}
 
 	void client_pimpl::recv(span<uint8_t> sp) {
