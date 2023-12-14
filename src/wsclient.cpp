@@ -260,6 +260,51 @@ static void send_auth_response(ws::client_pimpl& p, string_view auth_type, strin
 }
 #endif
 
+static string recv_http(ws::client_pimpl& p) {
+	do {
+		auto pos = p.recvbuf.find("\r\n\r\n");
+
+		if (pos != string::npos) {
+			auto ret = p.recvbuf.substr(0, pos + 4);
+
+			p.recvbuf = p.recvbuf.substr(pos + 4);
+
+			return ret;
+		}
+
+		uint8_t s[4096];
+		int bytes;
+
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		if (p.ssl) {
+			bytes = p.ssl->recv(s);
+
+			if (!p.open)
+				return "";
+		} else {
+#endif
+			bytes = ::recv(p.sock, (char*)s, sizeof(s), 0);
+
+#ifdef _WIN32
+			if (bytes == SOCKET_ERROR)
+				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
+#else
+			if (bytes == -1)
+				throw formatted_error("recv failed ({}).", errno_to_string(errno));
+#endif
+
+			if (bytes == 0) {
+				p.open = false;
+				return "";
+			}
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		}
+#endif
+
+		p.recvbuf += string((char*)s, bytes);
+	} while (true);
+}
+
 static void send_handshake(ws::client_pimpl& p) {
 	bool again;
 	auto key = random_key();
@@ -285,7 +330,7 @@ static void send_handshake(ws::client_pimpl& p) {
 	}
 
 	do {
-		string mess = p.recv_http();
+		auto mess = recv_http(p);
 
 		if (!p.open)
 			throw formatted_error("Socket closed unexpectedly.");
@@ -557,51 +602,6 @@ namespace ws {
 
 		if (timeout != 0)
 			set_send_timeout(*this, 0);
-	}
-
-	string client_pimpl::recv_http() {
-		do {
-			auto pos = recvbuf.find("\r\n\r\n");
-
-			if (pos != string::npos) {
-				auto ret = recvbuf.substr(0, pos + 4);
-
-				recvbuf = recvbuf.substr(pos + 4);
-
-				return ret;
-			}
-
-			uint8_t s[4096];
-			int bytes;
-
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (ssl) {
-				bytes = ssl->recv(s);
-
-				if (!open)
-					return "";
-			} else {
-#endif
-				bytes = ::recv(sock, (char*)s, sizeof(s), 0);
-
-#ifdef _WIN32
-				if (bytes == SOCKET_ERROR)
-					throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
-#else
-				if (bytes == -1)
-					throw formatted_error("recv failed ({}).", errno_to_string(errno));
-#endif
-
-				if (bytes == 0) {
-					open = false;
-					return "";
-				}
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			}
-#endif
-
-			recvbuf += string((char*)s, bytes);
-		} while (true);
 	}
 
 	static uint32_t random_mask() {
