@@ -27,7 +27,7 @@
 #ifdef _WIN32
 class handle_closer {
 public:
-	typedef HANDLE pointer;
+	using pointer = HANDLE;
 
 	void operator()(HANDLE h) {
 		if (h == INVALID_HANDLE_VALUE)
@@ -37,7 +37,7 @@ public:
 	}
 };
 
-typedef std::unique_ptr<HANDLE, handle_closer> unique_handle;
+using unique_handle = std::unique_ptr<HANDLE, handle_closer>;
 #endif
 
 #ifndef _WIN32

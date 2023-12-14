@@ -246,7 +246,7 @@ static int verify_callback(int preverify, X509_STORE_CTX* x509_ctx) noexcept {
 #ifdef _WIN32
 class cert_store_closer {
 public:
-	typedef HCERTSTORE pointer;
+	using pointer = HCERTSTORE;
 
 	void operator()(HCERTSTORE h) {
 		CertCloseStore(h, 0);
@@ -255,7 +255,7 @@ public:
 
 class x509_closer {
 public:
-	typedef X509* pointer;
+	using pointer = X509*;
 
 	void operator()(X509* x) {
 		X509_free(x);

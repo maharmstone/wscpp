@@ -34,7 +34,7 @@
 #ifdef WITH_OPENSSL
 class bio_meth_deleter {
 public:
-	typedef BIO_METHOD* pointer;
+	using pointer = BIO_METHOD*;
 
 	void operator()(BIO_METHOD* meth) {
 		BIO_meth_free(meth);
@@ -43,7 +43,7 @@ public:
 
 class ssl_deleter {
 public:
-	typedef SSL* pointer;
+	using pointer = SSL*;
 
 	void operator()(SSL* ssl) {
 		SSL_free(ssl);
@@ -52,7 +52,7 @@ public:
 
 class ssl_ctx_deleter {
 public:
-	typedef SSL_CTX* pointer;
+	using pointer = SSL_CTX*;
 
 	void operator()(SSL_CTX* ctx) {
 		SSL_CTX_free(ctx);
