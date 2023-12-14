@@ -159,7 +159,6 @@ namespace ws {
 
 		void send_auth_response(std::string_view auth_type, std::string_view auth_msg, const std::string& req);
 		void send_handshake();
-		std::string random_key();
 		void send_raw(std::span<const uint8_t> s, unsigned int timeout = 0) const;
 		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();

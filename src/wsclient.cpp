@@ -107,6 +107,19 @@ static void open_connexion(ws::client_pimpl& p) {
 	p.open = true;
 }
 
+static string random_key() {
+	mt19937 rng;
+	rng.seed(random_device()());
+	uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
+	uint32_t rand[4];
+
+	for (unsigned int i = 0; i < 4; i++) {
+		rand[i] = dist(rng);
+	}
+
+	return b64encode(span((uint8_t*)rand, 16));
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -204,19 +217,6 @@ namespace ws {
 		if (zstrm_out)
 			deflateEnd(&zstrm_out.value());
 #endif
-	}
-
-	string client_pimpl::random_key() {
-		mt19937 rng;
-		rng.seed(random_device()());
-		uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
-		uint32_t rand[4];
-
-		for (unsigned int i = 0; i < 4; i++) {
-			rand[i] = dist(rng);
-		}
-
-		return b64encode(span((uint8_t*)rand, 16));
 	}
 
 	void client_pimpl::set_send_timeout(unsigned int timeout) const {
@@ -452,7 +452,7 @@ namespace ws {
 
 	void client_pimpl::send_handshake() {
 		bool again;
-		string key = random_key();
+		auto key = random_key();
 		string req = "GET "s + path + " HTTP/1.1\r\n"
 					 "Host: "s + host + ":"s + to_string(port) + "\r\n"
 					 "Upgrade: websocket\r\n"
