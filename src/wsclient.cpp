@@ -477,6 +477,14 @@ static void set_send_timeout(const ws::client_pimpl& p, unsigned int timeout) {
 #endif
 }
 
+static uint32_t random_mask() {
+	mt19937 rng;
+	rng.seed(random_device()());
+	uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
+
+	return dist(rng);
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -602,14 +610,6 @@ namespace ws {
 
 		if (timeout != 0)
 			set_send_timeout(*this, 0);
-	}
-
-	static uint32_t random_mask() {
-		mt19937 rng;
-		rng.seed(random_device()());
-		uniform_int_distribution<mt19937::result_type> dist(0, 0xffffffff);
-
-		return dist(rng);
 	}
 
 	static void apply_mask(uint32_t mask, span<const uint8_t> pt, span<uint8_t> buf) {
