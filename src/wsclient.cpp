@@ -535,6 +535,102 @@ static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<c
 	}
 }
 
+static void recv_thread(ws::client_pimpl& p) {
+	vector<uint8_t> payloadbuf;
+
+	while (p.open) {
+		ws::header h;
+
+		p.recv(span((uint8_t*)&h, sizeof(h)));
+
+		if (!p.open)
+			break;
+
+		auto len = (uint64_t)h.len;
+
+		if (len == 126) {
+			uint16_t extlen;
+
+			p.recv(span((uint8_t*)&extlen, sizeof(extlen)));
+
+			if (!p.open)
+				break;
+
+#ifdef _MSC_VER
+			len = _byteswap_ushort(extlen);
+#else
+			len = __builtin_bswap16(extlen);
+#endif
+		} else if (len == 127) {
+			uint64_t extlen;
+
+			p.recv(span((uint8_t*)&extlen, sizeof(extlen)));
+
+			if (!p.open)
+				break;
+
+#ifdef _MSC_VER
+			len = _byteswap_uint64(extlen);
+#else
+			len = __builtin_bswap64(extlen);
+#endif
+		}
+
+		char mask_key[4];
+
+		if (h.mask) {
+			p.recv(span((uint8_t*)&mask_key, sizeof(mask_key)));
+
+			if (!p.open)
+				break;
+		}
+
+		vector<uint8_t> payload;
+
+		if (len > 0) {
+			payload.resize(len);
+			p.recv(payload);
+		}
+
+		if (!p.open)
+			break;
+
+		if (h.mask) {
+			// FIXME - speed this up by treating mask_key as uint32_t?
+			for (unsigned int i = 0; i < payload.size(); i++) {
+				payload[i] ^= mask_key[i % 4];
+			}
+		}
+
+		if (!h.fin) {
+			if (h.opcode != ws::opcode::invalid)
+				p.last_opcode = h.opcode;
+
+			payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
+
+#ifdef WITH_ZLIB
+			if (!p.last_rsv1.has_value())
+				p.last_rsv1 = (bool)h.rsv1;
+#endif
+		} else if (!payloadbuf.empty()) {
+			payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
+#ifdef WITH_ZLIB
+			parse_ws_message(p, p.last_opcode, p.last_rsv1.value(), payloadbuf);
+			p.last_rsv1.reset();
+#else
+			parse_ws_message(p, p.last_opcode, payloadbuf);
+#endif
+			payloadbuf.clear();
+		} else {
+#ifdef WITH_ZLIB
+			parse_ws_message(p, h.opcode, h.rsv1, payload);
+#else
+			parse_ws_message(p, h.opcode, payload);
+#endif
+		}
+	}
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -579,7 +675,7 @@ namespace ws {
 				exception_ptr except;
 
 				try {
-					recv_thread();
+					recv_thread(*this);
 				} catch (...) {
 					except = current_exception();
 				}
@@ -946,102 +1042,6 @@ namespace ws {
 		return ret;
 	}
 #endif
-
-	void client_pimpl::recv_thread() {
-		vector<uint8_t> payloadbuf;
-
-		while (open) {
-			header h;
-
-			recv(span((uint8_t*)&h, sizeof(header)));
-
-			if (!open)
-				break;
-
-			auto len = (uint64_t)h.len;
-
-			if (len == 126) {
-				uint16_t extlen;
-
-				recv(span((uint8_t*)&extlen, sizeof(extlen)));
-
-				if (!open)
-					break;
-
-#ifdef _MSC_VER
-				len = _byteswap_ushort(extlen);
-#else
-				len = __builtin_bswap16(extlen);
-#endif
-			} else if (len == 127) {
-				uint64_t extlen;
-
-				recv(span((uint8_t*)&extlen, sizeof(extlen)));
-
-				if (!open)
-					break;
-
-#ifdef _MSC_VER
-				len = _byteswap_uint64(extlen);
-#else
-				len = __builtin_bswap64(extlen);
-#endif
-			}
-
-			char mask_key[4];
-
-			if (h.mask) {
-				recv(span((uint8_t*)&mask_key, sizeof(mask_key)));
-
-				if (!open)
-					break;
-			}
-
-			vector<uint8_t> payload;
-
-			if (len > 0) {
-				payload.resize(len);
-				recv(payload);
-			}
-
-			if (!open)
-				break;
-
-			if (h.mask) {
-				// FIXME - speed this up by treating mask_key as uint32_t?
-				for (unsigned int i = 0; i < payload.size(); i++) {
-					payload[i] ^= mask_key[i % 4];
-				}
-			}
-
-			if (!h.fin) {
-				if (h.opcode != opcode::invalid)
-					last_opcode = h.opcode;
-
-				payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
-
-#ifdef WITH_ZLIB
-				if (!last_rsv1.has_value())
-					last_rsv1 = (bool)h.rsv1;
-#endif
-			} else if (!payloadbuf.empty()) {
-				payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
-#ifdef WITH_ZLIB
-				parse_ws_message(*this, last_opcode, last_rsv1.value(), payloadbuf);
-				last_rsv1.reset();
-#else
-				parse_ws_message(*this, last_opcode, payloadbuf);
-#endif
-				payloadbuf.clear();
-			} else {
-#ifdef WITH_ZLIB
-				parse_ws_message(*this, h.opcode, h.rsv1, payload);
-#else
-				parse_ws_message(*this, h.opcode, payload);
-#endif
-			}
-		}
-	}
 
 	void client::join() const {
 		if (impl->t)
