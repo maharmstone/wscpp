@@ -157,8 +157,6 @@ namespace ws {
 					 bool enc);
 		~client_pimpl();
 
-		void recv(std::span<uint8_t> sp);
-
 		client& parent;
 		std::string host;
 		uint16_t port;

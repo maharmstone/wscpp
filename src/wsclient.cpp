@@ -621,13 +621,85 @@ static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<c
 	}
 }
 
+static void recv(ws::client_pimpl& p, span<uint8_t> sp) {
+	int bytes, err = 0;
+
+	if (sp.empty())
+		return;
+
+	if (!p.recvbuf.empty()) {
+		auto to_copy = min(sp.size(), p.recvbuf.length());
+
+		memcpy(sp.data(), p.recvbuf.data(), to_copy);
+		p.recvbuf = p.recvbuf.substr(to_copy);
+
+		if (sp.size() == to_copy)
+			return;
+
+		sp = sp.subspan(to_copy);
+	}
+
+	do {
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		if (p.ssl) {
+			bytes = p.ssl->recv(sp);
+
+			if (p.open)
+				return;
+		} else {
+#endif
+			bytes = recv(p.sock, (char*)sp.data(), (int)sp.size(), 0);
+#ifdef _WIN32
+			if (bytes == SOCKET_ERROR) {
+				err = WSAGetLastError();
+				break;
+			}
+#else
+			if (bytes == -1) {
+				err = errno;
+				break;
+			}
+#endif
+
+			if (bytes == 0) {
+				p.open = false;
+				return;
+			}
+
+			sp = sp.subspan(bytes);
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		}
+#endif
+	} while (!sp.empty());
+
+#ifdef _WIN32
+	if (bytes == SOCKET_ERROR) {
+		if (err == WSAECONNRESET) {
+			p.open = false;
+			return;
+		}
+
+		throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
+	}
+#else
+	if (bytes == -1) {
+		if (err == ECONNRESET) {
+			p.open = false;
+			return;
+		}
+
+		throw formatted_error("recv failed ({}).", errno_to_string(err));
+	}
+#endif
+}
+
 static void recv_thread(ws::client_pimpl& p) {
 	vector<uint8_t> payloadbuf;
 
 	while (p.open) {
 		ws::header h;
 
-		p.recv(span((uint8_t*)&h, sizeof(h)));
+		recv(p, span((uint8_t*)&h, sizeof(h)));
 
 		if (!p.open)
 			break;
@@ -637,7 +709,7 @@ static void recv_thread(ws::client_pimpl& p) {
 		if (len == 126) {
 			uint16_t extlen;
 
-			p.recv(span((uint8_t*)&extlen, sizeof(extlen)));
+			recv(p, span((uint8_t*)&extlen, sizeof(extlen)));
 
 			if (!p.open)
 				break;
@@ -650,7 +722,7 @@ static void recv_thread(ws::client_pimpl& p) {
 		} else if (len == 127) {
 			uint64_t extlen;
 
-			p.recv(span((uint8_t*)&extlen, sizeof(extlen)));
+			recv(p, span((uint8_t*)&extlen, sizeof(extlen)));
 
 			if (!p.open)
 				break;
@@ -665,7 +737,7 @@ static void recv_thread(ws::client_pimpl& p) {
 		char mask_key[4];
 
 		if (h.mask) {
-			p.recv(span((uint8_t*)&mask_key, sizeof(mask_key)));
+			recv(p, span((uint8_t*)&mask_key, sizeof(mask_key)));
 
 			if (!p.open)
 				break;
@@ -675,7 +747,7 @@ static void recv_thread(ws::client_pimpl& p) {
 
 		if (len > 0) {
 			payload.resize(len);
-			p.recv(payload);
+			recv(p, payload);
 		}
 
 		if (!p.open)
@@ -970,78 +1042,6 @@ namespace ws {
 		} else
 #endif
 			::send(*impl, payload, opcode, false, timeout);
-	}
-
-	void client_pimpl::recv(span<uint8_t> sp) {
-		int bytes, err = 0;
-
-		if (sp.empty())
-			return;
-
-		if (!recvbuf.empty()) {
-			auto to_copy = min(sp.size(), recvbuf.length());
-
-			memcpy(sp.data(), recvbuf.data(), to_copy);
-			recvbuf = recvbuf.substr(to_copy);
-
-			if (sp.size() == to_copy)
-				return;
-
-			sp = sp.subspan(to_copy);
-		}
-
-		do {
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (ssl) {
-				bytes = ssl->recv(sp);
-
-				if (open)
-					return;
-			} else {
-#endif
-				bytes = ::recv(sock, (char*)sp.data(), (int)sp.size(), 0);
-#ifdef _WIN32
-				if (bytes == SOCKET_ERROR) {
-					err = WSAGetLastError();
-					break;
-				}
-#else
-				if (bytes == -1) {
-					err = errno;
-					break;
-				}
-#endif
-
-				if (bytes == 0) {
-					open = false;
-					return;
-				}
-
-				sp = sp.subspan(bytes);
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			}
-#endif
-		} while (!sp.empty());
-
-#ifdef _WIN32
-		if (bytes == SOCKET_ERROR) {
-			if (err == WSAECONNRESET) {
-				open = false;
-				return;
-			}
-
-			throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
-		}
-#else
-		if (bytes == -1) {
-			if (err == ECONNRESET) {
-				open = false;
-				return;
-			}
-
-			throw formatted_error("recv failed ({}).", errno_to_string(err));
-		}
-#endif
 	}
 
 	void client::join() const {
