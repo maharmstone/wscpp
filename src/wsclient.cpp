@@ -120,6 +120,146 @@ static string random_key() {
 	return b64encode(span((uint8_t*)rand, 16));
 }
 
+#ifdef _WIN32
+static void send_auth_response(ws::client_pimpl& p, string_view auth_type, string_view auth_msg, const string& req) {
+	SECURITY_STATUS sec_status;
+	TimeStamp timestamp;
+	SecBuffer inbufs[2], outbuf;
+	SecBufferDesc in, out;
+	unsigned long context_attr;
+	u16string auth_typew = utf8_to_utf16(auth_type);
+	u16string spn;
+
+	if (auth_type == "Negotiate" && p.fqdn.empty())
+		throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
+
+	if (!SecIsValidHandle(&p.cred_handle)) {
+		sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
+												nullptr, nullptr, nullptr, &p.cred_handle, &timestamp);
+		if (FAILED(sec_status))
+			throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
+	}
+
+	auto auth = b64decode(auth_msg);
+
+	if (!auth_msg.empty()) {
+		inbufs[0].cbBuffer = (unsigned long)auth.size();
+		inbufs[0].BufferType = SECBUFFER_TOKEN;
+		inbufs[0].pvBuffer = auth.data();
+
+		inbufs[1].cbBuffer = 0;
+		inbufs[1].BufferType = SECBUFFER_EMPTY;
+		inbufs[1].pvBuffer = nullptr;
+
+		in.ulVersion = SECBUFFER_VERSION;
+		in.cBuffers = 2;
+		in.pBuffers = inbufs;
+	}
+
+	outbuf.cbBuffer = 0;
+	outbuf.BufferType = SECBUFFER_TOKEN;
+	outbuf.pvBuffer = nullptr;
+
+	out.ulVersion = SECBUFFER_VERSION;
+	out.cBuffers = 1;
+	out.pBuffers = &outbuf;
+
+	if (auth_type == "Negotiate")
+		spn = u"HTTP/" + utf8_to_utf16(p.fqdn);
+
+	sec_status = InitializeSecurityContextW(&p.cred_handle, p.ctx_handle_set ? &p.ctx_handle : nullptr,
+											auth_type == "Negotiate" ? (SEC_WCHAR*)spn.c_str() : nullptr,
+											ISC_REQ_ALLOCATE_MEMORY, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
+											&p.ctx_handle, &out, &context_attr, &timestamp);
+	if (FAILED(sec_status))
+		throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
+
+	vector<uint8_t> sspi;
+
+	if (outbuf.cbBuffer > 0) {
+		auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
+		sspi.assign(sp.begin(), sp.end());
+	}
+
+	if (outbuf.pvBuffer)
+		FreeContextBuffer(outbuf.pvBuffer);
+
+	p.ctx_handle_set = true;
+
+	if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
+		sec_status == SEC_E_OK) {
+		auto b64 = b64encode(sspi);
+		auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
+
+		if (p.ssl)
+			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
+		else
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	}
+
+	// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
+}
+#else
+static void send_auth_response(ws::client_pimpl& p, string_view auth_type, string_view auth_msg, const string& req) {
+	OM_uint32 major_status, minor_status;
+	gss_buffer_desc recv_tok, send_tok, name_buf;
+	gss_name_t gss_name;
+
+	if (auth_type == "Negotiate" && p.fqdn.empty())
+		throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
+
+	if (p.cred_handle != 0) {
+		major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
+										GSS_C_INITIATE, &p.cred_handle, nullptr, nullptr);
+
+		if (major_status != GSS_S_COMPLETE)
+			throw gss_error("gss_acquire_cred", major_status, minor_status);
+	}
+
+	auto auth = b64decode(auth_msg);
+
+	recv_tok.length = auth.size();
+	recv_tok.value = auth.data();
+
+	string spn = "HTTP/" + p.fqdn;
+
+	name_buf.length = spn.length();
+	name_buf.value = (void*)spn.data();
+
+	major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
+	if (major_status != GSS_S_COMPLETE)
+		throw gss_error("gss_import_name", major_status, minor_status);
+
+	major_status = gss_init_sec_context(&minor_status, p.cred_handle, &p.ctx_handle, gss_name, GSS_C_NO_OID,
+										GSS_C_DELEG_FLAG, GSS_C_INDEFINITE, GSS_C_NO_CHANNEL_BINDINGS,
+										&recv_tok, nullptr, &send_tok, nullptr, nullptr);
+
+	if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
+		throw gss_error("gss_init_sec_context", major_status, minor_status);
+
+	if (send_tok.length != 0) {
+		vector<uint8_t> outbuf;
+
+		auto sp = span((uint8_t*)send_tok.value, send_tok.length);
+		outbuf.assign(sp.begin(), sp.end());
+
+		gss_release_buffer(&minor_status, &send_tok);
+
+		auto b64 = b64encode(outbuf);
+		auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
+
+#ifdef WITH_OPENSSL
+		if (p.ssl)
+			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
+		else
+#endif
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+
+		return;
+	}
+}
+#endif
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -308,148 +448,6 @@ namespace ws {
 		} while (true);
 	}
 
-#ifdef _WIN32
-	void client_pimpl::send_auth_response(string_view auth_type, string_view auth_msg, const string& req) {
-		SECURITY_STATUS sec_status;
-		TimeStamp timestamp;
-		SecBuffer inbufs[2], outbuf;
-		SecBufferDesc in, out;
-		unsigned long context_attr;
-		u16string auth_typew = utf8_to_utf16(auth_type);
-		u16string spn;
-
-		if (auth_type == "Negotiate" && fqdn.empty())
-			throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
-
-		if (!SecIsValidHandle(&cred_handle)) {
-			sec_status = AcquireCredentialsHandleW(nullptr, (SEC_WCHAR*)auth_typew.c_str(), SECPKG_CRED_OUTBOUND, nullptr,
-												   nullptr, nullptr, nullptr, &cred_handle, &timestamp);
-			if (FAILED(sec_status))
-				throw formatted_error("AcquireCredentialsHandle returned {}", (enum sec_error)sec_status);
-		}
-
-		auto auth = b64decode(auth_msg);
-
-		if (!auth_msg.empty()) {
-			inbufs[0].cbBuffer = (unsigned long)auth.size();
-			inbufs[0].BufferType = SECBUFFER_TOKEN;
-			inbufs[0].pvBuffer = auth.data();
-
-			inbufs[1].cbBuffer = 0;
-			inbufs[1].BufferType = SECBUFFER_EMPTY;
-			inbufs[1].pvBuffer = nullptr;
-
-			in.ulVersion = SECBUFFER_VERSION;
-			in.cBuffers = 2;
-			in.pBuffers = inbufs;
-		}
-
-		outbuf.cbBuffer = 0;
-		outbuf.BufferType = SECBUFFER_TOKEN;
-		outbuf.pvBuffer = nullptr;
-
-		out.ulVersion = SECBUFFER_VERSION;
-		out.cBuffers = 1;
-		out.pBuffers = &outbuf;
-
-		if (auth_type == "Negotiate")
-			spn = u"HTTP/" + utf8_to_utf16(fqdn);
-
-		sec_status = InitializeSecurityContextW(&cred_handle, ctx_handle_set ? &ctx_handle : nullptr,
-												auth_type == "Negotiate" ? (SEC_WCHAR*)spn.c_str() : nullptr,
-												ISC_REQ_ALLOCATE_MEMORY, 0, SECURITY_NATIVE_DREP, auth_msg.empty() ? nullptr : &in, 0,
-												&ctx_handle, &out, &context_attr, &timestamp);
-		if (FAILED(sec_status))
-			throw formatted_error("InitializeSecurityContext returned {}", (enum sec_error)sec_status);
-
-		vector<uint8_t> sspi;
-
-		if (outbuf.cbBuffer > 0) {
-			auto sp = span((uint8_t*)outbuf.pvBuffer, outbuf.cbBuffer);
-			sspi.assign(sp.begin(), sp.end());
-		}
-
-		if (outbuf.pvBuffer)
-			FreeContextBuffer(outbuf.pvBuffer);
-
-		ctx_handle_set = true;
-
-		if (sec_status == SEC_I_CONTINUE_NEEDED || sec_status == SEC_I_COMPLETE_AND_CONTINUE ||
-			sec_status == SEC_E_OK) {
-			auto b64 = b64encode(sspi);
-			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
-
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (ssl)
-				ssl->send(span((uint8_t*)msg.data(), msg.size()));
-			else
-#endif
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
-		}
-
-		// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
-	}
-#else
-	void client_pimpl::send_auth_response(string_view auth_type, string_view auth_msg, const string& req) {
-		OM_uint32 major_status, minor_status;
-		gss_buffer_desc recv_tok, send_tok, name_buf;
-		gss_name_t gss_name;
-
-		if (auth_type == "Negotiate" && fqdn.empty())
-			throw formatted_error("Cannot do Negotiate authentication as FQDN not found.");
-
-		if (cred_handle != 0) {
-			major_status = gss_acquire_cred(&minor_status, GSS_C_NO_NAME/*FIXME?*/, GSS_C_INDEFINITE, GSS_C_NO_OID_SET,
-											GSS_C_INITIATE, &cred_handle, nullptr, nullptr);
-
-			if (major_status != GSS_S_COMPLETE)
-				throw gss_error("gss_acquire_cred", major_status, minor_status);
-		}
-
-		auto auth = b64decode(auth_msg);
-
-		recv_tok.length = auth.size();
-		recv_tok.value = auth.data();
-
-		string spn = "HTTP/" + fqdn;
-
-		name_buf.length = spn.length();
-		name_buf.value = (void*)spn.data();
-
-		major_status = gss_import_name(&minor_status, &name_buf, GSS_C_NO_OID, &gss_name);
-		if (major_status != GSS_S_COMPLETE)
-			throw gss_error("gss_import_name", major_status, minor_status);
-
-		major_status = gss_init_sec_context(&minor_status, cred_handle, &ctx_handle, gss_name, GSS_C_NO_OID,
-											GSS_C_DELEG_FLAG, GSS_C_INDEFINITE, GSS_C_NO_CHANNEL_BINDINGS,
-											&recv_tok, nullptr, &send_tok, nullptr, nullptr);
-
-		if (major_status != GSS_S_CONTINUE_NEEDED && major_status != GSS_S_COMPLETE)
-			throw gss_error("gss_init_sec_context", major_status, minor_status);
-
-		if (send_tok.length != 0) {
-			vector<uint8_t> outbuf;
-
-			auto sp = span((uint8_t*)send_tok.value, send_tok.length);
-			outbuf.assign(sp.begin(), sp.end());
-
-			gss_release_buffer(&minor_status, &send_tok);
-
-			auto b64 = b64encode(outbuf);
-			auto msg = req + "Authorization: " + string(auth_type) + " " + b64 + "\r\n\r\n";
-
-#ifdef WITH_OPENSSL
-			if (ssl)
-				ssl->send(span((uint8_t*)msg.data(), msg.size()));
-			else
-#endif
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
-
-			return;
-		}
-	}
-#endif
-
 	void client_pimpl::send_handshake() {
 		bool again;
 		auto key = random_key();
@@ -538,10 +536,10 @@ namespace ws {
 
 #ifdef _WIN32
 				if (auth_type == "NTLM" || auth_type == "Negotiate")
-					send_auth_response(auth_type, auth_msg, req);
+					send_auth_response(*this, auth_type, auth_msg, req);
 #else
 				if (auth_type == "Negotiate")
-					send_auth_response(auth_type, auth_msg, req);
+					send_auth_response(*this, auth_type, auth_msg, req);
 #endif
 
 				again = true;
