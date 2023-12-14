@@ -486,6 +486,64 @@ static uint32_t random_mask() {
 }
 
 #ifdef WITH_ZLIB
+static vector<uint8_t> inflate_payload(ws::client_pimpl& p, span<const uint8_t> comp) {
+	int err;
+	vector<uint8_t> ret;
+
+	static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
+
+	if (!p.zstrm_in) {
+		p.zstrm_in.emplace();
+
+		auto& strm = p.zstrm_in.value();
+
+		strm.zalloc = Z_NULL;
+		strm.zfree = Z_NULL;
+		strm.opaque = Z_NULL;
+		strm.avail_in = 0;
+		strm.next_in = Z_NULL;
+
+		err = inflateInit2(&strm, -MAX_WBITS);
+		if (err != Z_OK)
+			throw formatted_error("inflateInit2 returned {}", err);
+	}
+
+	auto& strm = p.zstrm_in.value();
+
+	auto do_inflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
+		uint8_t buf[4096];
+		int err;
+
+		do {
+			strm.avail_in = (unsigned int)comp.size();
+			strm.next_in = (uint8_t*)comp.data();
+
+			do {
+				if (strm.avail_in == 0)
+					return;
+
+				strm.avail_out = sizeof(buf);
+				strm.next_out = buf;
+				err = inflate(&strm, Z_NO_FLUSH);
+
+				if (err != Z_OK && err != Z_STREAM_END)
+					throw formatted_error("inflate returned {}", err);
+
+				ret.insert(ret.end(), buf, buf + sizeof(buf) - strm.avail_out);
+			} while (strm.avail_out == 0);
+
+			comp = comp.subspan(comp.size() - strm.avail_in);
+		} while (err != Z_STREAM_END);
+	};
+
+	do_inflate(strm, ret, comp);
+	do_inflate(strm, ret, last_bit);
+
+	return ret;
+}
+#endif
+
+#ifdef WITH_ZLIB
 static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, bool rsv1, span<const uint8_t> payload)
 #else
 static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<const uint8_t> payload)
@@ -498,7 +556,7 @@ static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<c
 		if (!p.deflate)
 			throw runtime_error("RSV1 set unexpectedly.");
 
-		decomp = p.inflate_payload(payload);
+		decomp = inflate_payload(p, payload);
 	}
 #endif
 
@@ -984,64 +1042,6 @@ namespace ws {
 		}
 #endif
 	}
-
-#ifdef WITH_ZLIB
-	vector<uint8_t> client_pimpl::inflate_payload(span<const uint8_t> comp) {
-		int err;
-		vector<uint8_t> ret;
-
-		static const uint8_t last_bit[] = { 0x00, 0x00, 0xff, 0xff };
-
-		if (!zstrm_in) {
-			zstrm_in.emplace();
-
-			auto& strm = zstrm_in.value();
-
-			strm.zalloc = Z_NULL;
-			strm.zfree = Z_NULL;
-			strm.opaque = Z_NULL;
-			strm.avail_in = 0;
-			strm.next_in = Z_NULL;
-
-			err = inflateInit2(&strm, -MAX_WBITS);
-			if (err != Z_OK)
-				throw formatted_error("inflateInit2 returned {}", err);
-		}
-
-		auto& strm = zstrm_in.value();
-
-		auto do_inflate = [](z_stream& strm, vector<uint8_t>& ret, span<const uint8_t> comp) {
-			uint8_t buf[4096];
-			int err;
-
-			do {
-				strm.avail_in = (unsigned int)comp.size();
-				strm.next_in = (uint8_t*)comp.data();
-
-				do {
-					if (strm.avail_in == 0)
-						return;
-
-					strm.avail_out = sizeof(buf);
-					strm.next_out = buf;
-					err = inflate(&strm, Z_NO_FLUSH);
-
-					if (err != Z_OK && err != Z_STREAM_END)
-						throw formatted_error("inflate returned {}", err);
-
-					ret.insert(ret.end(), buf, buf + sizeof(buf) - strm.avail_out);
-				} while (strm.avail_out == 0);
-
-				comp = comp.subspan(comp.size() - strm.avail_in);
-			} while (err != Z_STREAM_END);
-		};
-
-		do_inflate(strm, ret, comp);
-		do_inflate(strm, ret, last_bit);
-
-		return ret;
-	}
-#endif
 
 	void client::join() const {
 		if (impl->t)

@@ -160,9 +160,6 @@ namespace ws {
 		void send_raw(std::span<const uint8_t> s, unsigned int timeout = 0) const;
 		void recv(std::span<uint8_t> sp);
 		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
-#ifdef WITH_ZLIB
-		std::vector<uint8_t> inflate_payload(std::span<const uint8_t> comp);
-#endif
 
 		client& parent;
 		std::string host;
