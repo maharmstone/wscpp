@@ -162,10 +162,7 @@ namespace ws {
 		void recv(std::span<uint8_t> sp);
 		void send(std::span<const uint8_t> payload, enum opcode opcode, bool rsv1, unsigned int timeout) const;
 #ifdef WITH_ZLIB
-		void parse_ws_message(enum opcode opcode, bool rsv1, std::span<const uint8_t> payload);
 		std::vector<uint8_t> inflate_payload(std::span<const uint8_t> comp);
-#else
-		void parse_ws_message(enum opcode opcode, std::span<const uint8_t> payload);
 #endif
 
 		client& parent;

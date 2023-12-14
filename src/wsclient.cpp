@@ -485,6 +485,56 @@ static uint32_t random_mask() {
 	return dist(rng);
 }
 
+#ifdef WITH_ZLIB
+static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, bool rsv1, span<const uint8_t> payload)
+#else
+static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<const uint8_t> payload)
+#endif
+{
+#ifdef WITH_ZLIB
+	vector<uint8_t> decomp;
+
+	if (rsv1) {
+		if (!p.deflate)
+			throw runtime_error("RSV1 set unexpectedly.");
+
+		decomp = p.inflate_payload(payload);
+	}
+#endif
+
+	switch (opcode) {
+		case ws::opcode::close:
+			p.open = false;
+			return;
+
+		case ws::opcode::ping:
+#ifdef WITH_ZLIB
+			if (rsv1)
+				p.parent.send(decomp, ws::opcode::pong);
+			else
+#endif
+				p.parent.send(payload, ws::opcode::pong);
+			break;
+
+		case ws::opcode::pong:
+			if (p.ping_sem.has_value())
+				p.ping_sem->release();
+			break;
+
+		default:
+			break;
+	}
+
+	if (p.msg_handler) {
+#ifdef WITH_ZLIB
+		if (rsv1)
+			p.msg_handler(p.parent, string_view((char*)decomp.data(), decomp.size()), opcode);
+		else
+#endif
+			p.msg_handler(p.parent, string_view((char*)payload.data(), payload.size()), opcode);
+	}
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -897,56 +947,6 @@ namespace ws {
 	}
 #endif
 
-#ifdef WITH_ZLIB
-	void client_pimpl::parse_ws_message(enum opcode opcode, bool rsv1, span<const uint8_t> payload)
-#else
-	void client_pimpl::parse_ws_message(enum opcode opcode, span<const uint8_t> payload)
-#endif
-	{
-#ifdef WITH_ZLIB
-		vector<uint8_t> decomp;
-
-		if (rsv1) {
-			if (!deflate)
-				throw runtime_error("RSV1 set unexpectedly.");
-
-			decomp = inflate_payload(payload);
-		}
-#endif
-
-		switch (opcode) {
-			case opcode::close:
-				open = false;
-				return;
-
-			case opcode::ping:
-#ifdef WITH_ZLIB
-				if (rsv1)
-					parent.send(decomp, opcode::pong);
-				else
-#endif
-					parent.send(payload, opcode::pong);
-				break;
-
-			case opcode::pong:
-				if (ping_sem.has_value())
-					ping_sem->release();
-				break;
-
-			default:
-				break;
-		}
-
-		if (msg_handler) {
-#ifdef WITH_ZLIB
-			if (rsv1)
-				msg_handler(parent, string_view((char*)decomp.data(), decomp.size()), opcode);
-			else
-#endif
-				msg_handler(parent, string_view((char*)payload.data(), payload.size()), opcode);
-		}
-	}
-
 	void client_pimpl::recv_thread() {
 		vector<uint8_t> payloadbuf;
 
@@ -1027,17 +1027,17 @@ namespace ws {
 			} else if (!payloadbuf.empty()) {
 				payloadbuf.insert(payloadbuf.end(), payload.data(), payload.data() + payload.size());
 #ifdef WITH_ZLIB
-				parse_ws_message(last_opcode, last_rsv1.value(), payloadbuf);
+				parse_ws_message(*this, last_opcode, last_rsv1.value(), payloadbuf);
 				last_rsv1.reset();
 #else
-				parse_ws_message(last_opcode, payloadbuf);
+				parse_ws_message(*this, last_opcode, payloadbuf);
 #endif
 				payloadbuf.clear();
 			} else {
 #ifdef WITH_ZLIB
-				parse_ws_message(h.opcode, h.rsv1, payload);
+				parse_ws_message(*this, h.opcode, h.rsv1, payload);
 #else
-				parse_ws_message(h.opcode, payload);
+				parse_ws_message(*this, h.opcode, payload);
 #endif
 			}
 		}
