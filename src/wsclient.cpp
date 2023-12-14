@@ -260,6 +260,162 @@ static void send_auth_response(ws::client_pimpl& p, string_view auth_type, strin
 }
 #endif
 
+static void send_handshake(ws::client_pimpl& p) {
+	bool again;
+	auto key = random_key();
+	string req = "GET "s + p.path + " HTTP/1.1\r\n"
+					"Host: "s + p.host + ":"s + to_string(p.port) + "\r\n"
+					"Upgrade: websocket\r\n"
+					"Connection: Upgrade\r\n"
+					"Sec-WebSocket-Key: "s + key + "\r\n"
+#ifdef WITH_ZLIB
+					"Sec-WebSocket-Extensions: permessage-deflate\r\n"
+#endif
+					"Sec-WebSocket-Version: 13\r\n";
+
+	{
+		const auto& msg = req + "\r\n";
+
+#if defined(WITH_OPENSSL) || defined(_WIN32)
+		if (p.ssl)
+			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
+		else
+#endif
+			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+	}
+
+	do {
+		string mess = p.recv_http();
+
+		if (!p.open)
+			throw formatted_error("Socket closed unexpectedly.");
+
+		again = false;
+
+		bool first = true;
+		size_t nl = mess.find("\r\n"), nl2 = 0;
+		map<string, string> headers;
+		unsigned int status = 0;
+
+		do {
+			if (first) {
+				size_t space = mess.find(" ");
+
+				if (space != string::npos && space <= nl) {
+					size_t space2 = mess.find(" ", space + 1);
+					string_view sv;
+
+					if (space2 == string::npos || space2 > nl)
+						sv = string_view{mess}.substr(space + 1, nl - space - 1);
+					else
+						sv = string_view{mess}.substr(space + 1, space2 - space - 1);
+
+					auto [ptr, ec] = from_chars(sv.data(), sv.data() + sv.length(), status);
+
+					if (ptr != sv.data() + sv.length())
+						throw formatted_error("Server returned invalid HTTP status \"{}\"", sv);
+				}
+
+				first = false;
+			} else {
+				size_t colon = mess.find(": ", nl2);
+
+				if (colon != string::npos) {
+					auto name = string_view(mess).substr(nl2, colon - nl2);
+
+					if (name == "Sec-WebSocket-Extensions" && headers.contains("Sec-WebSocket-Extensions"))
+						headers.at("Sec-WebSocket-Extensions") += ", " + mess.substr(colon + 2, nl - colon - 2);
+					else
+						headers.emplace(name, mess.substr(colon + 2, nl - colon - 2));
+				}
+			}
+
+			nl2 = nl + 2;
+			nl = mess.find("\r\n", nl2);
+		} while (nl != string::npos);
+
+		if (status == 401 && headers.count("WWW-Authenticate") != 0) {
+			const auto& h = headers.at("WWW-Authenticate");
+			auto st = h.find(" ");
+			string_view auth_type, auth_msg;
+
+			if (st == string::npos)
+				auth_type = h;
+			else {
+				auth_type = string_view(h).substr(0, st);
+				auth_msg = string_view(h).substr(st + 1);
+			}
+
+#ifdef _WIN32
+			if (auth_type == "NTLM" || auth_type == "Negotiate")
+				send_auth_response(p, auth_type, auth_msg, req);
+#else
+			if (auth_type == "Negotiate")
+				send_auth_response(p, auth_type, auth_msg, req);
+#endif
+
+			again = true;
+			continue;
+		}
+
+		if (status != 101)
+			throw formatted_error("Server returned HTTP status {}, expected 101.", status);
+
+		if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
+			throw formatted_error("Malformed response.");
+
+		if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
+			throw formatted_error("Invalid value for Sec-WebSocket-Accept.");
+
+#ifdef WITH_ZLIB
+		vector<string_view> exts;
+
+		if (headers.count("Sec-WebSocket-Extensions") != 0) {
+			const auto& ext = headers.at("Sec-WebSocket-Extensions");
+			string_view sv = ext;
+
+			do {
+				auto comma = sv.find(",");
+
+				if (comma == string::npos)
+					break;
+
+				auto sv2 = sv.substr(0, comma);
+
+				while (!sv2.empty() && sv2.back() == ' ') {
+					sv2.remove_suffix(1);
+				}
+
+				exts.emplace_back(sv2);
+
+				sv = sv.substr(comma + 1);
+
+				while (!sv.empty() && sv.front() == ' ') {
+					sv.remove_prefix(1);
+				}
+
+				if (sv.empty())
+					break;
+			} while (true);
+
+			while (!sv.empty() && sv.front() == ' ') {
+				sv.remove_prefix(1);
+			}
+
+			if (!sv.empty())
+				exts.emplace_back(sv);
+		}
+
+		// FIXME - permessage-deflate parameters
+
+		for (const auto& ext : exts) {
+			if (ext == "permessage-deflate")
+				p.deflate = true;
+		}
+#endif
+	} while (again);
+}
+
 namespace ws {
 	client::client(string_view host, uint16_t port, string_view path,
 				   const client_msg_handler& msg_handler, const client_disconn_handler& disconn_handler,
@@ -298,7 +454,7 @@ namespace ws {
 				throw runtime_error("Encryption requested but support has not been compiled in.");
 #endif
 
-			send_handshake();
+			send_handshake(*this);
 
 			t = make_unique<jthread>([&]() {
 				exception_ptr except;
@@ -446,162 +602,6 @@ namespace ws {
 
 			recvbuf += string((char*)s, bytes);
 		} while (true);
-	}
-
-	void client_pimpl::send_handshake() {
-		bool again;
-		auto key = random_key();
-		string req = "GET "s + path + " HTTP/1.1\r\n"
-					 "Host: "s + host + ":"s + to_string(port) + "\r\n"
-					 "Upgrade: websocket\r\n"
-					 "Connection: Upgrade\r\n"
-					 "Sec-WebSocket-Key: "s + key + "\r\n"
-#ifdef WITH_ZLIB
-					 "Sec-WebSocket-Extensions: permessage-deflate\r\n"
-#endif
-					 "Sec-WebSocket-Version: 13\r\n";
-
-		{
-			const auto& msg = req + "\r\n";
-
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-			if (ssl)
-				ssl->send(span((uint8_t*)msg.data(), msg.size()));
-			else
-#endif
-				send_raw(span((uint8_t*)msg.data(), msg.size()));
-		}
-
-		do {
-			string mess = recv_http();
-
-			if (!open)
-				throw formatted_error("Socket closed unexpectedly.");
-
-			again = false;
-
-			bool first = true;
-			size_t nl = mess.find("\r\n"), nl2 = 0;
-			map<string, string> headers;
-			unsigned int status = 0;
-
-			do {
-				if (first) {
-					size_t space = mess.find(" ");
-
-					if (space != string::npos && space <= nl) {
-						size_t space2 = mess.find(" ", space + 1);
-						string_view sv;
-
-						if (space2 == string::npos || space2 > nl)
-							sv = string_view{mess}.substr(space + 1, nl - space - 1);
-						else
-							sv = string_view{mess}.substr(space + 1, space2 - space - 1);
-
-						auto [ptr, ec] = from_chars(sv.data(), sv.data() + sv.length(), status);
-
-						if (ptr != sv.data() + sv.length())
-							throw formatted_error("Server returned invalid HTTP status \"{}\"", sv);
-					}
-
-					first = false;
-				} else {
-					size_t colon = mess.find(": ", nl2);
-
-					if (colon != string::npos) {
-						auto name = string_view(mess).substr(nl2, colon - nl2);
-
-						if (name == "Sec-WebSocket-Extensions" && headers.contains("Sec-WebSocket-Extensions"))
-							headers.at("Sec-WebSocket-Extensions") += ", " + mess.substr(colon + 2, nl - colon - 2);
-						else
-							headers.emplace(name, mess.substr(colon + 2, nl - colon - 2));
-					}
-				}
-
-				nl2 = nl + 2;
-				nl = mess.find("\r\n", nl2);
-			} while (nl != string::npos);
-
-			if (status == 401 && headers.count("WWW-Authenticate") != 0) {
-				const auto& h = headers.at("WWW-Authenticate");
-				auto st = h.find(" ");
-				string_view auth_type, auth_msg;
-
-				if (st == string::npos)
-					auth_type = h;
-				else {
-					auth_type = string_view(h).substr(0, st);
-					auth_msg = string_view(h).substr(st + 1);
-				}
-
-#ifdef _WIN32
-				if (auth_type == "NTLM" || auth_type == "Negotiate")
-					send_auth_response(*this, auth_type, auth_msg, req);
-#else
-				if (auth_type == "Negotiate")
-					send_auth_response(*this, auth_type, auth_msg, req);
-#endif
-
-				again = true;
-				continue;
-			}
-
-			if (status != 101)
-				throw formatted_error("Server returned HTTP status {}, expected 101.", status);
-
-			if (headers.count("Upgrade") == 0 || headers.count("Connection") == 0 || headers.count("Sec-WebSocket-Accept") == 0 || headers.at("Upgrade") != "websocket" || headers.at("Connection") != "Upgrade")
-				throw formatted_error("Malformed response.");
-
-			if (headers.at("Sec-WebSocket-Accept") != b64encode(sha1(key + MAGIC_STRING)))
-				throw formatted_error("Invalid value for Sec-WebSocket-Accept.");
-
-#ifdef WITH_ZLIB
-			vector<string_view> exts;
-
-			if (headers.count("Sec-WebSocket-Extensions") != 0) {
-				const auto& ext = headers.at("Sec-WebSocket-Extensions");
-				string_view sv = ext;
-
-				do {
-					auto comma = sv.find(",");
-
-					if (comma == string::npos)
-						break;
-
-					auto sv2 = sv.substr(0, comma);
-
-					while (!sv2.empty() && sv2.back() == ' ') {
-						sv2.remove_suffix(1);
-					}
-
-					exts.emplace_back(sv2);
-
-					sv = sv.substr(comma + 1);
-
-					while (!sv.empty() && sv.front() == ' ') {
-						sv.remove_prefix(1);
-					}
-
-					if (sv.empty())
-						break;
-				} while (true);
-
-				while (!sv.empty() && sv.front() == ' ') {
-					sv.remove_prefix(1);
-				}
-
-				if (!sv.empty())
-					exts.emplace_back(sv);
-			}
-
-			// FIXME - permessage-deflate parameters
-
-			for (const auto& ext : exts) {
-				if (ext == "permessage-deflate")
-					deflate = true;
-			}
-#endif
-		} while (again);
 	}
 
 	static uint32_t random_mask() {

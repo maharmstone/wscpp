@@ -157,7 +157,6 @@ namespace ws {
 					 bool enc);
 		~client_pimpl();
 
-		void send_handshake();
 		void send_raw(std::span<const uint8_t> s, unsigned int timeout = 0) const;
 		void set_send_timeout(unsigned int timeout) const;
 		std::string recv_http();
