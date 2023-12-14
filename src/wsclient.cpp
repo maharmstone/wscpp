@@ -120,6 +120,50 @@ static string random_key() {
 	return b64encode(span((uint8_t*)rand, 16));
 }
 
+static void set_send_timeout(const ws::client_pimpl& p, unsigned int timeout) {
+#ifdef _WIN32
+	DWORD tv = timeout * 1000;
+
+	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+		throw formatted_error("setsockopt returned {}.", wsa_error_to_string(WSAGetLastError()));
+#else
+	struct timeval tv;
+	tv.tv_sec = timeout;
+	tv.tv_usec = 0;
+
+	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
+		throw formatted_error("setsockopt returned {}.", errno_to_string(errno));
+#endif
+}
+
+void send_raw(const ws::client_pimpl& p, span<const uint8_t> s, unsigned int timeout) {
+	if (timeout != 0)
+		set_send_timeout(p, timeout);
+
+	try {
+		auto ret = ::send(p.sock, (char*)s.data(), (int)s.size(), 0);
+
+#ifdef _WIN32
+		if (ret == SOCKET_ERROR)
+			throw formatted_error("send failed (error {})", wsa_error_to_string(WSAGetLastError()));
+#else
+		if (ret == -1)
+			throw formatted_error("send failed (error {})", errno_to_string(errno));
+#endif
+
+		if ((size_t)ret < s.size())
+			throw formatted_error("send sent {} bytes, expected {}", ret, s.size());
+	} catch (...) {
+		if (timeout != 0)
+			set_send_timeout(p, 0);
+
+		throw;
+	}
+
+	if (timeout != 0)
+		set_send_timeout(p, 0);
+}
+
 #ifdef _WIN32
 static void send_auth_response(ws::client_pimpl& p, string_view auth_type, string_view auth_msg, const string& req) {
 	SECURITY_STATUS sec_status;
@@ -194,7 +238,7 @@ static void send_auth_response(ws::client_pimpl& p, string_view auth_type, strin
 		if (p.ssl)
 			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
 		else
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 	}
 
 	// FIXME - SEC_I_COMPLETE_NEEDED (and SEC_I_COMPLETE_AND_CONTINUE)?
@@ -253,7 +297,7 @@ static void send_auth_response(ws::client_pimpl& p, string_view auth_type, strin
 			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
 		else
 #endif
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 
 		return;
 	}
@@ -326,7 +370,7 @@ static void send_handshake(ws::client_pimpl& p) {
 			p.ssl->send(span((uint8_t*)msg.data(), msg.size()));
 		else
 #endif
-			p.send_raw(span((uint8_t*)msg.data(), msg.size()));
+			send_raw(p, span((uint8_t*)msg.data(), msg.size()));
 	}
 
 	do {
@@ -459,22 +503,6 @@ static void send_handshake(ws::client_pimpl& p) {
 		}
 #endif
 	} while (again);
-}
-
-static void set_send_timeout(const ws::client_pimpl& p, unsigned int timeout) {
-#ifdef _WIN32
-	DWORD tv = timeout * 1000;
-
-	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-		throw formatted_error("setsockopt returned {}.", wsa_error_to_string(WSAGetLastError()));
-#else
-	struct timeval tv;
-	tv.tv_sec = timeout;
-	tv.tv_usec = 0;
-
-	if (setsockopt(p.sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(tv)) != 0)
-		throw formatted_error("setsockopt returned {}.", errno_to_string(errno));
-#endif
 }
 
 static uint32_t random_mask() {
@@ -717,7 +745,7 @@ static void send(const ws::client_pimpl& p, span<const uint8_t> payload, enum ws
 			p.ssl->send(s);
 		else
 #endif
-			p.send_raw(s, timeout);
+			send_raw(p, s, timeout);
 	};
 
 	auto mask = random_mask();
@@ -884,34 +912,6 @@ namespace ws {
 		if (zstrm_out)
 			deflateEnd(&zstrm_out.value());
 #endif
-	}
-
-	void client_pimpl::send_raw(span<const uint8_t> s, unsigned int timeout) const {
-		if (timeout != 0)
-			set_send_timeout(*this, timeout);
-
-		try {
-			auto ret = ::send(sock, (char*)s.data(), (int)s.size(), 0);
-
-#ifdef _WIN32
-			if (ret == SOCKET_ERROR)
-				throw formatted_error("send failed (error {})", wsa_error_to_string(WSAGetLastError()));
-#else
-			if (ret == -1)
-				throw formatted_error("send failed (error {})", errno_to_string(errno));
-#endif
-
-			if ((size_t)ret < s.size())
-				throw formatted_error("send sent {} bytes, expected {}", ret, s.size());
-		} catch (...) {
-			if (timeout != 0)
-				set_send_timeout(*this, 0);
-
-			throw;
-		}
-
-		if (timeout != 0)
-			set_send_timeout(*this, 0);
 	}
 
 	void client::send(span<const uint8_t> payload, enum opcode opcode, unsigned int timeout) const {

@@ -339,7 +339,7 @@ namespace ws {
 	}
 
 	int client_ssl::ssl_write_cb(span<const uint8_t> sv) {
-		client.send_raw(sv);
+		send_raw(client, sv);
 
 		return (int)sv.size();
 	}
@@ -535,7 +535,7 @@ namespace ws {
 
 			if (!outstr.empty()) {
 				try {
-					client.send_raw(outstr);
+					send_raw(client, outstr);
 					outstr.clear();
 				} catch (...) {
 					FreeCredentialsHandle(&cred_handle);
@@ -662,7 +662,7 @@ namespace ws {
 
 		payload.resize(buf[0].cbBuffer + buf[1].cbBuffer + buf[2].cbBuffer);
 
-		client.send_raw(payload);
+		send_raw(client, payload);
 	}
 
 	void client_ssl::recv_raw(span<uint8_t> s) {

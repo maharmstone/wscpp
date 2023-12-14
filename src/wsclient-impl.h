@@ -157,7 +157,6 @@ namespace ws {
 					 bool enc);
 		~client_pimpl();
 
-		void send_raw(std::span<const uint8_t> s, unsigned int timeout = 0) const;
 		void recv(std::span<uint8_t> sp);
 
 		client& parent;
@@ -191,3 +190,5 @@ namespace ws {
 		std::optional<std::binary_semaphore> ping_sem;
     };
 }
+
+void send_raw(const ws::client_pimpl& p, std::span<const uint8_t> s, unsigned int timeout = 0);
