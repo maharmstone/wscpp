@@ -637,7 +637,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 	if (!p.open)
 		return;
 
-	p.state = p.state_enum::websocket;
+	p.state = ws::server_client_pimpl::state_enum::websocket;
 
 	if (p.conn_handler) {
 		try {
@@ -723,7 +723,7 @@ static void process_http_messages(ws::server_client_pimpl& p) {
 		vector<uint8_t> tmp{p.recvbuf.data() + dnl + 4, p.recvbuf.data() + p.recvbuf.size()};
 		p.recvbuf.swap(tmp);
 
-		if (p.state != p.state_enum::http)
+		if (p.state != ws::server_client_pimpl::state_enum::http)
 			break;
 	} while (true);
 }
@@ -878,10 +878,10 @@ static void read(ws::server_client_pimpl& p) {
 
 	p.recvbuf.insert(p.recvbuf.end(), msg.data(), msg.data() + msg.size());
 
-	if (p.state == p.state_enum::http)
+	if (p.state == ws::server_client_pimpl::state_enum::http)
 		process_http_messages(p);
 
-	if (p.state != p.state_enum::websocket)
+	if (p.state != ws::server_client_pimpl::state_enum::websocket)
 		return;
 
 	while (true) {
