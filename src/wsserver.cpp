@@ -563,7 +563,7 @@ static void handle_handshake(ws::server_client_pimpl& p, const map<string, strin
 
 	auto [ptr, ec] = from_chars(wsv.data(), wsv.data() + wsv.length(), version);
 
-	if (ptr != wsv.data() + wsv.length())
+	if (ptr != wsv.data() + wsv.length() || ec != errc())
 		throw runtime_error("Invalid Sec-WebSocket-Version value.");
 
 	if (version > 13) {
