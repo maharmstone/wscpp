@@ -652,7 +652,7 @@ namespace ws {
 		memcpy(buf[1].pvBuffer, sv.data(), sv.size());
 
 		bufdesc.ulVersion = SECBUFFER_VERSION;
-		bufdesc.cBuffers = buf.size();
+		bufdesc.cBuffers = (uint32_t)buf.size();
 		bufdesc.pBuffers = buf.data();
 
 		sec_status = EncryptMessage(&ctx_handle, 0, &bufdesc, 0);
