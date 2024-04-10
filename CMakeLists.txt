@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 
+project(wscpp
+	LANGUAGES CXX
+)
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-
-project(wscpp)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
