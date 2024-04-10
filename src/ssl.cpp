@@ -577,7 +577,7 @@ namespace ws {
 			inbuf[1].pvBuffer = nullptr;
 
 			in.ulVersion = SECBUFFER_VERSION;
-			in.cBuffers = inbuf.size();
+			in.cBuffers = (uint32_t)inbuf.size();
 			in.pBuffers = inbuf.data();
 
 			sec_status = InitializeSecurityContextW(&cred_handle, &ctx_handle, nullptr,
