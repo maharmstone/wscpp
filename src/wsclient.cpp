@@ -321,7 +321,7 @@ static string recv_http(ws::client_pimpl& p) {
 
 #if defined(WITH_OPENSSL) || defined(_WIN32)
 		if (p.ssl) {
-			bytes = p.ssl->recv(s);
+			bytes = (int)p.ssl->recv(s);
 
 			if (!p.open)
 				return "";
