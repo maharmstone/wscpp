@@ -466,7 +466,7 @@ namespace ws {
 		}
 	}
 
-	unsigned int client_ssl::recv(span<uint8_t> s) {
+	size_t client_ssl::recv(span<uint8_t> s) {
 		auto ret = SSL_read(ssl.get(), s.data(), (int)s.size());
 
 		if (ret <= 0) {
@@ -681,12 +681,12 @@ namespace ws {
 		}
 	}
 
-	unsigned int client_ssl::recv(span<uint8_t> s) {
+	size_t client_ssl::recv(span<uint8_t> s) {
 		SECURITY_STATUS sec_status;
 		array<SecBuffer, 4> secbuf;
 		SecBufferDesc bufdesc;
 		vector<uint8_t> recvbuf;
-		unsigned int copied = 0;
+		size_t copied = 0;
 
 		if (s.empty())
 			return 0;

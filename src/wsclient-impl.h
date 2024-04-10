@@ -129,7 +129,7 @@ namespace ws {
 		void recv_raw(std::span<uint8_t> s);
 #endif
 		void send(std::span<const uint8_t> sv);
-		unsigned int recv(std::span<uint8_t> s);
+		size_t recv(std::span<uint8_t> s);
 
 		std::exception_ptr exception;
 
