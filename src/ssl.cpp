@@ -667,7 +667,7 @@ namespace ws {
 
 	void client_ssl::recv_raw(span<uint8_t> s) {
 		while (!s.empty()) {
-			auto bytes = ::recv(client.sock, (char*)s.data(), s.size(), 0);
+			auto bytes = ::recv(client.sock, (char*)s.data(), (int)s.size(), 0);
 
 			if (bytes == SOCKET_ERROR)
 				throw formatted_error("recv failed ({}).", wsa_error_to_string(WSAGetLastError()));
