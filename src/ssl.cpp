@@ -720,7 +720,7 @@ namespace ws {
 			secbuf[3].BufferType = SECBUFFER_EMPTY;
 
 			bufdesc.ulVersion = SECBUFFER_VERSION;
-			bufdesc.cBuffers = secbuf.size();
+			bufdesc.cBuffers = (uint32_t)secbuf.size();
 			bufdesc.pBuffers = secbuf.data();
 
 			sec_status = DecryptMessage(&ctx_handle, &bufdesc, 0, nullptr);
