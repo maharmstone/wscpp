@@ -621,9 +621,110 @@ static void parse_ws_message(ws::client_pimpl& p, enum ws::opcode opcode, span<c
 	}
 }
 
-static void recv(ws::client_pimpl& p, span<uint8_t> sp) {
+#ifdef _WIN32
+static void recv2(ws::client_pimpl& p, span<uint8_t> sp) {
 	int bytes, err = 0;
 
+	do {
+		if (p.ssl) {
+			bytes = (int)p.ssl->recv(sp);
+
+			if (p.open)
+				return;
+		} else {
+			bytes = recv(p.sock, (char*)sp.data(), (int)sp.size(), 0);
+
+			if (bytes == SOCKET_ERROR) {
+				err = WSAGetLastError();
+				break;
+			}
+
+			if (bytes == 0) {
+				p.open = false;
+				return;
+			}
+
+			sp = sp.subspan(bytes);
+		}
+	} while (!sp.empty());
+
+	if (bytes == SOCKET_ERROR) {
+		if (err == WSAECONNRESET) {
+			p.open = false;
+			return;
+		}
+
+		throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
+	}
+}
+#elif defined(WITH_OPENSSL)
+static void recv2(ws::client_pimpl& p, span<uint8_t> sp) {
+	int bytes, err = 0;
+
+	do {
+		if (p.ssl) {
+			bytes = (int)p.ssl->recv(sp);
+
+			if (p.open)
+				return;
+		} else {
+			bytes = recv(p.sock, (char*)sp.data(), (int)sp.size(), 0);
+
+			if (bytes == -1) {
+				err = errno;
+				break;
+			}
+
+			if (bytes == 0) {
+				p.open = false;
+				return;
+			}
+
+			sp = sp.subspan(bytes);
+		}
+	} while (!sp.empty());
+
+	if (bytes == -1) {
+		if (err == ECONNRESET) {
+			p.open = false;
+			return;
+		}
+
+		throw formatted_error("recv failed ({}).", errno_to_string(err));
+	}
+}
+#else
+static void recv2(ws::client_pimpl& p, span<uint8_t> sp) {
+	int bytes, err = 0;
+
+	do {
+		bytes = recv(p.sock, (char*)sp.data(), (int)sp.size(), 0);
+
+		if (bytes == -1) {
+			err = errno;
+			break;
+		}
+
+		if (bytes == 0) {
+			p.open = false;
+			return;
+		}
+
+		sp = sp.subspan(bytes);
+	} while (!sp.empty());
+
+	if (bytes == -1) {
+		if (err == ECONNRESET) {
+			p.open = false;
+			return;
+		}
+
+		throw formatted_error("recv failed ({}).", errno_to_string(err));
+	}
+}
+#endif
+
+static void recv(ws::client_pimpl& p, span<uint8_t> sp) {
 	if (sp.empty())
 		return;
 
@@ -639,58 +740,7 @@ static void recv(ws::client_pimpl& p, span<uint8_t> sp) {
 		sp = sp.subspan(to_copy);
 	}
 
-	do {
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-		if (p.ssl) {
-			bytes = p.ssl->recv(sp);
-
-			if (p.open)
-				return;
-		} else {
-#endif
-			bytes = recv(p.sock, (char*)sp.data(), (int)sp.size(), 0);
-#ifdef _WIN32
-			if (bytes == SOCKET_ERROR) {
-				err = WSAGetLastError();
-				break;
-			}
-#else
-			if (bytes == -1) {
-				err = errno;
-				break;
-			}
-#endif
-
-			if (bytes == 0) {
-				p.open = false;
-				return;
-			}
-
-			sp = sp.subspan(bytes);
-#if defined(WITH_OPENSSL) || defined(_WIN32)
-		}
-#endif
-	} while (!sp.empty());
-
-#ifdef _WIN32
-	if (bytes == SOCKET_ERROR) {
-		if (err == WSAECONNRESET) {
-			p.open = false;
-			return;
-		}
-
-		throw formatted_error("recv failed ({}).", wsa_error_to_string(err));
-	}
-#else
-	if (bytes == -1) {
-		if (err == ECONNRESET) {
-			p.open = false;
-			return;
-		}
-
-		throw formatted_error("recv failed ({}).", errno_to_string(err));
-	}
-#endif
+	recv2(p, sp);
 }
 
 static void recv_thread(ws::client_pimpl& p) {
