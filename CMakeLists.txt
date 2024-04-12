@@ -74,9 +74,11 @@ install(TARGETS wscpp
 	PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-export(TARGETS wscpp FILE ${PROJECT_BINARY_DIR}/wscpp-targets.cmake)
+if(MSVC)
+    install(FILES $<TARGET_PDB_FILE:wscpp> DESTINATION bin OPTIONAL)
+endif()
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libwscpp.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+export(TARGETS wscpp FILE ${PROJECT_BINARY_DIR}/wscpp-targets.cmake)
 
 if(BUILD_SAMPLE)
 	find_package(PkgConfig REQUIRED)
@@ -86,7 +88,10 @@ if(BUILD_SAMPLE)
 	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
 	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsserver-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
+	if(MSVC)
+		install(FILES $<TARGET_PDB_FILE:wsserver-test> DESTINATION bin OPTIONAL)
+	endif()
 
 	add_executable(wsclient-test src/wsclient-test.cpp)
 	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -94,13 +99,19 @@ if(BUILD_SAMPLE)
 	target_link_libraries(wsclient-test wscpp)
 	target_link_libraries(wsclient-test ${READLINE_LINK_LIBRARIES})
 	install(TARGETS wsclient-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
+	if(MSVC)
+		install(FILES $<TARGET_PDB_FILE:wsclient-test> DESTINATION bin OPTIONAL)
+	endif()
 
 	add_executable(wsclient-test2 src/wsclient-test2.cpp)
 	target_include_directories(wsclient-test2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsclient-test2 wscpp)
 	install(TARGETS wsclient-test2 DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wsclient-test2.pdb" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+
+	if(MSVC)
+		install(FILES $<TARGET_PDB_FILE:wsclient-test2> DESTINATION bin OPTIONAL)
+	endif()
 endif()
 
 install(EXPORT wscpp-targets DESTINATION lib/cmake/wscpp)
@@ -128,6 +139,10 @@ if(BUILD_MODULE)
 		PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 		FILE_SET CXX_MODULES DESTINATION "lib/cmake/wscpp"
 	)
+
+	if(MSVC)
+		install(FILES $<TARGET_PDB_FILE:wscpp-mod> DESTINATION bin OPTIONAL)
+	endif()
 
 	export(TARGETS wscpp-mod
 		FILE ${PROJECT_BINARY_DIR}/wscpp-mod-targets.cmake)
