@@ -10,24 +10,29 @@ jobs:
       - run: git clone ${{ github.server_url }}/${{ github.repository }} ${SHORT_SHA}
       - run: cd ${SHORT_SHA} && git checkout ${{ github.sha }}
       - run: mkdir zlib && cd zlib && wget -qO- https://www.burntcomma.com/zlib-1.2.11-x86_64-pc-windows-msvc.tar.gz | tar -xz
+      - run: mkdir readline && cd readline && wget -qO- https://www.burntcomma.com/readline-5.0-x86_64-pc-windows-msvc.tar.gz | tar -xz
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
+            -DCMAKE_PREFIX_PATH="${PWD}/readline/debug" \
             -DCMAKE_INSTALL_PREFIX=${PWD}/build/debug \
             -DZLIB_ROOT="${PWD}/zlib/debug" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
+            -DREADLINE_INCLUDE_DIRS="${PWD}/readline/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
-            -DBUILD_SAMPLE=OFF \
+            -DBUILD_SAMPLE=ON \
             -DCMAKE_BUILD_TYPE=Debug \
             -S ${SHORT_SHA} -B build/debug-work && \
           cmake --build build/debug-work --parallel `nproc` && \
           cmake --install build/debug-work
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
+            -DCMAKE_PREFIX_PATH="${PWD}/readline" \
             -DCMAKE_INSTALL_PREFIX=${PWD}/build/release \
             -DZLIB_ROOT="${PWD}/zlib" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
+            -DREADLINE_INCLUDE_DIRS="${PWD}/readline/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
-            -DBUILD_SAMPLE=OFF \
+            -DBUILD_SAMPLE=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -S ${SHORT_SHA} -B build/release-work && \
           cmake --build build/release-work --parallel `nproc` && \
