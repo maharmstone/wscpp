@@ -61,6 +61,11 @@ target_compile_options(wscpp PRIVATE
 
 set_target_properties(wscpp PROPERTIES PUBLIC_HEADER src/wscpp.h)
 
+target_include_directories(wscpp PUBLIC
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
 if(WIN32 AND NOT MSVC)
 	target_link_options(wscpp PUBLIC -static -static-libgcc)
 endif()
@@ -85,7 +90,6 @@ if(BUILD_SAMPLE)
 	pkg_check_modules(READLINE REQUIRED readline)
 
 	add_executable(wsserver-test src/wsserver-test.cpp)
-	target_include_directories(wsserver-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsserver-test wscpp)
 	install(TARGETS wsserver-test DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 
@@ -94,7 +98,6 @@ if(BUILD_SAMPLE)
 	endif()
 
 	add_executable(wsclient-test src/wsclient-test.cpp)
-	target_include_directories(wsclient-test PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_include_directories(wsclient-test PUBLIC ${READLINE_INCLUDE_DIRS})
 	target_link_libraries(wsclient-test wscpp)
 	target_link_libraries(wsclient-test ${READLINE_LINK_LIBRARIES})
@@ -105,7 +108,6 @@ if(BUILD_SAMPLE)
 	endif()
 
 	add_executable(wsclient-test2 src/wsclient-test2.cpp)
-	target_include_directories(wsclient-test2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 	target_link_libraries(wsclient-test2 wscpp)
 	install(TARGETS wsclient-test2 DESTINATION "${CMAKE_INSTALL_FULL_BINDIR}")
 
