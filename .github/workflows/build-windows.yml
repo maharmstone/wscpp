@@ -13,7 +13,7 @@ jobs:
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
             -DCMAKE_INSTALL_PREFIX=${PWD}/build/debug \
-            -DCMAKE_FIND_ROOT_PATH=${PWD}/zlib \
+            -DZLIB_ROOT="${PWD}/zlib/debug" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
             -DBUILD_SAMPLE=OFF \
@@ -24,7 +24,7 @@ jobs:
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
             -DCMAKE_INSTALL_PREFIX=${PWD}/build/release \
-            -DCMAKE_FIND_ROOT_PATH=${PWD}/zlib \
+            -DZLIB_ROOT="${PWD}/zlib" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
             -DBUILD_SAMPLE=OFF \
