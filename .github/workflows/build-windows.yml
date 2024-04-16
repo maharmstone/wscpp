@@ -14,33 +14,32 @@ jobs:
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
             -DCMAKE_PREFIX_PATH="${PWD}/readline/debug" \
-            -DCMAKE_INSTALL_PREFIX=${PWD}/build/debug \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug -DCMAKE_INSTALL_INCLUDEDIR=../include \
             -DZLIB_ROOT="${PWD}/zlib/debug" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
             -DREADLINE_INCLUDE_DIRS="${PWD}/readline/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
             -DBUILD_SAMPLE=ON \
             -DCMAKE_BUILD_TYPE=Debug \
-            -S ${SHORT_SHA} -B build/debug-work && \
-          cmake --build build/debug-work --parallel `nproc` && \
-          cmake --install build/debug-work
+            -S ${SHORT_SHA} -B debug-work && \
+          cmake --build debug-work --parallel `nproc` && \
+          cmake --install debug-work
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
             -DCMAKE_PREFIX_PATH="${PWD}/readline" \
-            -DCMAKE_INSTALL_PREFIX=${PWD}/build/release \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install \
             -DZLIB_ROOT="${PWD}/zlib" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
             -DREADLINE_INCLUDE_DIRS="${PWD}/readline/include" \
             -DWITH_ZLIB=ON \
             -DWITH_OPENSSL=OFF \
             -DBUILD_SAMPLE=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -S ${SHORT_SHA} -B build/release-work && \
-          cmake --build build/release-work --parallel `nproc` && \
-          cmake --install build/release-work
+            -S ${SHORT_SHA} -B release-work && \
+          cmake --build release-work --parallel `nproc` && \
+          cmake --install release-work
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           overwrite: true
           path: |
-            build/debug
-            build/release
+            install
