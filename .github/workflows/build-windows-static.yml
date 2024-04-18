@@ -1,0 +1,42 @@
+name: build x86_64-pc-windows-msvc-static
+on: [push]
+env:
+   PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/etc/eselect/wine/bin
+jobs:
+  x86_64-pc-windows-msvc-static:
+    runs-on: msvc-wine
+    steps:
+      - run: echo "SHORT_SHA=`echo ${{ github.sha }} | cut -c1-8`" >> $GITHUB_ENV
+      - run: git clone ${{ github.server_url }}/${{ github.repository }} ${SHORT_SHA}
+      - run: cd ${SHORT_SHA} && git checkout ${{ github.sha }}
+      - run: mkdir zlib && cd zlib && wget -qO- https://www.burntcomma.com/zlib-1.2.11-x86_64-pc-windows-msvc.tar.gz | tar -xz
+      - run: |
+          cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug -DCMAKE_INSTALL_INCLUDEDIR=../include \
+            -DZLIB_ROOT="${PWD}/zlib/debug" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
+            -DWITH_ZLIB=ON \
+            -DWITH_OPENSSL=OFF \
+            -DBUILD_SAMPLE=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug \
+            -S ${SHORT_SHA} -B debug-work && \
+          cmake --build debug-work --parallel `nproc` && \
+          cmake --install debug-work
+      - run: |
+          cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install \
+            -DZLIB_ROOT="${PWD}/zlib" -DZLIB_INCLUDE_DIR="${PWD}/zlib/include" \
+            -DWITH_ZLIB=ON \
+            -DWITH_OPENSSL=OFF \
+            -DBUILD_SAMPLE=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+            -S ${SHORT_SHA} -B release-work && \
+          cmake --build release-work --parallel `nproc` && \
+          cmake --install release-work
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ github.sha }}
+          overwrite: true
+          path: |
+            install
