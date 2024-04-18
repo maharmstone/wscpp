@@ -5,6 +5,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/wscpp-targets.cmake")
 set(WSCPP_WITH_OPENSSL "@WITH_OPENSSL@")
 set(WSCPP_WITH_ZLIB "@WITH_ZLIB@")
 set(WSCPP_BUILD_MODULE "@BUILD_MODULE@")
+set(WSCPP_SHARED "@BUILD_SHARED_LIBS@")
 
 if(WSCPP_BUILD_MODULE)
 	include("${CMAKE_CURRENT_LIST_DIR}/wscpp-mod-targets.cmake")
@@ -22,4 +23,8 @@ check_required_components(wscpp)
 
 if(WSCPP_BUILD_MODULE)
 	check_required_components(wscpp-mod)
+endif()
+
+if(NOT WSCPP_SHARED)
+	add_definitions(-DWSCPP_STATIC)
 endif()
