@@ -151,3 +151,8 @@ if(BUILD_MODULE)
 
 	install(EXPORT wscpp-mod-targets DESTINATION lib/cmake/wscpp)
 endif()
+
+set(CPACK_PACKAGE_NAME wscpp-dev)
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Mark Harmstone")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev, libssl-dev")
+include(CPack)

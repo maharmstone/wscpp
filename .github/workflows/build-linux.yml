@@ -27,9 +27,28 @@ jobs:
             -S ${SHORT_SHA} -B release-work && \
           cmake --build release-work --parallel `nproc` && \
           cmake --install release-work
+      - run: |
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DWITH_ZLIB=ON \
+            -DWITH_OPENSSL=ON \
+            -DBUILD_SAMPLE=OFF \
+            -S ${SHORT_SHA} -B release-work && \
+          cmake --build release-work --parallel `nproc`
+      - run: |
+          cpack --config release-work/CPackConfig.cmake \
+            -G DEB \
+            -B package && \
+          mv package/*.deb .
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           overwrite: true
           path: |
             install
+      - uses: actions/upload-artifact@v3
+        with:
+          name: deb
+          overwrite: true
+          path: |
+            ./*.deb
