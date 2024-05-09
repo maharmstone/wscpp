@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.15)
+if(BUILD_MODULE)
+	cmake_minimum_required(VERSION 3.28)
+else()
+	cmake_minimum_required(VERSION 3.15)
+endif()
 
 project(wscpp
 	LANGUAGES CXX
@@ -125,8 +129,6 @@ configure_package_config_file(
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wscppConfig.cmake" DESTINATION "lib/cmake/wscpp")
 
 if(BUILD_MODULE)
-	cmake_minimum_required(VERSION 3.28)
-
 	add_library(wscpp-mod SHARED)
 	target_sources(wscpp-mod PUBLIC FILE_SET CXX_MODULES FILES src/mod.cpp)
 	target_compile_features(wscpp-mod PUBLIC cxx_std_20)
