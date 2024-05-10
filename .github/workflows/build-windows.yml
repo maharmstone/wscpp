@@ -10,7 +10,7 @@ jobs:
       - run: git clone ${{ github.server_url }}/${{ github.repository }} ${SHORT_SHA}
       - run: cd ${SHORT_SHA} && git checkout ${{ github.sha }}
       - run: mkdir zlib && cd zlib && wget -qO- https://www.burntcomma.com/packages/zlib-1.3.1-x86_64-pc-windows-msvc.tar.gz | tar -xz
-      - run: mkdir readline && cd readline && wget -qO- https://www.burntcomma.com/readline-5.0-x86_64-pc-windows-msvc.tar.gz | tar -xz
+      - run: mkdir readline && cd readline && wget -qO- https://www.burntcomma.com/packages/readline-5.0-x86_64-pc-windows-msvc.tar.gz | tar -xz
       - run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=msvc-amd64.cmake \
             -DCMAKE_PREFIX_PATH="${PWD}/readline/debug" \
