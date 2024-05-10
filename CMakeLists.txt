@@ -43,6 +43,11 @@ set(SRC_FILES src/wsclient.cpp
 
 add_library(wscpp ${SRC_FILES})
 
+if(BUILD_MODULE)
+	target_sources(wscpp PUBLIC FILE_SET CXX_MODULES FILES src/mod.cpp)
+	target_compile_features(wscpp PUBLIC cxx_std_20)
+endif()
+
 if(WIN32)
 	target_link_libraries(wscpp PUBLIC wsock32 ws2_32 secur32 ntdsapi crypt32)
 else()
@@ -81,6 +86,7 @@ install(TARGETS wscpp
 	LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 	PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 	PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+	FILE_SET CXX_MODULES DESTINATION "lib/cmake/wscpp"
 )
 
 if(MSVC AND BUILD_SHARED_LIBS)
@@ -127,31 +133,6 @@ configure_package_config_file(
 )
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wscppConfig.cmake" DESTINATION "lib/cmake/wscpp")
-
-if(BUILD_MODULE)
-	add_library(wscpp-mod SHARED)
-	target_sources(wscpp-mod PUBLIC FILE_SET CXX_MODULES FILES src/mod.cpp)
-	target_compile_features(wscpp-mod PUBLIC cxx_std_20)
-
-	install(TARGETS wscpp-mod
-		EXPORT wscpp-mod-targets
-		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-		ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-		LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-		PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-		PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-		FILE_SET CXX_MODULES DESTINATION "lib/cmake/wscpp"
-	)
-
-	if(MSVC)
-		install(FILES $<TARGET_PDB_FILE:wscpp-mod> DESTINATION bin OPTIONAL)
-	endif()
-
-	export(TARGETS wscpp-mod
-		FILE ${PROJECT_BINARY_DIR}/wscpp-mod-targets.cmake)
-
-	install(EXPORT wscpp-mod-targets DESTINATION lib/cmake/wscpp)
-endif()
 
 set(CPACK_PACKAGE_NAME wscpp-dev)
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Mark Harmstone")
