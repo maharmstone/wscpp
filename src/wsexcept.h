@@ -1502,3 +1502,20 @@ std::string wsa_error_to_string(int err);
 #else
 std::string errno_to_string(int err);
 #endif
+
+class sockets_error : public std::exception {
+public:
+#ifdef _WIN32
+	sockets_error(const char* func) : err(WSAGetLastError()), msg(std::string(func) + " failed (error " + wsa_error_to_string(err) + ")") { }
+#else
+	sockets_error(const char* func) : err(errno), msg(std::string(func) + " failed (error " + errno_to_string(err) + ")") { }
+#endif
+
+	virtual const char* what() const noexcept {
+		return msg.c_str();
+	}
+
+private:
+	int err;
+	std::string msg;
+};

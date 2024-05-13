@@ -81,19 +81,6 @@ namespace ws {
 	using server_conn_handler = std::function<void(server_client&)>;
 	using server_disconn_handler = std::function<void(server_client&, const std::exception_ptr&)>;
 
-	class sockets_error : public std::exception {
-	public:
-		sockets_error(const char* func);
-
-		virtual const char* what() const noexcept {
-			return msg.c_str();
-		}
-
-	private:
-		int err;
-		std::string msg;
-	};
-
 	class server;
 	class server_client_pimpl;
 

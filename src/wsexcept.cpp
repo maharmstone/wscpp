@@ -7,15 +7,6 @@
 
 using namespace std;
 
-namespace ws {
-#ifdef _WIN32
-    sockets_error::sockets_error(const char* func) : err(WSAGetLastError()), msg(string(func) + " failed (error " + wsa_error_to_string(err) + ")") {
-#else
-    sockets_error::sockets_error(const char* func) : err(errno), msg(string(func) + " failed (error " + errno_to_string(err) + ")") {
-#endif
-    }
-}
-
 #ifdef _WIN32
 string wsa_error_to_string(int err) {
 	switch (err) {
