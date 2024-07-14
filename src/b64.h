@@ -19,6 +19,18 @@
 static constexpr char base64_table[65] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+#if __cpp_lib_constexpr_string >= 201907
+#define WSCPP_CONSTEXPR_STRING constexpr
+#else
+#define WSCPP_CONSTEXPR_STRING
+#endif
+
+#if __cpp_lib_constexpr_vector >= 201907
+#define WSCPP_CONSTEXPR_VECTOR constexpr
+#else
+#define WSCPP_CONSTEXPR_VECTOR
+#endif
+
 /**
 * base64_encode - Base64 encode
 * @src: Data to be encoded
@@ -27,7 +39,7 @@ static constexpr char base64_table[65] =
 * Returns: Allocated buffer of out_len bytes of encoded data,
 * or empty string on failure
 */
-static constexpr std::string b64encode(std::span<const uint8_t> sv) {
+static WSCPP_CONSTEXPR_STRING std::string b64encode(std::span<const uint8_t> sv) {
 	const unsigned char* src = (const unsigned char*)sv.data();
 	size_t len = sv.size();
 	char *out, *pos;
@@ -72,7 +84,7 @@ static constexpr std::string b64encode(std::span<const uint8_t> sv) {
 	return outStr;
 }
 
-#ifndef __clang__ // doesn't work on Clang (17.0.6)
+#if !defined(__clang__) && __cpp_lib_constexpr_string >= 201907 // doesn't work on Clang (17.0.6)
 static_assert(b64encode({}) == "");
 static_assert(b64encode(std::vector<uint8_t>{'f'}) == "Zg==");
 static_assert(b64encode(std::vector<uint8_t>{'f','o'}) == "Zm8=");
@@ -94,7 +106,7 @@ static constexpr int B64index[256] = {
 	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
-static constexpr std::vector<uint8_t> b64decode(std::string_view sv) {
+static WSCPP_CONSTEXPR_VECTOR std::vector<uint8_t> b64decode(std::string_view sv) {
 	auto p = (char*)sv.data();
 	int pad = sv.length() > 0 && (sv.length() % 4 || p[sv.length() - 1] == '=');
 	const size_t L = ((sv.length() + 3) / 4 - pad) * 4;
@@ -122,6 +134,7 @@ static constexpr std::vector<uint8_t> b64decode(std::string_view sv) {
 	return str;
 }
 
+#if __cpp_lib_constexpr_vector >= 201907
 static_assert(b64decode("") == std::vector<uint8_t>{});
 static_assert(b64decode("Zg==") == std::vector<uint8_t>{'f'});
 static_assert(b64decode("Zm8=") == std::vector<uint8_t>{'f','o'});
@@ -130,3 +143,4 @@ static_assert(b64decode("Zm9vYg==") == std::vector<uint8_t>{'f','o','o','b'});
 static_assert(b64decode("Zm9vYmE=") == std::vector<uint8_t>{'f','o','o','b','a'});
 static_assert(b64decode("Zm9vYmFy") == std::vector<uint8_t>{'f','o','o','b','a','r'});
 static_assert(b64decode("wqM=") == std::vector<uint8_t>{0xc2, 0xa3});
+#endif
