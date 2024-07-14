@@ -288,7 +288,7 @@ static string ip_addr_string(const ws::server_client_pimpl& p) {
 	static const array<uint8_t, 12> ipv4_pref = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
 
 	if (!memcmp(p.ip_addr.data(), ipv4_pref.data(), ipv4_pref.size()))
-		return format("{}.{}.{}.{}", p.ip_addr[12], p.ip_addr[13], p.ip_addr[14], p.ip_addr[15]);
+		return fmtns::format("{}.{}.{}.{}", p.ip_addr[12], p.ip_addr[13], p.ip_addr[14], p.ip_addr[15]);
 	else {
 		char s[INET6_ADDRSTRLEN];
 

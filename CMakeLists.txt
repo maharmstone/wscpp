@@ -10,6 +10,7 @@ project(wscpp
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(CheckIncludeFileCXX)
 
 option(BUILD_SAMPLE "Build sample programs" ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
@@ -28,6 +29,12 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+
+CHECK_INCLUDE_FILE_CXX("format" HAS_STD_FORMAT)
+
+if(NOT HAS_STD_FORMAT)
+	find_package(fmt REQUIRED)
+endif()
 
 add_definitions(-DWSCPP_EXPORT)
 add_definitions(-D_WIN32_WINNT=0x0602)
@@ -60,6 +67,10 @@ endif()
 
 if(WITH_OPENSSL)
 	target_link_libraries(wscpp PUBLIC OpenSSL::Crypto OpenSSL::SSL)
+endif()
+
+if(NOT HAS_STD_FORMAT)
+	target_link_libraries(wscpp PUBLIC fmt::fmt-header-only)
 endif()
 
 target_compile_options(wscpp PRIVATE
